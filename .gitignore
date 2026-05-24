@@ -1,0 +1,22 @@
+# Streamlit secrets — NUNCA subir al repo
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# macOS metadata — causa errores en git index
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
