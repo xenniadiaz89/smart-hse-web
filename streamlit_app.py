@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
+import os
 from datetime import datetime, timedelta, date
 
 st.set_page_config(
@@ -16,8 +17,7 @@ def init():
         if k not in st.session_state: st.session_state[k]=v
 init()
 
-try:    APP_PW = st.secrets["APP_PASSWORD"]
-except: APP_PW = "smarthse2025"
+APP_PW = os.environ.get("APP_PASSWORD", "smarthse2025")
 
 # ── CSS ─────────────────────────────────────────────────────
 st.markdown("""
