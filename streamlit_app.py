@@ -12,7 +12,7 @@ st.set_page_config(
 
 # ── Estado ──────────────────────────────────────────────────
 def init():
-    for k,v in {"vista":"landing","auth":False,"contrato":"","actividad":"","lugar":"","ruta":""}.items():
+    for k,v in {"vista":"landing","auth":False,"contrato":"","actividad":"","lugar":"","ruta":"","incidentes":[]}.items():
         if k not in st.session_state: st.session_state[k]=v
 init()
 
@@ -170,12 +170,13 @@ def consola():
     st.title(f"Gestión Operativa: {faena}")
     st.caption(f"Smart HSE Chile · {datetime.today().strftime('%d/%m/%Y')} · Asesora Senior")
 
-    t1,t2,t3,t4,t5 = st.tabs([
+    t1,t2,t3,t4,t5,t6 = st.tabs([
         "⚡ Acción Inmediata",
         "📥 Motor Documental",
         "📊 GAP Analysis",
         "📄 Cartas N/A",
         "📅 Agenda",
+        "🚨 Incidentes",
     ])
 
     # ── TAB 1: Dashboard ────────────────────────────────────
@@ -317,6 +318,132 @@ Contrato N° {ncontrato.strip()}"""
                     use_container_width=True
                 )
                 st.markdown('<div class="nota">⚠️ <strong>Nota:</strong> Inserte logos corporativos y firma manualmente en Word antes de la presentación oficial.</div>',unsafe_allow_html=True)
+
+    # ── TAB 6: Registro de Incidentes ──────────────────────
+    with t6:
+        st.subheader("🚨 Registro de Incidentes y Eventos HSE")
+        st.caption("Registra accidentes, incidentes de alto potencial, casi accidentes y condiciones inseguras. Genera folio automático y descarga el registro en Excel.")
+
+        TIPOS_EVENTO = [
+            "Accidente con Tiempo Perdido (ATP)",
+            "Accidente sin Tiempo Perdido (ASTP)",
+            "Incidente de Alto Potencial (IAP)",
+            "Casi Accidente (CA)",
+            "Condición Insegura (CI)",
+            "Acto Inseguro (AI)",
+            "Enfermedad Profesional (EP)",
+        ]
+        SEVERIDADES = ["Leve", "Moderado", "Grave", "Fatal"]
+        PARTES_CUERPO = [
+            "Cabeza","Cuello","Hombro derecho","Hombro izquierdo",
+            "Brazo derecho","Brazo izquierdo","Mano derecha","Mano izquierda",
+            "Tórax / Espalda","Abdomen","Cadera","Pierna derecha","Pierna izquierda",
+            "Rodilla derecha","Rodilla izquierda","Pie derecho","Pie izquierdo",
+            "Ojos","Sin lesión física",
+        ]
+
+        with st.form("form_incidente", clear_on_submit=True):
+            st.markdown("#### 📋 Datos del Evento")
+            ri1, ri2, ri3 = st.columns(3)
+            fecha_inc  = ri1.date_input("Fecha del evento", value=date.today())
+            hora_inc   = ri2.time_input("Hora del evento", value=datetime.now().time())
+            tipo_ev    = ri3.selectbox("Tipo de evento", TIPOS_EVENTO)
+
+            ri4, ri5 = st.columns(2)
+            contrato_inc = ri4.selectbox("Contrato", CONTRATOS)
+            lugar_inc    = ri5.text_input("Lugar / Área específica", placeholder="Ej: Patio norte, Nivel -120, Sector chancado")
+
+            desc_inc = st.text_area("Descripción del evento", height=100,
+                placeholder="Describa qué ocurrió, cómo ocurrió y las condiciones del entorno al momento del evento.")
+
+            st.markdown("#### 👷 Personas Involucradas")
+            ri6, ri7 = st.columns(2)
+            trabajador = ri6.text_input("Nombre trabajador(es)", placeholder="Nombre completo o 'Sin lesionados'")
+            testigos   = ri7.text_input("Testigo(s)", placeholder="Nombre(s) o 'Sin testigos'")
+
+            ri8, ri9 = st.columns(2)
+            parte_cuerpo = ri8.selectbox("Parte del cuerpo afectada", PARTES_CUERPO)
+            severidad    = ri9.selectbox("Severidad", SEVERIDADES)
+
+            st.markdown("#### ⚡ Respuesta Inmediata")
+            acciones_imm = st.text_area("Acciones inmediatas tomadas", height=80,
+                placeholder="Ej: Se aisló el área, se prestó primeros auxilios, se trasladó al policlínico...")
+            requiere_inv = st.checkbox("¿Requiere investigación formal?", value=(tipo_ev in [
+                "Accidente con Tiempo Perdido (ATP)",
+                "Incidente de Alto Potencial (IAP)",
+                "Accidente sin Tiempo Perdido (ASTP)",
+            ]))
+
+            registrar = st.form_submit_button("🚨 Registrar Evento", type="primary", use_container_width=True)
+
+        if registrar:
+            n = len(st.session_state["incidentes"]) + 1
+            folio = f"INC-{fecha_inc.strftime('%Y%m%d')}-{n:03d}"
+            nuevo = {
+                "Folio":           folio,
+                "Fecha":           fecha_inc.isoformat(),
+                "Hora":            hora_inc.strftime("%H:%M"),
+                "Tipo de Evento":  tipo_ev,
+                "Contrato":        contrato_inc,
+                "Lugar":           lugar_inc,
+                "Descripción":     desc_inc,
+                "Trabajador(es)":  trabajador,
+                "Testigos":        testigos,
+                "Parte Cuerpo":    parte_cuerpo,
+                "Severidad":       severidad,
+                "Acciones Inmediatas": acciones_imm,
+                "Requiere Investigación": "Sí" if requiere_inv else "No",
+                "Registrado":      datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Faena":           faena,
+            }
+            st.session_state["incidentes"].append(nuevo)
+            if severidad in ["Grave","Fatal"] or "Alto Potencial" in tipo_ev:
+                st.error(f"⚠️ **EVENTO CRÍTICO registrado** — Folio: `{folio}`. Notifique de inmediato a la supervisión y al cliente.")
+            else:
+                st.success(f"✅ Evento registrado con folio **{folio}**.")
+
+        # ── Historial de incidentes ──
+        st.divider()
+        st.markdown("#### 📂 Historial de Eventos Registrados en Sesión")
+        inc_list = st.session_state["incidentes"]
+
+        if not inc_list:
+            st.info("Aún no hay eventos registrados en esta sesión.")
+        else:
+            df_inc = pd.DataFrame(inc_list)
+
+            # KPIs rápidos
+            ki1,ki2,ki3,ki4 = st.columns(4)
+            ki1.metric("Total eventos", len(df_inc))
+            ki2.metric("ATP / ASTP", int(df_inc["Tipo de Evento"].str.contains("Accidente").sum()))
+            ki3.metric("Alto Potencial", int(df_inc["Tipo de Evento"].str.contains("Alto Potencial").sum()))
+            ki4.metric("Requieren investigación", int((df_inc["Requiere Investigación"]=="Sí").sum()))
+
+            st.dataframe(df_inc, use_container_width=True, hide_index=True)
+
+            # ── Descarga Excel ──
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_inc.to_excel(writer, index=False, sheet_name="Registro Incidentes")
+                ws = writer.sheets["Registro Incidentes"]
+                # Ancho de columnas automático
+                for col in ws.columns:
+                    max_len = max(len(str(cell.value or "")) for cell in col)
+                    ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+            buffer.seek(0)
+
+            st.download_button(
+                label="⬇️ Descargar Registro Excel",
+                data=buffer,
+                file_name=f"Registro_Incidentes_{faena}_{date.today().isoformat()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True,
+            )
+
+            if st.button("🗑️ Limpiar registro de sesión", use_container_width=True):
+                st.session_state["incidentes"] = []
+                st.rerun()
 
     # ── TAB 5: Agenda ───────────────────────────────────────
     with t5:
