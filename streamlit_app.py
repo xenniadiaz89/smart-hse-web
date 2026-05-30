@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 import io
 import os
 from datetime import datetime, timedelta, date
+
+# Paleta de marca (logo Smart HSE)
+BRAND = {"navy":"#0E3A5F","blue":"#16609E","cyan":"#27AAE1","green":"#5BBA47",
+         "amber":"#F59E0B","red":"#EF4444"}
 
 st.set_page_config(
     page_title="Smart HSE Chile",
@@ -22,34 +27,85 @@ APP_PW = os.environ.get("APP_PASSWORD", "smarthse2025")
 # ── CSS ─────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Inter:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+:root{
+  --navy:#0E3A5F; --blue:#16609E; --cyan:#27AAE1; --green:#5BBA47;
+  --ink:#0E3A5F; --muted:#64748b; --line:#e2e8f0;
+}
 #MainMenu,footer,header{visibility:hidden}
 .block-container{padding:0!important;max-width:100%!important}
 section[data-testid="stSidebar"]{display:none}
 html,body,[class*="css"]{font-family:'Inter',sans-serif}
-/* Landing */
-.hero{background:#002B49;background-image:linear-gradient(rgba(0,43,73,.78),rgba(0,43,73,.78)),url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=2000&q=80');background-size:cover;background-position:center;padding:130px 20px;text-align:center;color:white;min-height:68vh;display:flex;flex-direction:column;justify-content:center;align-items:center}
-.hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:48px;max-width:900px;margin:0 auto 20px;text-transform:uppercase;line-height:1.15;text-shadow:2px 2px 6px rgba(0,0,0,.4)}
-.hero p{font-size:18px;max-width:720px;margin:0 auto 44px;font-weight:300;line-height:1.7}
-.btn-hero{background:#55B4B0;color:white;padding:16px 36px;border-radius:30px;font-weight:700;font-size:14px;text-decoration:none;text-transform:uppercase;letter-spacing:1px;display:inline-block}
-.cards{display:flex;justify-content:center;gap:24px;max-width:1200px;margin:-60px auto 60px;position:relative;z-index:10;padding:0 20px;flex-wrap:wrap}
-.card{background:white;padding:40px 22px;border-radius:16px;width:22%;min-width:200px;text-align:center;box-shadow:0 12px 36px rgba(0,0,0,.09);border-bottom:4px solid transparent;transition:transform .3s,border-color .3s}
-.card:hover{transform:translateY(-6px);border-bottom-color:#55B4B0}
-.card-icon{font-size:40px;margin-bottom:8px}
-.card h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#002B49;text-transform:uppercase;margin:14px 0 8px}
-.card p{font-size:13px;color:#64748b;line-height:1.6}
-.sh-footer{background:#002B49;color:#94A3B8;text-align:center;padding:48px 20px;font-size:13px;margin-top:40px}
-.sh-footer a{color:#55B4B0;text-decoration:none}
-.ftr-sep{border-top:1px solid #1a3a52;margin-top:20px;padding-top:16px;font-size:11px;color:#64748b}
-/* Consola */
-.kpi{background:linear-gradient(135deg,#002B49 0%,#1e3a5f 100%);border-radius:12px;padding:1.2rem 1.5rem;color:white;text-align:center;box-shadow:0 4px 14px rgba(0,43,73,.15);margin-bottom:8px}
-.kpi .val{font-size:2.4rem;font-weight:300}
-.kpi .lbl{font-size:.8rem;opacity:.8;margin-top:4px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) both}
+.fu2{animation:fadeUp .7s .12s cubic-bezier(.2,.7,.2,1) both}
+.fu3{animation:fadeUp .7s .24s cubic-bezier(.2,.7,.2,1) both}
+/* ── Hero ── */
+.hero{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--navy) 0%,var(--blue) 55%,#1f7fc0 100%);padding:120px 20px 150px;text-align:center;color:white;min-height:70vh;display:flex;flex-direction:column;justify-content:center;align-items:center}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 18%,rgba(91,186,71,.38),transparent 42%),radial-gradient(circle at 12% 88%,rgba(39,170,225,.45),transparent 45%);pointer-events:none}
+.hero::after{content:"";position:absolute;top:-30%;right:-12%;width:520px;height:520px;border:2px solid rgba(255,255,255,.07);border-radius:50%;box-shadow:0 0 0 60px rgba(255,255,255,.04);pointer-events:none}
+.hero>*{position:relative;z-index:2}
+.hero .eyebrow{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#dff3ff;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:7px 16px;border-radius:30px;margin-bottom:24px;backdrop-filter:blur(6px)}
+.hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:50px;max-width:940px;margin:0 auto 22px;text-transform:uppercase;line-height:1.12;text-shadow:0 4px 18px rgba(0,0,0,.25)}
+.hero h1 .hl{color:var(--green)}
+.hero p{font-size:18px;max-width:720px;margin:0 auto 40px;font-weight:300;line-height:1.7;color:#e8f4fb}
+.btn-hero{background:var(--cyan);color:white;padding:16px 38px;border-radius:30px;font-weight:700;font-size:14px;text-decoration:none;text-transform:uppercase;letter-spacing:1px;display:inline-block;box-shadow:0 10px 26px rgba(39,170,225,.45);transition:transform .25s,box-shadow .25s;margin:0 8px}
+.btn-hero:hover{transform:translateY(-3px);box-shadow:0 16px 34px rgba(39,170,225,.55)}
+.btn-ghost{background:transparent;color:white;padding:14px 34px;border-radius:30px;font-weight:700;font-size:14px;text-decoration:none;text-transform:uppercase;letter-spacing:1px;display:inline-block;border:2px solid rgba(255,255,255,.4);transition:background .25s;margin:0 8px}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+/* ── Banda de claims ── */
+.claims{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;max-width:980px;margin:36px auto 0}
+.claim{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);color:#eaf6ff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:30px;backdrop-filter:blur(6px)}
+.claim .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+/* ── Cards servicios ── */
+.cards{display:flex;justify-content:center;gap:22px;max-width:1180px;margin:-70px auto 70px;position:relative;z-index:10;padding:0 20px;flex-wrap:wrap}
+.card{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);padding:38px 22px;border-radius:18px;width:22%;min-width:210px;text-align:center;box-shadow:0 18px 44px rgba(14,58,95,.12);border:1px solid #eef3f8;border-top:4px solid transparent;transition:transform .3s,border-color .3s,box-shadow .3s}
+.card:hover{transform:translateY(-8px);border-top-color:var(--cyan);box-shadow:0 26px 56px rgba(22,96,158,.20)}
+.card-icon{font-size:30px;width:64px;height:64px;line-height:64px;margin:0 auto 6px;border-radius:16px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;box-shadow:0 8px 20px rgba(39,170,225,.35)}
+.card h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--ink);text-transform:uppercase;margin:16px 0 8px}
+.card p{font-size:13px;color:var(--muted);line-height:1.6}
+/* ── Secciones ── */
+.sec{max-width:1080px;margin:0 auto;padding:30px 20px 10px}
+.sec-tag{text-align:center;color:var(--cyan);font-weight:700;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.sec-h{text-align:center;font-family:'Montserrat',sans-serif;font-weight:800;font-size:30px;color:var(--ink);margin:0 0 8px}
+.sec-sub{text-align:center;color:var(--muted);font-size:15px;max-width:640px;margin:0 auto 38px;line-height:1.6}
+.steps{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+.step{flex:1;min-width:240px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px 24px;position:relative;transition:transform .3s,box-shadow .3s}
+.step:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(14,58,95,.10)}
+.step .num{font-family:'Montserrat',sans-serif;font-weight:900;font-size:42px;line-height:1;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+.step h4{font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--ink);margin:0 0 8px}
+.step p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}
+.step .arrow{position:absolute;right:-18px;top:50%;transform:translateY(-50%);color:var(--cyan);font-size:24px;font-weight:700}
+/* ── CTA / contacto ── */
+.ctaband{background:linear-gradient(120deg,var(--navy),var(--blue));border-radius:22px;max-width:1080px;margin:46px auto 10px;padding:8px;box-shadow:0 24px 60px rgba(14,58,95,.22)}
+/* ── Footer ── */
+.sh-footer{background:var(--navy);color:#9fb6c9;text-align:center;padding:52px 20px;font-size:13px;margin-top:46px}
+.sh-footer a{color:var(--cyan);text-decoration:none}
+.ftr-sep{border-top:1px solid rgba(255,255,255,.10);margin-top:22px;padding-top:16px;font-size:11px;color:#6f879b}
+/* ── Logo wordmark ── */
+.wm{font-family:'Montserrat',sans-serif;font-weight:900;letter-spacing:.5px}
+.wm .smart{color:var(--blue)} .wm .hse{color:var(--cyan)}
+.chip-chile{background:var(--cyan);color:white;font-weight:700;border-radius:4px;letter-spacing:3px;display:inline-block}
+/* ── Consola ── */
+.kpi{background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%);border-radius:14px;padding:1.2rem 1.5rem;color:white;text-align:center;box-shadow:0 8px 22px rgba(22,96,158,.22);margin-bottom:8px;border:1px solid rgba(255,255,255,.06)}
+.kpi.k-cyan{background:linear-gradient(135deg,var(--blue),var(--cyan))}
+.kpi.k-green{background:linear-gradient(135deg,#3c9e7a,var(--green))}
+.kpi .val{font-size:2.5rem;font-weight:300;line-height:1}
+.kpi .lbl{font-size:.8rem;opacity:.9;margin-top:6px;letter-spacing:.5px}
 .ar{background:#fef2f2;border-left:4px solid #ef4444;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
-.ag{background:#f0fdf4;border-left:4px solid #8DC63F;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
+.ag{background:#f0fdf4;border-left:4px solid var(--green);padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
 .aa{background:#fffbeb;border-left:4px solid #f59e0b;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
 .nota{background:#fff8e1;border-left:4px solid #FFA000;padding:12px 16px;border-radius:6px;font-size:.85rem}
-@media(max-width:768px){.cards{flex-direction:column;margin:-30px 16px 30px}.card{width:100%}.hero h1{font-size:28px}}
+/* ── Botones nativos Streamlit → cyan ── */
+.stButton>button[kind="primary"],.stForm button[kind="primaryFormSubmit"],.stDownloadButton>button{background:var(--cyan)!important;border-color:var(--cyan)!important}
+.stButton>button[kind="primary"]:hover,.stDownloadButton>button:hover{background:var(--blue)!important;border-color:var(--blue)!important}
+@media(max-width:768px){
+  .cards{flex-direction:column;margin:-40px 16px 40px}.card{width:100%}
+  .hero h1{font-size:30px}.hero{padding:90px 18px 120px}
+  .btn-hero,.btn-ghost{display:block;margin:8px auto;max-width:300px}
+  .steps{flex-direction:column}.step .arrow{display:none}
+  .sec-h{font-size:24px}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -103,29 +159,93 @@ def fecha_es(d=None):
 # VISTA LANDING
 # ════════════════════════════════════════════════════════════
 def landing():
+    # ── Navbar ──
     c1,c2,c3 = st.columns([2,4,2])
     with c1:
-        st.markdown("<div style='padding:10px 0 0 8px'><span style='font-family:Montserrat,sans-serif;font-weight:900;font-size:22px;color:#002B49'>SMART HSE</span><br><span style='background:#55B4B0;color:white;font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;letter-spacing:2px'>CHILE</span></div>",unsafe_allow_html=True)
+        st.markdown("<div class='wm' style='padding:10px 0 0 8px'><span style='font-size:22px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span><br><span class='chip-chile' style='font-size:9px;padding:1px 8px'>CHILE</span></div>",unsafe_allow_html=True)
     with c2:
-        st.markdown("<div style='padding-top:14px;text-align:center'><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Soluciones</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Tecnología</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Nosotros</span></div>",unsafe_allow_html=True)
+        st.markdown("<div style='padding-top:16px;text-align:center'><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Soluciones</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Tecnología</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Nosotros</span></div>",unsafe_allow_html=True)
     with c3:
         if st.button("🔒 Acceder a Consola",use_container_width=True,type="primary"):
             st.session_state["vista"]="login"; st.rerun()
     st.markdown("<hr style='margin:0;border:none;border-top:1px solid #e2e8f0'>",unsafe_allow_html=True)
+
+    # ── Hero + claims verificables ──
     st.markdown("""
     <div class="hero">
-        <h1>Revolucionando la gestión HSE transversal en Chile</h1>
-        <p>Potenciamos la seguridad, el cumplimiento normativo DS.44 y el crecimiento sostenible en minería y contratistas de todo el territorio.</p>
-        <a href="mailto:contacto@smarthse.cl" class="btn-hero">Descubra cómo simplificar el DS.44</a>
+        <div class="eyebrow fu">🛡️ Seguridad · Cumplimiento · Trazabilidad</div>
+        <h1 class="fu">Gestión HSE inteligente para la <span class="hl">minería</span> y contratistas de Chile</h1>
+        <p class="fu2">Centralizamos el cumplimiento DS.44, el estándar RESSO V9 de Codelco y la trazabilidad documental en una sola plataforma. Menos planillas, más control.</p>
+        <div class="fu3">
+            <a href="#contacto" class="btn-hero">Solicitar demo</a>
+            <a href="#consola" class="btn-ghost">Conocer la plataforma</a>
+        </div>
+        <div class="claims fu3">
+            <div class="claim"><span class="dot"></span>Cumplimiento DS.44</div>
+            <div class="claim"><span class="dot"></span>Estándar RESSO V9 · Codelco</div>
+            <div class="claim"><span class="dot"></span>Trazabilidad documental total</div>
+            <div class="claim"><span class="dot"></span>Minería y contratistas en todo Chile</div>
+        </div>
     </div>
     <div class="cards">
-        <div class="card"><div class="card-icon">⚠️</div><h3>Gestión de Riesgos</h3><p>Identificación, evaluación y control de peligros según DS.44 y normativa SERNAGEOMIN.</p></div>
-        <div class="card"><div class="card-icon">📋</div><h3>Cumplimiento Normativo</h3><p>Seguimiento en tiempo real de obligaciones legales mineras y vencimientos críticos.</p></div>
-        <div class="card"><div class="card-icon">📊</div><h3>Análisis y Datos</h3><p>Dashboards con KPIs de seguridad operacional y reportes ejecutivos automatizados.</p></div>
-        <div class="card"><div class="card-icon">🛡️</div><h3>Cultura de Seguridad</h3><p>Programas de capacitación y gestión del comportamiento seguro en terreno.</p></div>
+        <div class="card fu"><div class="card-icon">⚠️</div><h3>Gestión de Riesgos</h3><p>Identificación, evaluación y control de peligros según DS.44 y normativa SERNAGEOMIN.</p></div>
+        <div class="card fu"><div class="card-icon">📋</div><h3>Cumplimiento Normativo</h3><p>Seguimiento en tiempo real de obligaciones legales mineras y vencimientos críticos.</p></div>
+        <div class="card fu2"><div class="card-icon">📊</div><h3>Análisis y Datos</h3><p>Dashboards con KPIs de seguridad operacional y reportes ejecutivos automatizados.</p></div>
+        <div class="card fu2"><div class="card-icon">🛡️</div><h3>Cultura de Seguridad</h3><p>Programas de capacitación y gestión del comportamiento seguro en terreno.</p></div>
     </div>
+    """,unsafe_allow_html=True)
+
+    # ── Cómo funciona ──
+    st.markdown("""
+    <div class="sec">
+        <div class="sec-tag">Cómo funciona</div>
+        <div class="sec-h">De la planilla al reporte, en tres pasos</div>
+        <div class="sec-sub">Un flujo simple que ordena la documentación HSE de tus contratos sin perder trazabilidad.</div>
+        <div class="steps">
+            <div class="step"><div class="num">01</div><h4>Carga</h4><p>Sube matrices, registros FYS/ECF21 y documentos del contrato. El sistema los clasifica y renombra con el estándar correcto.</p><span class="arrow">→</span></div>
+            <div class="step"><div class="num">02</div><h4>Analiza</h4><p>Detecta brechas en tu GAP Analysis, identifica ítems No Aplicables y prioriza el foco del día por faena y cliente.</p><span class="arrow">→</span></div>
+            <div class="step"><div class="num">03</div><h4>Reporta</h4><p>Genera cartas de No Aplicabilidad, registros de incidentes y descargas en Excel listas para presentar al mandante.</p></div>
+        </div>
+    </div>
+    <div id="consola"></div>
+    """,unsafe_allow_html=True)
+
+    # ── Contacto (captura de lead) ──
+    st.markdown("<div id='contacto'></div>",unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sec">
+        <div class="sec-tag">Hablemos</div>
+        <div class="sec-h">Solicita una demostración</div>
+        <div class="sec-sub">Cuéntanos de tu operación y te mostramos cómo Smart HSE simplifica el cumplimiento DS.44 y RESSO en tus contratos.</div>
+    </div>
+    """,unsafe_allow_html=True)
+    _,fc,_ = st.columns([1,2,1])
+    with fc:
+        with st.form("lead"):
+            lc1,lc2 = st.columns(2)
+            l_nombre  = lc1.text_input("Nombre",placeholder="Tu nombre")
+            l_empresa = lc2.text_input("Empresa",placeholder="Empresa / contratista")
+            l_correo  = st.text_input("Correo electrónico",placeholder="correo@empresa.cl")
+            l_msg     = st.text_area("¿Qué necesitas resolver?",placeholder="Ej: ordenar la documentación RESSO de mi contrato con Codelco.",height=90)
+            enviar = st.form_submit_button("Solicitar demo →",type="primary",use_container_width=True)
+        if enviar:
+            if not l_nombre.strip() or not l_correo.strip():
+                st.error("Por favor completa al menos tu nombre y correo.")
+            else:
+                st.session_state.setdefault("leads",[]).append({
+                    "nombre":l_nombre,"empresa":l_empresa,"correo":l_correo,
+                    "mensaje":l_msg,"fecha":datetime.now().strftime("%Y-%m-%d %H:%M")})
+                asunto=f"Solicitud de demo — {l_empresa or l_nombre}".replace(" ","%20")
+                cuerpo=(f"Nombre: {l_nombre}%0D%0AEmpresa: {l_empresa}%0D%0ACorreo: {l_correo}"
+                        f"%0D%0A%0D%0AMensaje:%0D%0A{l_msg}").replace(" ","%20")
+                mailto=f"mailto:contacto@smarthse.cl?subject={asunto}&body={cuerpo}"
+                st.success(f"✅ ¡Gracias, {l_nombre.split()[0]}! Recibimos tu solicitud. Te contactaremos a la brevedad.")
+                st.markdown(f"<a href='{mailto}' class='btn-hero' style='margin-top:6px'>📧 Enviar también por correo</a>",unsafe_allow_html=True)
+
+    # ── Footer ──
+    st.markdown("""
     <div class="sh-footer">
-        <div style='font-family:Montserrat,sans-serif;font-weight:700;font-size:18px;color:white;letter-spacing:2px;margin-bottom:8px'>SMART HSE CHILE</div>
+        <div class="wm" style='font-size:20px;color:white;letter-spacing:1px;margin-bottom:8px'>SMART <span style='color:var(--cyan)'>HSE</span> CHILE</div>
         <p>Plataforma de gestión HSE para la minería y contratistas en Chile</p>
         <p style='margin-top:12px'><a href='mailto:contacto@smarthse.cl'>contacto@smarthse.cl</a> &nbsp;·&nbsp; <a href='https://smarthse.cl'>smarthse.cl</a></p>
         <div class='ftr-sep'>© 2025 Smart HSE Chile · Todos los derechos reservados.</div>
@@ -138,7 +258,7 @@ def login():
     st.markdown("<br><br><br>",unsafe_allow_html=True)
     _,col,_ = st.columns([1,1.2,1])
     with col:
-        st.markdown("<div style='text-align:center;margin-bottom:28px'><div style='font-family:Montserrat,sans-serif;font-weight:900;font-size:2.6rem;color:#002B49'>SMART HSE</div><div style='display:inline-block;background:#55B4B0;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:4px;letter-spacing:2px;margin-top:4px'>CHILE</div><p style='color:#64748b;margin-top:14px;font-weight:300;font-size:14px'>Consola de Gestión Operativa · DS.44</p></div>",unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center;margin-bottom:28px'><div class='wm' style='font-size:2.6rem'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:10px;padding:2px 12px;margin-top:6px'>CHILE</div><p style='color:#64748b;margin-top:14px;font-weight:300;font-size:14px'>Consola de Gestión Operativa · DS.44</p></div>",unsafe_allow_html=True)
         with st.form("login"):
             st.text_input("Correo electrónico",placeholder="correo@empresa.cl")
             pw=st.text_input("Contraseña",type="password")
@@ -156,7 +276,7 @@ def login():
 def consola():
     st.markdown("<style>section[data-testid='stSidebar']{display:flex!important}.block-container{padding:2rem!important;max-width:100%!important}</style>",unsafe_allow_html=True)
     with st.sidebar:
-        st.markdown("<div style='text-align:center;padding:14px 0 6px'><div style='font-family:Montserrat,sans-serif;font-weight:900;font-size:20px;color:#002B49'>SMART HSE</div><div style='display:inline-block;background:#55B4B0;color:white;font-size:9px;font-weight:700;padding:1px 8px;border-radius:3px;letter-spacing:2px'>CHILE</div></div>",unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center;padding:14px 0 6px'><div class='wm' style='font-size:20px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:9px;padding:1px 9px'>CHILE</div></div>",unsafe_allow_html=True)
         st.markdown("---")
         st.subheader("Selección de Faena")
         cliente=st.selectbox("Cliente:",list(ESTRUCTURA.keys()))
@@ -181,10 +301,13 @@ def consola():
 
     # ── TAB 1: Dashboard ────────────────────────────────────
     with t1:
+        n_tareas = len([a for a in ACTIVIDADES if a["cliente"]==cliente])
+        n_na     = sum(len(v) for v in NA_ITEMS.values())
+        n_inc    = len(st.session_state["incidentes"])
         c1,c2,c3=st.columns(3)
-        c1.markdown("<div class='kpi'><div class='val'>12</div><div class='lbl'>Documentos RESSO</div></div>",unsafe_allow_html=True)
-        c2.markdown("<div class='kpi'><div class='val'>45</div><div class='lbl'>Registros FYS</div></div>",unsafe_allow_html=True)
-        c3.markdown("<div class='kpi'><div class='val'>8</div><div class='lbl'>Ítems N/A detectados</div></div>",unsafe_allow_html=True)
+        c1.markdown(f"<div class='kpi'><div class='val'>{n_tareas}</div><div class='lbl'>Tareas activas · {cliente}</div></div>",unsafe_allow_html=True)
+        c2.markdown(f"<div class='kpi k-cyan'><div class='val'>{n_na}</div><div class='lbl'>Ítems N/A en catálogo</div></div>",unsafe_allow_html=True)
+        c3.markdown(f"<div class='kpi k-green'><div class='val'>{n_inc}</div><div class='lbl'>Incidentes en sesión</div></div>",unsafe_allow_html=True)
         st.divider()
         st.markdown("#### ⚡ Foco del Día — Top 3")
         acts=sorted([a for a in ACTIVIDADES if a["cliente"]==cliente],key=lambda x:x["dias"])[:3]
@@ -255,6 +378,21 @@ def consola():
                         cumplidos=df[col_est].astype(str).str.upper().str.contains("SI|CUMPLE|OK|COMPLETO",na=False).sum()
                         cm2.metric("Brechas",int(brechas),delta=f"-{int(brechas)}",delta_color="inverse")
                         cm3.metric("Cumplidos",int(cumplidos),delta=f"+{int(cumplidos)}")
+                        otros=max(total-int(brechas)-int(cumplidos),0)
+                        dona=pd.DataFrame({
+                            "Estado":["Cumplidos","Brechas","Otros"],
+                            "Cantidad":[int(cumplidos),int(brechas),otros]})
+                        dona=dona[dona["Cantidad"]>0]
+                        if not dona.empty:
+                            ch=alt.Chart(dona).mark_arc(innerRadius=58,cornerRadius=4).encode(
+                                theta=alt.Theta("Cantidad:Q",stack=True),
+                                color=alt.Color("Estado:N",scale=alt.Scale(
+                                    domain=["Cumplidos","Brechas","Otros"],
+                                    range=[BRAND["green"],BRAND["red"],BRAND["cyan"]]),
+                                    legend=alt.Legend(title=None,orient="bottom")),
+                                tooltip=["Estado","Cantidad"]
+                            ).properties(height=240,title="Cumplimiento normativo")
+                            st.altair_chart(ch,use_container_width=True)
                     else:
                         cm2.metric("Columna estado","No detectada")
                         cm3.metric("Filas con datos",total)
@@ -421,6 +559,31 @@ Contrato N° {ncontrato.strip()}"""
 
             st.dataframe(df_inc, use_container_width=True, hide_index=True)
 
+            # ── Gráficos ──
+            gc1, gc2 = st.columns(2)
+            by_tipo = df_inc["Tipo de Evento"].value_counts().reset_index()
+            by_tipo.columns = ["Tipo", "Cantidad"]
+            ch_tipo = alt.Chart(by_tipo).mark_bar(cornerRadiusEnd=4, color=BRAND["cyan"]).encode(
+                x=alt.X("Cantidad:Q", title=None),
+                y=alt.Y("Tipo:N", sort="-x", title=None),
+                tooltip=["Tipo", "Cantidad"]
+            ).properties(height=240, title="Eventos por tipo")
+            gc1.altair_chart(ch_tipo, use_container_width=True)
+
+            sev_order = ["Leve", "Moderado", "Grave", "Fatal"]
+            by_sev = df_inc["Severidad"].value_counts().reset_index()
+            by_sev.columns = ["Severidad", "Cantidad"]
+            ch_sev = alt.Chart(by_sev).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X("Severidad:N", sort=sev_order, title=None),
+                y=alt.Y("Cantidad:Q", title=None),
+                color=alt.Color("Severidad:N", scale=alt.Scale(
+                    domain=sev_order,
+                    range=[BRAND["green"], BRAND["amber"], "#EA580C", BRAND["red"]]),
+                    legend=None),
+                tooltip=["Severidad", "Cantidad"]
+            ).properties(height=240, title="Eventos por severidad")
+            gc2.altair_chart(ch_sev, use_container_width=True)
+
             # ── Descarga Excel ──
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -451,6 +614,22 @@ Contrato N° {ncontrato.strip()}"""
         df_ag=pd.DataFrame(ACTIVIDADES)
         df_ag.columns=["Actividad","Frecuencia","Días","Módulo","Cliente"]
         st.dataframe(df_ag,use_container_width=True,hide_index=True)
+
+        ag1,ag2=st.columns(2)
+        by_mod=df_ag["Módulo"].value_counts().reset_index()
+        by_mod.columns=["Módulo","Cantidad"]
+        ch_mod=alt.Chart(by_mod).mark_bar(cornerRadiusEnd=4,color=BRAND["blue"]).encode(
+            x=alt.X("Cantidad:Q",title=None),y=alt.Y("Módulo:N",sort="-x",title=None),
+            tooltip=["Módulo","Cantidad"]).properties(height=200,title="Actividades por módulo")
+        ag1.altair_chart(ch_mod,use_container_width=True)
+        by_frec=df_ag["Frecuencia"].value_counts().reset_index()
+        by_frec.columns=["Frecuencia","Cantidad"]
+        ch_frec=alt.Chart(by_frec).mark_arc(innerRadius=48,cornerRadius=4).encode(
+            theta="Cantidad:Q",
+            color=alt.Color("Frecuencia:N",scale=alt.Scale(range=[BRAND["cyan"],BRAND["green"],BRAND["amber"]]),
+                legend=alt.Legend(title=None,orient="bottom")),
+            tooltip=["Frecuencia","Cantidad"]).properties(height=200,title="Distribución por frecuencia")
+        ag2.altair_chart(ch_frec,use_container_width=True)
 
         st.divider(); st.subheader("🚀 Onboarding — Datos del Contrato")
         st.info(f"Estructura activa: **{st.session_state['ruta']}**")
