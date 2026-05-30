@@ -15,11 +15,15 @@ def _b64(rel):
     except Exception:
         return ""
 
-# Usa el logo oficial si existe; si no, cae al emblema.
-_LOGO_REL = "assets/logo_smarthse.png" if (pathlib.Path(_BASE) / "assets/logo_smarthse.png").exists() else "assets/logo_mark.png"
-_LOGO_B64 = _b64(_LOGO_REL)
-LOGO_URI = f"data:image/png;base64,{_LOGO_B64}" if _LOGO_B64 else ""
-_HAS_FULL_LOGO = _LOGO_REL.endswith("logo_smarthse.png")
+# Logo oficial: versión completa (con texto) y emblema solo.
+def _uri(rel):
+    b = _b64(rel)
+    return f"data:image/png;base64,{b}" if b else ""
+_FULL = _uri("assets/logo_smarthse.png")
+_MARK = _uri("assets/logo_mark.png")
+LOGO_FULL_URI = _FULL or _MARK
+LOGO_MARK_URI = _MARK or _FULL
+_HAS_FULL_LOGO = bool(_FULL)
 _FAVICON = os.path.join(_BASE, "assets", "favicon.png")
 
 st.set_page_config(
@@ -29,8 +33,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-def logo_img(height=46):
-    return f"<img src='{LOGO_URI}' style='height:{height}px;width:auto;display:inline-block'/>" if LOGO_URI else ""
+def logo_img(height=46, mark=False):
+    uri = LOGO_MARK_URI if mark else LOGO_FULL_URI
+    return f"<img src='{uri}' style='height:{height}px;width:auto;display:inline-block'/>" if uri else ""
 
 # ── Estado ───────────────────────────────────────────────────
 if "leads" not in st.session_state:
@@ -140,8 +145,8 @@ a{text-decoration:none}
 # ════════════════════════════════════════════════════════════
 # NAV
 # ════════════════════════════════════════════════════════════
-_logo_block = logo_img(48) if _HAS_FULL_LOGO else (
-    f"{logo_img(46)}<div class='wm'><span style='font-size:21px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span>"
+_logo_block = logo_img(52) if _HAS_FULL_LOGO else (
+    f"{logo_img(46, mark=True)}<div class='wm'><span style='font-size:21px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span>"
     f"<br><span class='chip-chile' style='font-size:9px;padding:1px 8px'>CHILE</span></div>"
 )
 st.markdown(f"""
@@ -165,7 +170,7 @@ st.markdown(f"""
 st.markdown(f"""
 <div id="inicio"></div>
 <div class="hero">
-  <div class="hero-logo fu">{logo_img(78)}</div>
+  <div class="hero-logo fu">{logo_img(80, mark=True)}</div>
   <div class="eyebrow fu">🛡️ Seguridad · Salud Ocupacional · Medio Ambiente</div>
   <h1 class="fu">Gestión HSE inteligente para <span class="hl">todas las áreas laborales</span> de Chile</h1>
   <p class="fu2">Acompañamos a empresas de cualquier sector a cumplir el DS.44, prevenir riesgos y construir cultura de seguridad — con tecnología, trazabilidad total y asesoría experta.</p>
@@ -304,7 +309,7 @@ with fc:
 # ════════════════════════════════════════════════════════════
 st.markdown(f"""
 <div class="sh-footer">
-  <div style="margin-bottom:12px">{logo_img(54)}</div>
+  <div style="margin-bottom:12px">{logo_img(60, mark=True)}</div>
   <div class="wm" style="font-size:20px;color:#fff;letter-spacing:1px;margin-bottom:8px">SMART <span style="color:var(--cyan)">HSE</span> CHILE</div>
   <p>Gestión HSE para todas las áreas laborales de Chile · Cumplimiento DS.44</p>
   <p style="margin-top:12px"><a href="mailto:contacto@smarthse.cl">contacto@smarthse.cl</a> &nbsp;·&nbsp; <a href="https://smarthse.cl">smarthse.cl</a></p>
