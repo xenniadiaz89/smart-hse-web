@@ -3,18 +3,33 @@ import pandas as pd
 import altair as alt
 import io
 import os
+import base64
+import pathlib
 from datetime import datetime, timedelta, date
 
 # Paleta de marca (logo Smart HSE)
 BRAND = {"navy":"#0E3A5F","blue":"#16609E","cyan":"#27AAE1","green":"#5BBA47",
          "amber":"#F59E0B","red":"#EF4444"}
 
+# ── Assets de marca (logo) ──────────────────────────────────
+_BASE = os.path.dirname(os.path.abspath(__file__))
+def _b64(rel):
+    try: return base64.b64encode((pathlib.Path(_BASE)/rel).read_bytes()).decode()
+    except Exception: return ""
+_LOGO_B64 = _b64("assets/logo_mark.png")
+LOGO_URI = f"data:image/png;base64,{_LOGO_B64}" if _LOGO_B64 else ""
+_FAVICON = os.path.join(_BASE, "assets", "favicon.png")
+
 st.set_page_config(
     page_title="Smart HSE Chile",
-    page_icon="🛡️",
+    page_icon=_FAVICON if os.path.exists(_FAVICON) else "🛡️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+def logo_img(height=46, cls=""):
+    """Devuelve el <img> del emblema, o '' si no hay asset."""
+    return f"<img src='{LOGO_URI}' class='{cls}' style='height:{height}px;width:auto;display:inline-block'/>" if LOGO_URI else ""
 
 # ── Estado ──────────────────────────────────────────────────
 def init():
@@ -45,6 +60,7 @@ html,body,[class*="css"]{font-family:'Inter',sans-serif}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 18%,rgba(91,186,71,.38),transparent 42%),radial-gradient(circle at 12% 88%,rgba(39,170,225,.45),transparent 45%);pointer-events:none}
 .hero::after{content:"";position:absolute;top:-30%;right:-12%;width:520px;height:520px;border:2px solid rgba(255,255,255,.07);border-radius:50%;box-shadow:0 0 0 60px rgba(255,255,255,.04);pointer-events:none}
 .hero>*{position:relative;z-index:2}
+.hero-logo{width:122px;height:122px;margin:0 auto 20px;border-radius:50%;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;box-shadow:0 16px 44px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.5)}
 .hero .eyebrow{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#dff3ff;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:7px 16px;border-radius:30px;margin-bottom:24px;backdrop-filter:blur(6px)}
 .hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:50px;max-width:940px;margin:0 auto 22px;text-transform:uppercase;line-height:1.12;text-shadow:0 4px 18px rgba(0,0,0,.25)}
 .hero h1 .hl{color:var(--green)}
@@ -162,7 +178,7 @@ def landing():
     # ── Navbar ──
     c1,c2,c3 = st.columns([2,4,2])
     with c1:
-        st.markdown("<div class='wm' style='padding:10px 0 0 8px'><span style='font-size:22px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span><br><span class='chip-chile' style='font-size:9px;padding:1px 8px'>CHILE</span></div>",unsafe_allow_html=True)
+        st.markdown(f"<div style='display:flex;align-items:center;gap:10px;padding:6px 0 0 8px'>{logo_img(46)}<div class='wm'><span style='font-size:22px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span><br><span class='chip-chile' style='font-size:9px;padding:1px 8px'>CHILE</span></div></div>",unsafe_allow_html=True)
     with c2:
         st.markdown("<div style='padding-top:16px;text-align:center'><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Soluciones</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Tecnología</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Nosotros</span></div>",unsafe_allow_html=True)
     with c3:
@@ -171,8 +187,9 @@ def landing():
     st.markdown("<hr style='margin:0;border:none;border-top:1px solid #e2e8f0'>",unsafe_allow_html=True)
 
     # ── Hero + claims verificables ──
-    st.markdown("""
+    st.markdown(f"""
     <div class="hero">
+        <div class="hero-logo fu">{logo_img(76)}</div>
         <div class="eyebrow fu">🛡️ Seguridad · Cumplimiento · Trazabilidad</div>
         <h1 class="fu">Gestión HSE inteligente para la <span class="hl">minería</span> y contratistas de Chile</h1>
         <p class="fu2">Centralizamos el cumplimiento DS.44, el estándar RESSO V9 de Codelco y la trazabilidad documental en una sola plataforma. Menos planillas, más control.</p>
@@ -258,7 +275,7 @@ def login():
     st.markdown("<br><br><br>",unsafe_allow_html=True)
     _,col,_ = st.columns([1,1.2,1])
     with col:
-        st.markdown("<div style='text-align:center;margin-bottom:28px'><div class='wm' style='font-size:2.6rem'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:10px;padding:2px 12px;margin-top:6px'>CHILE</div><p style='color:#64748b;margin-top:14px;font-weight:300;font-size:14px'>Consola de Gestión Operativa · DS.44</p></div>",unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;margin-bottom:28px'><div style='margin-bottom:10px'>{logo_img(72)}</div><div class='wm' style='font-size:2.6rem'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:10px;padding:2px 12px;margin-top:6px'>CHILE</div><p style='color:#64748b;margin-top:14px;font-weight:300;font-size:14px'>Consola de Gestión Operativa · DS.44</p></div>",unsafe_allow_html=True)
         with st.form("login"):
             st.text_input("Correo electrónico",placeholder="correo@empresa.cl")
             pw=st.text_input("Contraseña",type="password")
@@ -276,7 +293,7 @@ def login():
 def consola():
     st.markdown("<style>section[data-testid='stSidebar']{display:flex!important}.block-container{padding:2rem!important;max-width:100%!important}</style>",unsafe_allow_html=True)
     with st.sidebar:
-        st.markdown("<div style='text-align:center;padding:14px 0 6px'><div class='wm' style='font-size:20px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:9px;padding:1px 9px'>CHILE</div></div>",unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;padding:14px 0 6px'><div style='margin-bottom:6px'>{logo_img(56)}</div><div class='wm' style='font-size:20px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></div><div class='chip-chile' style='font-size:9px;padding:1px 9px'>CHILE</div></div>",unsafe_allow_html=True)
         st.markdown("---")
         st.subheader("Selección de Faena")
         cliente=st.selectbox("Cliente:",list(ESTRUCTURA.keys()))
