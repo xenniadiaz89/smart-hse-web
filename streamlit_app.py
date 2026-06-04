@@ -2,18 +2,51 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+import re
+import base64
+import pathlib
+import unicodedata
+import zipfile
 from datetime import datetime, timedelta, date
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
+
+# ── Paleta de marca (logo Smart HSE) ─────────────────────────
+BRAND = {"navy": "#0E3A5F", "blue": "#16609E", "cyan": "#27AAE1", "green": "#5BBA47"}
+
+# ── Assets de marca ──────────────────────────────────────────
+_BASE = os.path.dirname(os.path.abspath(__file__))
+def _b64(rel):
+    try:
+        return base64.b64encode((pathlib.Path(_BASE) / rel).read_bytes()).decode()
+    except Exception:
+        return ""
+
+def _uri(rel):
+    b = _b64(rel)
+    return f"data:image/png;base64,{b}" if b else ""
+_FULL = _uri("assets/logo_smarthse.png")
+_MARK = _uri("assets/logo_mark.png")
+LOGO_FULL_URI = _FULL or _MARK
+LOGO_MARK_URI = _MARK or _FULL
+_HAS_FULL_LOGO = bool(_FULL)
+_FAVICON = os.path.join(_BASE, "assets", "favicon.png")
 
 st.set_page_config(
-    page_title="Smart HSE Chile",
-    page_icon="🛡️",
+    page_title="Smart HSE Chile — Gestión HSE para todas las áreas laborales",
+    page_icon=_FAVICON if os.path.exists(_FAVICON) else "🛡️",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
+
+def logo_img(height=46, mark=False):
+    uri = LOGO_MARK_URI if mark else LOGO_FULL_URI
+    return f"<img src='{uri}' style='height:{height}px;width:auto;display:inline-block'/>" if uri else ""
 
 # ── Estado ──────────────────────────────────────────────────
 def init():
-    for k,v in {"vista":"landing","auth":False,"contrato":"","actividad":"","lugar":"","ruta":"","incidentes":[]}.items():
+    for k,v in {"vista":"landing","auth":False,"contrato":"","actividad":"","lugar":"","ruta":"","incidentes":[],"leads":[]}.items():
         if k not in st.session_state: st.session_state[k]=v
 init()
 
@@ -22,34 +55,110 @@ APP_PW = os.environ.get("APP_PASSWORD", "smarthse2025")
 # ── CSS ─────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Inter:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+:root{--navy:#0E3A5F;--blue:#16609E;--cyan:#27AAE1;--green:#5BBA47;--ink:#0E3A5F;--muted:#5b7184;--line:#e2e8f0;}
 #MainMenu,footer,header{visibility:hidden}
 .block-container{padding:0!important;max-width:100%!important}
 section[data-testid="stSidebar"]{display:none}
 html,body,[class*="css"]{font-family:'Inter',sans-serif}
-/* Landing */
-.hero{background:#002B49;background-image:linear-gradient(rgba(0,43,73,.78),rgba(0,43,73,.78)),url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=2000&q=80');background-size:cover;background-position:center;padding:130px 20px;text-align:center;color:white;min-height:68vh;display:flex;flex-direction:column;justify-content:center;align-items:center}
-.hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:48px;max-width:900px;margin:0 auto 20px;text-transform:uppercase;line-height:1.15;text-shadow:2px 2px 6px rgba(0,0,0,.4)}
-.hero p{font-size:18px;max-width:720px;margin:0 auto 44px;font-weight:300;line-height:1.7}
-.btn-hero{background:#55B4B0;color:white;padding:16px 36px;border-radius:30px;font-weight:700;font-size:14px;text-decoration:none;text-transform:uppercase;letter-spacing:1px;display:inline-block}
-.cards{display:flex;justify-content:center;gap:24px;max-width:1200px;margin:-60px auto 60px;position:relative;z-index:10;padding:0 20px;flex-wrap:wrap}
-.card{background:white;padding:40px 22px;border-radius:16px;width:22%;min-width:200px;text-align:center;box-shadow:0 12px 36px rgba(0,0,0,.09);border-bottom:4px solid transparent;transition:transform .3s,border-color .3s}
-.card:hover{transform:translateY(-6px);border-bottom-color:#55B4B0}
-.card-icon{font-size:40px;margin-bottom:8px}
-.card h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#002B49;text-transform:uppercase;margin:14px 0 8px}
-.card p{font-size:13px;color:#64748b;line-height:1.6}
-.sh-footer{background:#002B49;color:#94A3B8;text-align:center;padding:48px 20px;font-size:13px;margin-top:40px}
-.sh-footer a{color:#55B4B0;text-decoration:none}
-.ftr-sep{border-top:1px solid #1a3a52;margin-top:20px;padding-top:16px;font-size:11px;color:#64748b}
-/* Consola */
-.kpi{background:linear-gradient(135deg,#002B49 0%,#1e3a5f 100%);border-radius:12px;padding:1.2rem 1.5rem;color:white;text-align:center;box-shadow:0 4px 14px rgba(0,43,73,.15);margin-bottom:8px}
+a{text-decoration:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) both}
+.fu2{animation:fadeUp .7s .12s cubic-bezier(.2,.7,.2,1) both}
+.fu3{animation:fadeUp .7s .24s cubic-bezier(.2,.7,.2,1) both}
+
+/* ── Nav ── */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 46px;background:#fff;box-shadow:0 2px 18px rgba(14,58,95,.07);position:sticky;top:0;z-index:999;flex-wrap:wrap;gap:12px}
+.nav-logo{display:flex;align-items:center;gap:11px}
+.wm{font-family:'Montserrat',sans-serif;font-weight:900;letter-spacing:.5px;line-height:1}
+.wm .smart{color:var(--blue)} .wm .hse{color:var(--cyan)}
+.chip-chile{background:var(--cyan);color:#fff;font-weight:700;border-radius:4px;letter-spacing:3px;display:inline-block}
+.nav-links{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.nav-links a{color:#42566a;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;transition:color .2s}
+.nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+.btn-demo{background:var(--green);color:#fff!important;padding:11px 24px;border-radius:30px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;box-shadow:0 8px 20px rgba(91,186,71,.35);transition:transform .2s,box-shadow .2s}
+.btn-demo:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(91,186,71,.45)}
+
+/* ── Hero ── */
+.hero{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--navy) 0%,var(--blue) 55%,#1f7fc0 100%);padding:104px 20px 150px;text-align:center;color:#fff}
+.hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(14,58,95,.82),rgba(22,96,158,.78)),url('https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=2000&q=80');background-size:cover;background-position:center;opacity:.5}
+.hero::after{content:"";position:absolute;top:-28%;right:-10%;width:520px;height:520px;background:radial-gradient(circle,rgba(91,186,71,.35),transparent 60%);pointer-events:none}
+.hero>*{position:relative;z-index:2}
+.hero-logo{width:122px;height:122px;margin:0 auto 22px;border-radius:50%;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;box-shadow:0 16px 44px rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.5)}
+.eyebrow{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#dff3ff;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:7px 16px;border-radius:30px;margin-bottom:22px;backdrop-filter:blur(6px)}
+.hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:50px;max-width:960px;margin:0 auto 22px;text-transform:uppercase;line-height:1.12;text-shadow:0 4px 18px rgba(0,0,0,.3)}
+.hero h1 .hl{color:var(--green)}
+.hero p{font-size:18px;max-width:730px;margin:0 auto 38px;font-weight:300;line-height:1.7;color:#eaf4fb}
+.btn-hero{background:var(--green);color:#fff;padding:16px 38px;border-radius:30px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:1px;display:inline-block;box-shadow:0 12px 28px rgba(91,186,71,.45);transition:transform .25s,box-shadow .25s;margin:0 8px}
+.btn-hero:hover{transform:translateY(-3px);box-shadow:0 18px 36px rgba(91,186,71,.55)}
+.btn-ghost{background:transparent;color:#fff;padding:14px 34px;border-radius:30px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:1px;display:inline-block;border:2px solid rgba(255,255,255,.45);transition:background .25s;margin:0 8px}
+.btn-ghost:hover{background:rgba(255,255,255,.14)}
+.claims{display:flex;justify-content:center;flex-wrap:wrap;gap:13px;max-width:920px;margin:38px auto 0}
+.claim{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);color:#eaf6ff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:30px;backdrop-filter:blur(6px)}
+.claim .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+
+/* ── Secciones ── */
+.sec{max-width:1140px;margin:0 auto;padding:64px 22px 12px}
+.sec-tag{text-align:center;color:var(--cyan);font-weight:800;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.sec-h{text-align:center;font-family:'Montserrat',sans-serif;font-weight:800;font-size:32px;color:var(--ink);margin:0 0 10px}
+.sec-sub{text-align:center;color:var(--muted);font-size:15.5px;max-width:660px;margin:0 auto 42px;line-height:1.6}
+
+/* ── Sectores ── */
+.sectores{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.sector{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px 16px;text-align:center;transition:transform .28s,box-shadow .28s,border-color .28s}
+.sector:hover{transform:translateY(-6px);box-shadow:0 18px 38px rgba(14,58,95,.12);border-color:var(--cyan)}
+.sector .si{font-size:30px;display:block;margin-bottom:10px}
+.sector b{display:block;font-size:13.5px;color:var(--ink);font-weight:700}
+
+/* ── Cards servicios ── */
+.cards{display:flex;justify-content:center;gap:22px;flex-wrap:wrap}
+.card{background:#fff;padding:36px 24px;border-radius:18px;width:23%;min-width:230px;text-align:center;box-shadow:0 14px 40px rgba(14,58,95,.10);border:1px solid #eef3f8;border-top:4px solid transparent;transition:transform .3s,border-color .3s,box-shadow .3s}
+.card:hover{transform:translateY(-8px);border-top-color:var(--cyan);box-shadow:0 26px 56px rgba(22,96,158,.20)}
+.card-icon{font-size:28px;width:62px;height:62px;line-height:62px;margin:0 auto 6px;border-radius:16px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;box-shadow:0 8px 20px rgba(39,170,225,.35)}
+.card h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:var(--ink);text-transform:uppercase;margin:16px 0 8px}
+.card p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* ── Cómo funciona ── */
+.steps{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+.step{flex:1;min-width:240px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px 24px;position:relative;transition:transform .3s,box-shadow .3s}
+.step:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(14,58,95,.10)}
+.step .num{font-family:'Montserrat',sans-serif;font-weight:900;font-size:42px;line-height:1;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+.step h4{font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;color:var(--ink);margin:0 0 8px}
+.step p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}
+
+/* ── Beneficios ── */
+.why{background:linear-gradient(120deg,var(--navy),var(--blue));border-radius:24px;max-width:1140px;margin:64px auto 0;padding:48px 40px;color:#fff;display:grid;grid-template-columns:repeat(3,1fr);gap:30px}
+.why .b .bi{font-size:26px;margin-bottom:8px}
+.why .b h4{font-family:'Montserrat',sans-serif;font-size:16px;margin:0 0 6px;font-weight:800}
+.why .b p{font-size:13.5px;color:#cfe4f3;line-height:1.6;margin:0}
+
+/* ── Footer ── */
+.sh-footer{background:var(--navy);color:#9fb6c9;text-align:center;padding:54px 20px;font-size:13px;margin-top:64px}
+.sh-footer a{color:var(--cyan)}
+.ftr-sep{border-top:1px solid rgba(255,255,255,.10);margin-top:22px;padding-top:16px;font-size:11px;color:#6f879b}
+
+/* ── Botones nativos Streamlit (form) → verde ── */
+.stForm button[kind="primaryFormSubmit"]{background:var(--green)!important;border-color:var(--green)!important}
+.stForm button[kind="primaryFormSubmit"]:hover{background:#4ea23b!important;border-color:#4ea23b!important}
+.stDownloadButton>button{background:var(--cyan)!important;border-color:var(--cyan)!important}
+
+@media(max-width:900px){.sectores{grid-template-columns:repeat(2,1fr)}.why{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .nav{padding:12px 18px;justify-content:center}.nav-links{gap:14px;justify-content:center}
+  .card{width:100%}.cards{flex-direction:column}
+  .hero h1{font-size:30px}.hero{padding:80px 18px 120px}
+  .btn-hero,.btn-ghost{display:block;margin:8px auto;max-width:320px}
+  .steps{flex-direction:column}.sec-h{font-size:25px}
+}
+
+/* ── Consola ── */
+.kpi{background:linear-gradient(135deg,#0E3A5F 0%,#16609E 100%);border-radius:12px;padding:1.2rem 1.5rem;color:white;text-align:center;box-shadow:0 4px 14px rgba(14,58,95,.15);margin-bottom:8px}
 .kpi .val{font-size:2.4rem;font-weight:300}
 .kpi .lbl{font-size:.8rem;opacity:.8;margin-top:4px}
 .ar{background:#fef2f2;border-left:4px solid #ef4444;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
-.ag{background:#f0fdf4;border-left:4px solid #8DC63F;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
+.ag{background:#f0fdf4;border-left:4px solid #5BBA47;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
 .aa{background:#fffbeb;border-left:4px solid #f59e0b;padding:.8rem 1rem;border-radius:6px;margin:.4rem 0}
 .nota{background:#fff8e1;border-left:4px solid #FFA000;padding:12px 16px;border-radius:6px;font-size:.85rem}
-@media(max-width:768px){.cards{flex-direction:column;margin:-30px 16px 30px}.card{width:100%}.hero h1{font-size:28px}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -75,20 +184,6 @@ ACTIVIDADES = [
     {"actividad":"Registro All Scan","frecuencia":"Diaria","dias":1,"modulo":"Terreno","cliente":"Centinela"},
     {"actividad":"Revisión EPP específico","frecuencia":"Semanal","dias":5,"modulo":"Legal","cliente":"Centinela"},
 ]
-NA_ITEMS = {
-    "405":[
-        ("CPHS - Comité Paritario de H&S","Empresa con menos de 25 trabajadores en faena. No aplica constitución de CPHS conforme Art. 66 Ley 16.744."),
-        ("Maquinaria Autopropulsada (DS 44 §8.2)","El contrato 405 no contempla operación de equipos autopropulsados de minería. No aplica acreditación SERNAGEOMIN para esta categoría."),
-        ("Buceo y Trabajo Subacuático","Las actividades del contrato no incluyen trabajos en medios acuáticos ni confinados bajo nivel de agua."),
-        ("Exposición a Agentes Biológicos (DS 594)","Las tareas del alcance no generan exposición a agentes biológicos clasificados. No aplica vigilancia específica por este concepto."),
-    ],
-    "118":[
-        ("CPHS - Comité Paritario de H&S","Dotación en faena inferior a 25 trabajadores de forma permanente. No aplica obligación de CPHS según Art. 66 Ley 16.744."),
-        ("Trabajos en Caliente - Permiso Especial (RESSO V9 §4.3)","El contrato 118 no contempla soldadura, corte térmico ni operaciones con llama. No se emiten permisos de trabajo en caliente."),
-        ("Plan de Gestión de Contratistas de Alto Riesgo","Las actividades del alcance están clasificadas como Riesgo Moderado según matriz de criticidad Codelco DRT. No aplica protocolo de alto riesgo."),
-        ("Registro Dosimétrico PREXOR","Medición de ruido ocupacional indica niveles bajo 82 dB(A) TWA. No aplica programa de vigilancia audiométrica por este contrato."),
-    ],
-}
 CONTRATOS = ["405","118","109100077748"]
 FLUJOS    = ["FYS Diario","RESSO"]
 
@@ -99,38 +194,310 @@ def fecha_es(d=None):
     for en,es in meses.items(): t=t.replace(en,es)
     return t
 
+# ── Generador GENERAL de Cartas de No Aplicabilidad ──────────
+# Sirve para cualquier empresa y cualquier cliente/mandante; no está
+# amarrado a Codelco ni a RESSO. La referencia, el fundamento y la
+# declaración salen de cada fila del Excel.
+CARTA_COLS = ["N°","Fecha","Señores","Ref.","Nombre del contrato","N° contrato",
+              "Empresa","Declaración de No Aplica","Nombre del cliente",
+              "Responsable","Cargo","Punto de RESSO"]
+
+def _norm(s):
+    s = str(s).strip().lower()
+    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+_ALIAS = {
+    "n":"numero","numero":"numero","item":"numero",
+    "punto de resso":"referencia_estandar","punto resso":"referencia_estandar","estandar":"referencia_estandar",
+    "fecha":"fecha",
+    "senores":"senores","senores as":"senores","destinatario":"senores",
+    "ref":"ref","referencia":"ref",
+    "nombre del contrato":"nombre_contrato","contrato":"nombre_contrato",
+    "n contrato":"num_contrato","numero contrato":"num_contrato",
+    "empresa":"empresa","empresa 1":"empresa",
+    "declaracion de no aplica":"declaracion","declaracion":"declaracion","no aplica":"declaracion",
+    "nombre delcliente":"nombre_cliente","nombre del cliente":"nombre_cliente","cliente":"nombre_cliente",
+    "responsable":"responsable",
+    "carog":"cargo","cargo":"cargo",
+}
+
+def mapear_columnas(df):
+    nuevo = {}
+    for col in df.columns:
+        clave = _ALIAS.get(_norm(col))
+        if clave and clave not in nuevo.values():
+            nuevo[col] = clave
+    return df.rename(columns=nuevo)
+
+def _cval(row, clave, default=""):
+    v = row.get(clave, default)
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return default
+    return str(v).strip()
+
+def _limpiar(t):
+    t = re.sub(r"\s+", " ", str(t)).strip()
+    t = re.sub(r"\.{2,}", ".", t)
+    t = re.sub(r"\s+([.,;:])", r"\1", t)
+    return t
+
+def _slug(s):
+    return re.sub(r"_+", "_", _norm(s).replace(" ", "_")).strip("_") or "empresa"
+
+def construir_carta_doc(row, ciudad="Antofagasta"):
+    """Devuelve un Document de python-docx con la carta formal de la fila."""
+    doc = Document()
+    base = doc.styles["Normal"]; base.font.name = "Calibri"; base.font.size = Pt(11)
+
+    empresa = _cval(row, "empresa", "La Empresa")
+    fecha = _cval(row, "fecha") or fecha_es(date.today())
+    senores = _cval(row, "senores") or _cval(row, "nombre_cliente", "Señores(as)")
+    ref = _cval(row, "ref")
+    referencia_estandar = _cval(row, "referencia_estandar")
+    nombre_contrato = _cval(row, "nombre_contrato")
+    num_contrato = re.sub(r"^\s*n[°ºo\.]*\s*", "", _cval(row, "num_contrato"), flags=re.I)
+    declaracion = _cval(row, "declaracion", "no aplica según la naturaleza del servicio.")
+    declaracion = re.sub(r"^\s*(informa[,\s]+que|informa)[\s,:]*", "", declaracion, flags=re.I)
+    if declaracion:
+        declaracion = declaracion[0].lower() + declaracion[1:]
+    cliente = _cval(row, "nombre_cliente")
+    responsable = _cval(row, "responsable")
+    cargo = _cval(row, "cargo", "Asesor en Prevención de Riesgos")
+
+    p = doc.add_paragraph(f"{ciudad}, {fecha}"); p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    doc.add_paragraph("Señores(as)")
+    doc.add_paragraph(senores)
+    doc.add_paragraph("Presente")
+    doc.add_paragraph("")
+    partes = [x for x in (ref, f"Ítem {referencia_estandar}" if referencia_estandar else "") if x]
+    pref = doc.add_paragraph()
+    pref.add_run("Ref.: " + (" — ".join(partes) if partes else "Declaración de No Aplicabilidad")).bold = True
+    doc.add_paragraph("")
+    doc.add_paragraph("De nuestra consideración:")
+    doc.add_paragraph("")
+    cuerpo = f"Mediante la presente, {empresa} "
+    if nombre_contrato:
+        cuerpo += f"en el marco del contrato “{nombre_contrato}”"
+        if num_contrato: cuerpo += f" N° {num_contrato}"
+        cuerpo += ", "
+    cuerpo += f"informa que {declaracion.rstrip('. ')}"
+    if cliente and cliente.lower().rstrip(".") not in cuerpo.lower():
+        cuerpo += f" ante {cliente}"
+    if not cuerpo.rstrip().endswith("."): cuerpo += "."
+    doc.add_paragraph(_limpiar(cuerpo))
+    doc.add_paragraph("")
+    doc.add_paragraph("Sin otro particular, le saluda cordialmente,")
+    for _ in range(3): doc.add_paragraph("")
+    doc.add_paragraph("________________________")
+    if responsable: doc.add_paragraph(responsable)
+    doc.add_paragraph(cargo)
+    doc.add_paragraph(empresa)
+    return doc
+
+def nombre_archivo_carta(row, idx):
+    empresa = _slug(_cval(row, "empresa", "empresa"))
+    num = _cval(row, "numero", str(idx + 1)).replace(".0", "").replace(".", "")
+    fecha = _slug(_cval(row, "fecha", date.today().isoformat()))
+    return f"Carta_No_Aplica_{empresa}_{num}_{fecha}.docx"
+
+def plantilla_excel_bytes():
+    """Excel de ejemplo con las columnas esperadas, para descargar como guía."""
+    ejemplo = pd.DataFrame([{
+        "N°":1,"Fecha":fecha_es(date.today()),"Señores":"Nombre del Cliente / Mandante",
+        "Ref.":"Motivo de la no aplicabilidad","Nombre del contrato":"Nombre del servicio",
+        "N° contrato":"0000","Empresa":"Tu Empresa SPA",
+        "Declaración de No Aplica":"no aplica el ítem por la naturaleza del servicio.",
+        "Nombre del cliente":"Nombre del Cliente / Mandante","Responsable":"Nombre Apellido",
+        "Cargo":"Asesor en Prevención de Riesgos","Punto de RESSO":"(opcional)"}])
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        ejemplo.to_excel(w, index=False, sheet_name="Carta de N A")
+    return buf.getvalue()
+
 # ════════════════════════════════════════════════════════════
-# VISTA LANDING
+# VISTA LANDING (marketing transversal + acceso a consola)
 # ════════════════════════════════════════════════════════════
 def landing():
-    c1,c2,c3 = st.columns([2,4,2])
-    with c1:
-        st.markdown("<div style='padding:10px 0 0 8px'><span style='font-family:Montserrat,sans-serif;font-weight:900;font-size:22px;color:#002B49'>SMART HSE</span><br><span style='background:#55B4B0;color:white;font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;letter-spacing:2px'>CHILE</span></div>",unsafe_allow_html=True)
-    with c2:
-        st.markdown("<div style='padding-top:14px;text-align:center'><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Soluciones</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Tecnología</span><span style='color:#4A5568;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 14px'>Nosotros</span></div>",unsafe_allow_html=True)
-    with c3:
-        if st.button("🔒 Acceder a Consola",use_container_width=True,type="primary"):
+    _cta_l, _cta_r = st.columns([6,1])
+    with _cta_r:
+        if st.button("🔒 Consola", use_container_width=True):
             st.session_state["vista"]="login"; st.rerun()
-    st.markdown("<hr style='margin:0;border:none;border-top:1px solid #e2e8f0'>",unsafe_allow_html=True)
-    st.markdown("""
-    <div class="hero">
-        <h1>Revolucionando la gestión HSE transversal en Chile</h1>
-        <p>Potenciamos la seguridad, el cumplimiento normativo DS.44 y el crecimiento sostenible en minería y contratistas de todo el territorio.</p>
-        <a href="mailto:contacto@smarthse.cl" class="btn-hero">Descubra cómo simplificar el DS.44</a>
-    </div>
-    <div class="cards">
-        <div class="card"><div class="card-icon">⚠️</div><h3>Gestión de Riesgos</h3><p>Identificación, evaluación y control de peligros según DS.44 y normativa SERNAGEOMIN.</p></div>
-        <div class="card"><div class="card-icon">📋</div><h3>Cumplimiento Normativo</h3><p>Seguimiento en tiempo real de obligaciones legales mineras y vencimientos críticos.</p></div>
-        <div class="card"><div class="card-icon">📊</div><h3>Análisis y Datos</h3><p>Dashboards con KPIs de seguridad operacional y reportes ejecutivos automatizados.</p></div>
-        <div class="card"><div class="card-icon">🛡️</div><h3>Cultura de Seguridad</h3><p>Programas de capacitación y gestión del comportamiento seguro en terreno.</p></div>
-    </div>
-    <div class="sh-footer">
-        <div style='font-family:Montserrat,sans-serif;font-weight:700;font-size:18px;color:white;letter-spacing:2px;margin-bottom:8px'>SMART HSE CHILE</div>
-        <p>Plataforma de gestión HSE para la minería y contratistas en Chile</p>
-        <p style='margin-top:12px'><a href='mailto:contacto@smarthse.cl'>contacto@smarthse.cl</a> &nbsp;·&nbsp; <a href='https://smarthse.cl'>smarthse.cl</a></p>
-        <div class='ftr-sep'>© 2025 Smart HSE Chile · Todos los derechos reservados.</div>
-    </div>""",unsafe_allow_html=True)
 
+    # ════════════════════════════════════════════════════════════
+    # NAV
+    # ════════════════════════════════════════════════════════════
+    _logo_block = logo_img(52) if _HAS_FULL_LOGO else (
+        f"{logo_img(46, mark=True)}<div class='wm'><span style='font-size:21px'><span class='smart'>SMART</span> <span class='hse'>HSE</span></span>"
+        f"<br><span class='chip-chile' style='font-size:9px;padding:1px 8px'>CHILE</span></div>"
+    )
+    st.markdown(f"""
+    <div class="nav">
+      <div class="nav-logo">{_logo_block}</div>
+      <div class="nav-links">
+        <a href="#inicio" class="active">Inicio</a>
+        <a href="#soluciones">Soluciones</a>
+        <a href="#tecnologia">Tecnología</a>
+        <a href="#nosotros">Nosotros</a>
+        <a href="#sectores">Sectores</a>
+        <a href="#contacto">Contacto</a>
+        <a href="#contacto" class="btn-demo">Solicitar demo</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # HERO
+    # ════════════════════════════════════════════════════════════
+    st.markdown(f"""
+    <div id="inicio"></div>
+    <div class="hero">
+      <div class="hero-logo fu">{logo_img(80, mark=True)}</div>
+      <div class="eyebrow fu">🛡️ Seguridad · Salud Ocupacional · Medio Ambiente</div>
+      <h1 class="fu">Gestión HSE inteligente para <span class="hl">todas las áreas laborales</span> de Chile</h1>
+      <p class="fu2">Acompañamos a empresas de cualquier sector a cumplir el DS.44, prevenir riesgos y construir cultura de seguridad — con tecnología, trazabilidad total y asesoría experta.</p>
+      <div class="fu3">
+        <a href="#contacto" class="btn-hero">Solicitar demo</a>
+        <a href="#soluciones" class="btn-ghost">Conocer soluciones</a>
+      </div>
+      <div class="claims fu3">
+        <div class="claim"><span class="dot"></span>Cumplimiento DS.44</div>
+        <div class="claim"><span class="dot"></span>Multisector · Transversal</div>
+        <div class="claim"><span class="dot"></span>Trazabilidad documental total</div>
+        <div class="claim"><span class="dot"></span>Asesoría experta en terreno</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # SECTORES
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div id="sectores"></div>
+    <div class="sec">
+      <div class="sec-tag">Transversal</div>
+      <div class="sec-h">Una solución para todos los sectores</div>
+      <div class="sec-sub">El DS.44 aplica a toda empresa con trabajadores. Sin importar tu rubro, Smart HSE adapta la gestión de seguridad y salud ocupacional a tu realidad.</div>
+      <div class="sectores">
+        <div class="sector"><span class="si">⛏️</span><b>Minería</b></div>
+        <div class="sector"><span class="si">🏗️</span><b>Construcción</b></div>
+        <div class="sector"><span class="si">🏭</span><b>Industria y Manufactura</b></div>
+        <div class="sector"><span class="si">🚚</span><b>Logística y Transporte</b></div>
+        <div class="sector"><span class="si">⚡</span><b>Energía</b></div>
+        <div class="sector"><span class="si">🌾</span><b>Agro y Alimentos</b></div>
+        <div class="sector"><span class="si">🏢</span><b>Servicios y Oficinas</b></div>
+        <div class="sector"><span class="si">🛒</span><b>Retail y Comercio</b></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # SOLUCIONES / SERVICIOS
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div id="soluciones"></div>
+    <div class="sec">
+      <div class="sec-tag">Soluciones</div>
+      <div class="sec-h">Lo que hacemos por tu empresa</div>
+      <div class="sec-sub">Un sistema completo de gestión HSE que cubre desde la identificación de riesgos hasta la cultura preventiva.</div>
+      <div class="cards">
+        <div class="card"><div class="card-icon">⚠️</div><h3>Gestión de Riesgos</h3><p>Identificación, evaluación y control de peligros con matrices y planes de acción según DS.44.</p></div>
+        <div class="card"><div class="card-icon">📋</div><h3>Cumplimiento Normativo</h3><p>Seguimiento en tiempo real de obligaciones legales, plazos y vencimientos críticos.</p></div>
+        <div class="card"><div class="card-icon">📊</div><h3>Análisis y Datos</h3><p>Indicadores de seguridad, reportes ejecutivos y trazabilidad documental completa.</p></div>
+        <div class="card"><div class="card-icon">🛡️</div><h3>Cultura de Seguridad</h3><p>Capacitación, observaciones conductuales y gestión del comportamiento seguro.</p></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # CÓMO FUNCIONA / TECNOLOGÍA
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div id="tecnologia"></div>
+    <div class="sec">
+      <div class="sec-tag">Cómo funciona</div>
+      <div class="sec-h">Tecnología que ordena tu gestión HSE</div>
+      <div class="sec-sub">Un proceso simple y acompañado, de principio a fin.</div>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><h4>Diagnóstico</h4><p>Evaluamos tu cumplimiento DS.44 actual, detectamos brechas y priorizamos lo urgente para tu sector.</p></div>
+        <div class="step"><div class="num">02</div><h4>Implementación</h4><p>Centralizamos documentos, matrices y registros en la plataforma, con clasificación y trazabilidad automática.</p></div>
+        <div class="step"><div class="num">03</div><h4>Mejora continua</h4><p>Monitoreas indicadores, generas reportes y mantienes la cultura preventiva viva en el tiempo.</p></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # POR QUÉ / NOSOTROS
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div id="nosotros"></div>
+    <div class="sec" style="padding-bottom:0">
+      <div class="sec-tag">Por qué Smart HSE</div>
+      <div class="sec-h">Experiencia + tecnología, a tu lado</div>
+    </div>
+    <div class="why">
+      <div class="b"><div class="bi">🤝</div><h4>Acompañamiento experto</h4><p>Asesores especialistas en seguridad y salud ocupacional que conocen el terreno y la normativa chilena.</p></div>
+      <div class="b"><div class="bi">⚙️</div><h4>Tecnología a tu favor</h4><p>Plataforma que automatiza la documentación, reduce planillas y te da control en tiempo real.</p></div>
+      <div class="b"><div class="bi">🔒</div><h4>Trazabilidad total</h4><p>Cada registro queda respaldado y disponible, listo para auditorías y fiscalizaciones.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # CONTACTO
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div id="contacto"></div>
+    <div class="sec">
+      <div class="sec-tag">Hablemos</div>
+      <div class="sec-h">Solicita una demostración</div>
+      <div class="sec-sub">Cuéntanos de tu empresa y te mostramos cómo Smart HSE simplifica el cumplimiento DS.44 y la prevención en tu sector.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    SECTORES = ["Minería", "Construcción", "Industria y Manufactura", "Logística y Transporte",
+                "Energía", "Agro y Alimentos", "Servicios y Oficinas", "Retail y Comercio", "Otro"]
+
+    _, fc, _ = st.columns([1, 2, 1])
+    with fc:
+        with st.form("lead"):
+            a, b = st.columns(2)
+            nombre = a.text_input("Nombre", placeholder="Tu nombre")
+            empresa = b.text_input("Empresa", placeholder="Nombre de tu empresa")
+            c, d = st.columns(2)
+            correo = c.text_input("Correo electrónico", placeholder="correo@empresa.cl")
+            sector = d.selectbox("Sector", SECTORES)
+            msg = st.text_area("¿Qué necesitas resolver?",
+                               placeholder="Ej: ordenar el cumplimiento DS.44 de mi empresa y reducir el papeleo.",
+                               height=90)
+            enviar = st.form_submit_button("Solicitar demo →", type="primary", use_container_width=True)
+        if enviar:
+            if not nombre.strip() or not correo.strip():
+                st.error("Por favor completa al menos tu nombre y correo.")
+            else:
+                st.session_state["leads"].append({
+                    "nombre": nombre, "empresa": empresa, "correo": correo,
+                    "sector": sector, "mensaje": msg,
+                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M")})
+                asunto = f"Solicitud de demo — {empresa or nombre}".replace(" ", "%20")
+                cuerpo = (f"Nombre: {nombre}%0D%0AEmpresa: {empresa}%0D%0ASector: {sector}"
+                          f"%0D%0ACorreo: {correo}%0D%0A%0D%0AMensaje:%0D%0A{msg}").replace(" ", "%20")
+                mailto = f"mailto:contacto@smarthse.cl?subject={asunto}&body={cuerpo}"
+                st.success(f"✅ ¡Gracias, {nombre.split()[0]}! Recibimos tu solicitud. Te contactaremos a la brevedad.")
+                st.markdown(f"<a href='{mailto}' class='btn-hero' style='margin-top:6px'>📧 Enviar también por correo</a>",
+                            unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # FOOTER
+    # ════════════════════════════════════════════════════════════
+    st.markdown(f"""
+    <div class="sh-footer">
+      <div style="margin-bottom:12px">{logo_img(60, mark=True)}</div>
+      <div class="wm" style="font-size:20px;color:#fff;letter-spacing:1px;margin-bottom:8px">SMART <span style="color:var(--cyan)">HSE</span> CHILE</div>
+      <p>Gestión HSE para todas las áreas laborales de Chile · Cumplimiento DS.44</p>
+      <p style="margin-top:12px"><a href="mailto:contacto@smarthse.cl">contacto@smarthse.cl</a> &nbsp;·&nbsp; <a href="https://smarthse.cl">smarthse.cl</a></p>
+      <div class="ftr-sep">© 2025 Smart HSE Chile · Todos los derechos reservados.</div>
+    </div>
+    """, unsafe_allow_html=True)
 # ════════════════════════════════════════════════════════════
 # VISTA LOGIN
 # ════════════════════════════════════════════════════════════
@@ -266,58 +633,67 @@ def consola():
     # ── TAB 4: Cartas N/A ───────────────────────────────────
     with t4:
         st.subheader("Generador de Cartas de No Aplicabilidad")
-        st.caption("Genera el borrador formal para presentación a Codelco DRT según requerimientos RESSO V9.")
-        with st.form("carta_na"):
-            cf1,cf2=st.columns(2)
-            empresa=cf1.text_input("Nombre de la Empresa",value="Smart HSE Chile")
-            ncontrato=cf2.text_input("N° de Contrato",value="405")
-            generar=st.form_submit_button("📄 Generar Carta N/A",type="primary",use_container_width=True)
-        if generar:
-            if not empresa.strip() or not ncontrato.strip():
-                st.error("Completa todos los campos.")
-            else:
-                items=NA_ITEMS.get(ncontrato.strip(), NA_ITEMS["405"])
-                hoy=fecha_es(date.today()).upper()
-                decl=""
-                for i,(concepto,justif) in enumerate(items,1):
-                    decl+=f"{i}.\n{concepto}: {justif}\n\n"
-                carta=f"""CALAMA, {hoy}
+        st.caption("Carga masiva desde Excel → genera una carta Word por cada ítem. General: sirve para cualquier empresa y cualquier cliente o mandante (no exclusivo de Codelco/RESSO).")
 
-SEÑORES
-CODELCO CHILE — DIVISIÓN RADOMIRO TOMIC
-Presente
+        cpl1,cpl2 = st.columns([3,2])
+        with cpl1:
+            ciudad = st.text_input("Ciudad del encabezado", value="Antofagasta")
+        with cpl2:
+            st.download_button(
+                "⬇️ Descargar plantilla Excel",
+                data=plantilla_excel_bytes(),
+                file_name="Plantilla_Cartas_NA.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
-REF.: DECLARACIÓN DE NO APLICABILIDAD — CONTRATO N° {ncontrato.strip()}
+        archivo = st.file_uploader(
+            "Sube el Excel con los ítems N/A (una fila = una carta)",
+            type=["xlsx","xls"],
+        )
 
-Estimados señores:
+        st.markdown(
+            '<div class="nota">Columnas reconocidas (tolerante a tildes y typos): '
+            '<strong>Empresa, Fecha, Señores, Ref., Nombre del contrato, N° contrato, '
+            'Declaración de No Aplica, Nombre del cliente, Responsable, Cargo</strong>. '
+            '<em>Punto de RESSO</em> es opcional.</div>',
+            unsafe_allow_html=True,
+        )
 
-En virtud de los requerimientos de auditoría RESSO V9 establecidos por Codelco Chile para el contrato N° {ncontrato.strip()}, {empresa.strip()} procede a declarar formalmente los siguientes ítems normativos como NO APLICABLES al alcance específico del presente contrato, con sus respectivas justificaciones:
+        if archivo is not None:
+            try:
+                xl = pd.ExcelFile(archivo)
+                hoja = st.selectbox("Hoja a procesar", xl.sheet_names,
+                                    index=(xl.sheet_names.index("Carta de N A")
+                                           if "Carta de N A" in xl.sheet_names else 0))
+                df = mapear_columnas(pd.read_excel(xl, sheet_name=hoja)).dropna(how="all")
+                df = df[df.apply(lambda r: bool(_cval(r,"declaracion") or _cval(r,"ref")), axis=1)]
 
-ÍTEMS DECLARADOS NO APLICABLES:
+                if df.empty:
+                    st.warning("No se encontraron filas con 'Declaración de No Aplica' o 'Ref.'. Revisa la planilla.")
+                else:
+                    st.success(f"{len(df)} ítem(s) detectado(s). Vista previa:")
+                    cols_prev = [c for c in ["empresa","ref","nombre_cliente","declaracion"] if c in df.columns]
+                    st.dataframe(df[cols_prev] if cols_prev else df, use_container_width=True, height=220)
 
-{decl.strip()}
-
-Lo anterior se declara en el entendido que {empresa.strip()} mantendrá actualizada la presente declaración ante cualquier modificación del alcance contractual que pudiere hacer aplicables los ítems aquí señalados.
-
-Sin otro particular, saluda atentamente,
-
-
-___________________________________
-[NOMBRE RESPONSABLE]
-[CARGO]
-{empresa.strip()}
-RUT: XX.XXX.XXX-X
-Contrato N° {ncontrato.strip()}"""
-                st.markdown("#### Borrador — Carta de No Aplicabilidad")
-                st.text_area("",value=carta,height=520,label_visibility="collapsed")
-                st.download_button(
-                    label="⬇️ Descargar borrador (.txt)",
-                    data=carta.encode("utf-8"),
-                    file_name=f"Carta_NA_{ncontrato.strip()}_{date.today().isoformat()}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-                st.markdown('<div class="nota">⚠️ <strong>Nota:</strong> Inserte logos corporativos y firma manualmente en Word antes de la presentación oficial.</div>',unsafe_allow_html=True)
+                    if st.button("📄 Generar cartas (.docx) y empaquetar ZIP",
+                                 type="primary", use_container_width=True):
+                        zbuf = io.BytesIO()
+                        with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for idx, row in df.reset_index(drop=True).iterrows():
+                                dbuf = io.BytesIO()
+                                construir_carta_doc(row, ciudad).save(dbuf)
+                                zf.writestr(nombre_archivo_carta(row, idx), dbuf.getvalue())
+                        st.download_button(
+                            label=f"⬇️ Descargar {len(df)} carta(s) (.zip)",
+                            data=zbuf.getvalue(),
+                            file_name=f"Cartas_No_Aplica_{date.today().isoformat()}.zip",
+                            mime="application/zip",
+                            use_container_width=True,
+                        )
+                        st.markdown('<div class="nota">⚠️ <strong>Nota:</strong> Inserte logos corporativos y firma en cada Word antes de la presentación oficial.</div>',unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"No se pudo procesar el Excel: {e}")
 
     # ── TAB 6: Registro de Incidentes ──────────────────────
     with t6:
