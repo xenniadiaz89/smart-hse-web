@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Legislación Laboral</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038' } } } }
+    </script>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+
+    <!-- ── Navbar ── -->
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-9 w-auto">
+            <span class="hidden md:inline-block text-sm font-semibold text-gray-400 border-l pl-4">Legislación Laboral</span>
+        </div>
+        <a href="/" class="inline-flex items-center gap-2 text-gray-500 hover:text-primary transition text-sm font-semibold">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al inicio
+        </a>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6 py-10">
+
+        <header class="mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-900">Biblioteca de Legislación Laboral</h1>
+            <p class="text-gray-600 mt-2 max-w-3xl">Marco normativo de Seguridad y Salud en el Trabajo en Chile. Cada norma enlaza directamente a su texto oficial en la <span class="font-semibold">Biblioteca del Congreso Nacional (LeyChile)</span>.</p>
+        </header>
+
+        <!-- ── Diario Oficial: últimas actualizaciones ── -->
+        <a href="https://www.diariooficial.interior.gob.cl/" target="_blank" rel="noopener"
+           class="group block bg-primary text-white rounded-2xl p-6 mb-10 shadow-lg hover:bg-[#005a82] transition">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                        <i data-lucide="newspaper" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-extrabold text-lg">Diario Oficial de la República de Chile</h2>
+                        <p class="text-white/80 text-sm">Últimas publicaciones y actualizaciones de normativas y legislación laboral.</p>
+                    </div>
+                </div>
+                <i data-lucide="external-link" class="w-5 h-5 shrink-0 opacity-80 group-hover:opacity-100"></i>
+            </div>
+        </a>
+
+        <div id="biblioteca" class="space-y-10"></div>
+
+        <p class="text-xs text-gray-400 mt-10">Los enlaces abren el texto oficial en la Biblioteca del Congreso Nacional (bcn.cl/leychile) y portales de los organismos fiscalizadores. Vigencias indicadas según la normativa vigente.</p>
+    </main>
+
+    <script>
+        const BCN = id => `https://www.bcn.cl/leychile/navegar?idNorma=${id}`;
+
+        const BIBLIOTECA = [
+            { grupo: 'A. Legislación fundamental de SST', icon: 'shield-check', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 16.744', desc: 'Seguro Social contra Accidentes del Trabajo y Enfermedades Profesionales.', url: BCN(28650) },
+                { tipo: 'Decreto', nombre: 'DS N° 594', desc: 'Condiciones sanitarias y ambientales básicas en los lugares de trabajo.', url: BCN(167766) },
+                { tipo: 'Decreto', nombre: 'DS N° 54', desc: 'Constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad.', url: BCN(8336) },
+                { tipo: 'Decreto', nombre: 'DS N° 67', desc: 'Exenciones, rebajas y recargos de la cotización adicional diferenciada.', url: BCN(159800) },
+                { tipo: 'Decreto', nombre: 'DS N° 40', desc: 'Reglamento sobre prevención de riesgos profesionales. Vigente hasta el 31 de enero de 2025.', url: BCN(1041130), badge: 'Hasta 31-ene-2025', badgeColor: 'bg-amber-100 text-amber-700' },
+                { tipo: 'Decreto', nombre: 'DS N° 44', desc: 'Nuevo reglamento sobre gestión preventiva de los riesgos laborales. Reemplaza al DS 40 desde el 1 de febrero de 2025.', url: BCN(1205298), badge: 'Vigente desde 1-feb-2025', badgeColor: 'bg-green-100 text-green-700' },
+            ]},
+            { grupo: 'B. Código del Trabajo', icon: 'book-open', items: [
+                { tipo: 'Ley Base', nombre: 'DFL N° 1', desc: 'Código del Trabajo. Norma matriz que se reglamenta a través de los decretos de cada ley específica que lo modifica.', url: BCN(207436) },
+            ]},
+            { grupo: 'C. Jornada y modalidad de trabajo', icon: 'clock', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 21.561', desc: 'Ley de 40 Horas — reducción gradual de la jornada laboral.', url: BCN(1191554) },
+                { tipo: 'Ley Base', nombre: 'Ley 21.220', desc: 'Ley de Teletrabajo y Trabajo a Distancia.', url: BCN(1143741) },
+                { tipo: 'Decreto', nombre: 'DS N° 18', desc: 'Reglamento de condiciones de seguridad y salud en el trabajo a distancia y teletrabajo (Ley 21.220).', url: BCN(1147206) },
+            ]},
+            { grupo: 'D. Protección y seguridad', icon: 'users', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 21.643', desc: 'Ley Karin — prevención del acoso sexual, laboral y la violencia en el trabajo.', url: BCN(1200096) },
+                { tipo: 'Decreto', nombre: 'DS N° 21', desc: 'Reglamento de los procedimientos de investigación de acoso y violencia en el trabajo (Ley Karin).', url: BCN(1204689) },
+                { tipo: 'Ley Base', nombre: 'Ley 20.123', desc: 'Ley de Subcontratación y servicios transitorios.', url: BCN(254080) },
+                { tipo: 'Decreto', nombre: 'DS N° 76', desc: 'Gestión de la SST en obras, faenas o servicios subcontratados (Ley 20.123). Exige un SGSST global con más de 50 personas en el lugar de trabajo.', url: BCN(257601) },
+                { tipo: 'Decreto', nombre: 'DS N° 319', desc: 'Registro, control y pago de obligaciones laborales y previsionales de empresas contratistas y subcontratistas.', url: BCN(257655) },
+            ]},
+            { grupo: 'E. Legislación ambiental', icon: 'leaf', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 19.300', desc: 'Bases Generales del Medio Ambiente. Crea el Sistema de Evaluación de Impacto Ambiental (SEIA).', url: BCN(30667) },
+                { tipo: 'Decreto', nombre: 'DS N° 40 (MMA)', desc: 'Reglamento del SEIA. Procedimiento técnico y administrativo para evaluar proyectos bajo la Ley 19.300.', url: BCN(1053563) },
+            ]},
+            { grupo: 'F. Jurisprudencia y entidades fiscalizadoras', icon: 'gavel', items: [
+                { tipo: 'Compendio', nombre: 'Compendio SUSESO', desc: 'Recopilación oficial de dictámenes de la Superintendencia de Seguridad Social. Fija cómo las mutuales aplican la Ley 16.744.', url: 'https://www.suseso.cl/613/w3-propertyvalue-137350.html', externo: true },
+                { tipo: 'Dictámenes', nombre: 'Jurisprudencia Dirección del Trabajo', desc: 'Dictámenes y normativa de la DT: interpretaciones jurídicas vinculantes del Código del Trabajo y leyes anexas.', url: 'https://www.dt.gob.cl/legislacion/1624/w3-channel.html', externo: true },
+            ]},
+        ];
+
+        function tarjetaNorma(it) {
+            const badge = it.badge ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${it.badgeColor} whitespace-nowrap">${it.badge}</span>` : '';
+            const host = it.externo ? 'Sitio oficial' : 'Ver en BCN';
+            return `
+            <a href="${it.url}" target="_blank" rel="noopener"
+               class="group bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/40 transition flex flex-col">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wide text-secondary">${it.tipo}</span>
+                    ${badge}
+                </div>
+                <h3 class="font-extrabold text-gray-900">${it.nombre}</h3>
+                <p class="text-sm text-gray-600 mt-1 flex-1">${it.desc}</p>
+                <span class="inline-flex items-center gap-1 text-primary font-bold text-sm mt-4">${host} <i data-lucide="external-link" class="w-4 h-4"></i></span>
+            </a>`;
+        }
+
+        function bloque(b) {
+            return `
+            <section>
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><i data-lucide="${b.icon}" class="w-5 h-5"></i></span>
+                    <h2 class="text-xl font-extrabold text-gray-900">${b.grupo}</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${b.items.map(tarjetaNorma).join('')}</div>
+            </section>`;
+        }
+
+        document.getElementById('biblioteca').innerHTML = BIBLIOTECA.map(bloque).join('');
+        lucide.createIcons();
+    </script>
+</body>
+</html>

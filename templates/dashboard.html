@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Consola DS 44</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#006a9b',
+                        secondary: '#7ab038'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .iet-chk { display:flex; align-items:flex-start; gap:.5rem; font-size:.8rem; color:#374151; line-height:1.3; }
+        .iet-foto { display:flex; flex-direction:column; gap:.35rem; font-size:.75rem; font-weight:600; color:#4b5563; border:1px dashed #d1d5db; border-radius:.6rem; padding:.6rem .75rem; }
+        .iet-file { font-size:.7rem; color:#6b7280; }
+    </style>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+
+    <!-- ── Header ── -->
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-9 w-auto">
+            <span class="hidden md:inline-block text-sm font-semibold text-gray-400 border-l pl-4">Consola de Trabajo</span>
+        </div>
+        <div class="flex items-center gap-5">
+            <!-- Notificaciones -->
+            <div class="relative">
+                <button onclick="toggleNotif()" class="relative text-gray-500 hover:text-primary transition" title="Notificaciones">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span id="notifBadge" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center">3</span>
+                </button>
+                <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                    <div class="px-4 py-3 border-b bg-gray-50 font-bold text-sm text-gray-800">Notificaciones</div>
+                    <ul id="notifList" class="max-h-72 overflow-y-auto text-sm"></ul>
+                </div>
+            </div>
+            <div class="text-right leading-tight">
+                <p class="text-sm font-bold text-gray-800">Asesor en Prevención</p>
+                <p class="text-xs text-gray-500">ID SNS: <span class="font-mono font-semibold text-primary">12.345.678-K</span></p>
+            </div>
+            <div class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-bold">
+                <i data-lucide="user" class="w-5 h-5"></i>
+            </div>
+            <a href="/" class="text-gray-500 hover:text-primary transition" title="Salir">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+            </a>
+        </div>
+    </nav>
+
+    <!-- ── Banner prueba gratuita ── -->
+    <div class="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-center gap-3 text-sm">
+        <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+        <span class="text-amber-800">Te quedan <span id="diasPrueba" class="font-bold">5</span> días de prueba gratuita.</span>
+        <a href="#" class="font-bold text-primary hover:underline">Activar plan</a>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+       <div class="flex-1 min-w-0 w-full">
+
+        <!-- ── Panel de KPIs ── -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cumplimiento</span>
+                    <i data-lucide="shield-check" class="w-5 h-5 text-secondary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiCumplimiento">0%</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ítems Cumple</span>
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-secondary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900"><span id="kpiConformes">0</span> / 60</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Brechas Abiertas</span>
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiBrechas">0</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">No Aplica (N/A)</span>
+                    <i data-lucide="file-text" class="w-5 h-5 text-primary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiNA">0</p>
+            </div>
+        </section>
+
+        <!-- ── Módulo DS 44 ── -->
+        <section>
+            <!-- Lanzador: Cumplimiento DS 44 → cuestionario FUF -->
+            <button id="lanzadorDS44" type="button" onclick="abrirFUF()"
+                    class="w-full text-left bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between gap-4 hover:shadow-lg hover:border-primary/40 transition">
+                <div class="flex items-center gap-4">
+                    <div class="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <i data-lucide="clipboard-check" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold text-gray-900">Cumplimiento DS 44</h1>
+                        <p class="text-sm text-gray-500">Auditoría ágil de gestión preventiva — Formulario Único de Fiscalización (FUF).</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
+                    Iniciar <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </span>
+            </button>
+
+            <!-- Cuestionario FUF (oculto hasta confirmar) -->
+            <div id="moduloFUF" class="hidden mt-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-2xl font-extrabold text-gray-900">Cuestionario FUF</h2>
+                        <span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">DS N°44/2024 · 60 ítems</span>
+                    </div>
+                    <button type="button" onclick="generarPlanTrabajo()" class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
+                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Generar Plan de Trabajo
+                    </button>
+                </div>
+                <p class="text-gray-600 mb-6 text-sm">Marque cada ítem: <span class="font-semibold text-secondary">Cumple</span> → cargar evidencia · <span class="font-semibold text-amber-600">No Cumple</span> → plan de trabajo · <span class="font-semibold text-primary">No Aplica</span> → generar carta de fundamento.</p>
+
+                <!-- Plan de Trabajo generado (auditor-hse) -->
+                <div id="planTrabajoContainer" class="hidden mb-8"></div>
+
+                <div id="pilaresContainer" class="space-y-8"></div>
+            </div>
+        </section>
+
+        <!-- ── Módulo Inspección en Terreno ── -->
+        <section class="mt-6">
+            <!-- Lanzador -->
+            <button id="lanzadorIET" type="button" onclick="abrirIET()"
+                    class="w-full text-left bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between gap-4 hover:shadow-lg hover:border-secondary/40 transition">
+                <div class="flex items-center gap-4">
+                    <div class="h-14 w-14 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                        <i data-lucide="map-pin" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold text-gray-900">Inspección en Terreno</h1>
+                        <p class="text-sm text-gray-500">Informe de visita a terreno de prevención de riesgos — evidencia fotográfica in situ.</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center gap-2 bg-secondary text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
+                    Iniciar <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </span>
+            </button>
+
+            <!-- Formulario IET (oculto hasta iniciar) -->
+            <div id="moduloIET" class="hidden mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-8">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-2xl font-extrabold text-gray-900">Informe de Visita a Terreno</h2>
+                        <span class="bg-secondary/10 text-secondary text-xs font-bold px-3 py-1 rounded-full">Prevención de Riesgos</span>
+                    </div>
+                    <button type="button" onclick="generarInformeIET()" class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
+                        <i data-lucide="file-down" class="w-4 h-4"></i> Generar Informe
+                    </button>
+                </div>
+
+                <!-- 1. Información general -->
+                <div>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">1. Información General</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Empresa / Obra / Faena</span>
+                            <input id="iet_empresa" type="text" class="iet-in" placeholder="Nombre de la empresa o lugar"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Ubicación / Área</span>
+                            <input id="iet_ubicacion" type="text" class="iet-in" placeholder="Dirección, ciudad o sector"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Fecha de la visita</span>
+                            <input id="iet_fecha" type="date" class="iet-in"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Hora inicio / término</span>
+                            <input id="iet_hora" type="text" class="iet-in" placeholder="Ej: 09:00 a 13:00 hrs"></label>
+                        <label class="block md:col-span-2"><span class="text-xs font-semibold text-gray-600">Objetivo de la visita</span>
+                            <input id="iet_objetivo" type="text" class="iet-in" placeholder="Ej: Inspección de seguridad rutinaria, verificación de trabajos en altura…"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Responsable(s) de la visita</span>
+                            <input id="iet_responsable" type="text" class="iet-in" placeholder="Nombre y cargo del prevencionista"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Acompañante(s)</span>
+                            <input id="iet_acompanante" type="text" class="iet-in" placeholder="Supervisores o encargados de área"></label>
+                    </div>
+                </div>
+
+                <!-- 2. Actividades realizadas -->
+                <div>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">2. Actividades Realizadas</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Lugar específico de la actividad</span>
+                            <input id="iet_lugar" type="text" class="iet-in" placeholder="Ej: correa 205, comedores, taller…"></label>
+                        <label class="block"><span class="text-xs font-semibold text-gray-600">Tipo de inspección legal</span>
+                            <select id="iet_tipo" class="iet-in">
+                                <option value="">Seleccione…</option>
+                                <option value="DS 594">DS 594 — Condiciones sanitarias y ambientales básicas</option>
+                                <option value="DS 44">DS 44 — Reglamento de Seguridad Minera (SERNAGEOMIN)</option>
+                            </select></label>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label class="iet-chk"><input type="checkbox" id="iet_pts" class="accent-secondary"> <span>PTS adjuntado y analizado (Procedimiento de Trabajo Seguro)</span></label>
+                        <label class="iet-chk"><input type="checkbox" id="iet_epp" class="accent-secondary"> <span>Verificación de uso y cuidado de EPP <em class="text-gray-400">(foto in situ)</em></span></label>
+                        <label class="iet-chk"><input type="checkbox" id="iet_cierre" class="accent-secondary"> <span>Cierre perimetral del área de trabajo <em class="text-gray-400">(si aplica según PTS)</em></span></label>
+                    </div>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-5 mb-2">Documentación básica del PTS — <span class="normal-case text-gray-500">foto in situ firmada por ambas partes (no se admite carga desde galería)</span></p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label class="iet-foto"><span>Análisis Seguro de Trabajo (AST / ART)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
+                        <label class="iet-foto"><span>Charla de 5 minutos</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
+                        <label class="iet-foto"><span>Permiso de bloqueo (si aplica)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
+                        <label class="iet-foto"><span>Permiso de trabajo (si aplica)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
+                    </div>
+                </div>
+
+                <!-- 3. Hallazgos y desviaciones -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">3. Hallazgos y Desviaciones Detectadas</p>
+                        <button type="button" onclick="agregarHallazgo()" class="inline-flex items-center gap-1.5 text-secondary font-bold text-xs hover:underline">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Agregar hallazgo
+                        </button>
+                    </div>
+                    <div id="iet_hallazgos" class="space-y-4"></div>
+                </div>
+
+                <!-- 4. Plan de acción y compromisos -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">4. Plan de Acción y Compromisos</p>
+                        <button type="button" onclick="agregarCompromiso()" class="inline-flex items-center gap-1.5 text-secondary font-bold text-xs hover:underline">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Agregar compromiso
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead><tr class="text-left text-[11px] font-bold text-gray-400 uppercase">
+                                <th class="py-2 pr-2 w-8">N°</th><th class="py-2 px-2">Situación / Peligro</th>
+                                <th class="py-2 px-2">Medida de control</th><th class="py-2 px-2">Responsable</th>
+                                <th class="py-2 px-2">Plazo</th><th class="w-8"></th>
+                            </tr></thead>
+                            <tbody id="iet_compromisos"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 5. Observaciones / conclusiones -->
+                <div>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">5. Observaciones Generales / Conclusiones</p>
+                    <textarea id="iet_conclusiones" rows="4" class="iet-in" placeholder="Resume el cumplimiento general, destaca buenas prácticas observadas para fomentar la cultura preventiva…"></textarea>
+                    <label class="iet-chk mt-3"><input type="checkbox" id="iet_seguimiento" class="accent-secondary"> <span>Requiere visita de seguimiento</span></label>
+                </div>
+            </div>
+        </section>
+
+       </div><!-- /columna izquierda -->
+
+       <!-- ── Checklists digitales (costado derecho de la consola) ── -->
+       <aside class="w-full lg:w-96 shrink-0 lg:sticky lg:top-24 space-y-5">
+           <div class="flex items-center gap-2">
+               <i data-lucide="list-checks" class="w-5 h-5 text-primary"></i>
+               <h2 class="font-extrabold text-gray-900">Checklists digitales</h2>
+           </div>
+
+           <!-- Conducción · Preuso de vehículo -->
+           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-cl="vehiculo">
+               <button type="button" onclick="toggleCL('vehiculo')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
+                   <span class="flex items-center gap-3 min-w-0">
+                       <span class="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="truck" class="w-5 h-5"></i></span>
+                       <span class="min-w-0">
+                           <span class="block font-bold text-gray-900 text-sm">Conducción · Preuso vehículo</span>
+                           <span class="block text-xs text-gray-500">Inspección diaria antes de operar</span>
+                       </span>
+                   </span>
+                   <span class="flex items-center gap-2 shrink-0">
+                       <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
+                       <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
+                   </span>
+               </button>
+               <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
+           </div>
+
+           <!-- Fatiga y Somnolencia -->
+           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-cl="fatiga">
+               <button type="button" onclick="toggleCL('fatiga')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
+                   <span class="flex items-center gap-3 min-w-0">
+                       <span class="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i data-lucide="bed" class="w-5 h-5"></i></span>
+                       <span class="min-w-0">
+                           <span class="block font-bold text-gray-900 text-sm">Fatiga y Somnolencia</span>
+                           <span class="block text-xs text-gray-500">Autoevaluación previa a conducir/operar</span>
+                       </span>
+                   </span>
+                   <span class="flex items-center gap-2 shrink-0">
+                       <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
+                       <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
+                   </span>
+               </button>
+               <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
+           </div>
+       </aside>
+
+      </div><!-- /flex dos columnas -->
+    </main>
+
+    <script>
+        // ── Contador de días de prueba gratuita ──
+        // Días restantes a partir de una fecha de inicio de prueba (demo: hace 25 días, plan de 30).
+        const PRUEBA_DIAS_TOTAL = 30;
+        const PRUEBA_INICIO = new Date();
+        PRUEBA_INICIO.setDate(PRUEBA_INICIO.getDate() - 25);
+        (function diasRestantes() {
+            const transcurridos = Math.floor((Date.now() - PRUEBA_INICIO) / 86400000);
+            const restan = Math.max(0, PRUEBA_DIAS_TOTAL - transcurridos);
+            document.getElementById('diasPrueba').textContent = restan;
+        })();
+
+        // ── Notificaciones ──
+        const NOTIFS = [
+            { icon: 'alert-triangle', color: 'text-amber-600', txt: 'Tienes brechas (No) abiertas sin plan de trabajo asignado.' },
+            { icon: 'file-text', color: 'text-primary', txt: 'Carta N/A del pilar e) pendiente de firma del asesor.' },
+            { icon: 'calendar-clock', color: 'text-red-500', txt: 'Acreditación de equipos vence en 3 días — Minera Spence.' },
+        ];
+        document.getElementById('notifList').innerHTML = NOTIFS.map(n => `
+            <li class="px-4 py-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50">
+                <i data-lucide="${n.icon}" class="w-4 h-4 mt-0.5 shrink-0 ${n.color}"></i>
+                <span class="text-gray-700">${n.txt}</span>
+            </li>`).join('');
+        document.getElementById('notifBadge').textContent = NOTIFS.length;
+
+        function toggleNotif() {
+            document.getElementById('notifDropdown').classList.toggle('hidden');
+        }
+        document.addEventListener('click', (e) => {
+            const dd = document.getElementById('notifDropdown');
+            if (!dd.classList.contains('hidden') && !e.target.closest('.relative')) dd.classList.add('hidden');
+        });
+
+        // ── FUF DS N°44/2024 — Formulario Único de Fiscalización (60 ítems) ──
+        const FUF = [
+            { seccion: 'Sistema de Gestión de Seguridad y Salud en el Trabajo (SGSST)', organismo: 'SUSESO / Mutual', items: [
+                { n: 1, t: 'Cuenta con un SGSST que contiene al menos: a) Política de SST; b) estructura organizacional para la gestión preventiva; c) diagnóstico, planificación y programación; d) evaluación o auditoría periódica del desempeño; e) acción de mejora continua o correctiva.', art: 'DS 44/2024 Art. 22 inc.1 y 64 inc.1' },
+            ]},
+            { seccion: 'Identificación de peligros y evaluación de riesgos', organismo: 'SUSESO / Mutual', items: [
+                { n: 2, t: 'Cuenta con Matriz de Identificación de Peligros y Evaluación de Riesgos (MIPER) que incorpore todos los procesos, tareas y puestos de trabajo.', art: 'DS 44/2024 Art. 7 inc.1' },
+                { n: 3, t: 'La MIPER considera la exposición a todos los agentes y factores de riesgo (ergonómicos, psicosociales, violencia y acoso, accidentes y EP, vigilancia ocupacional, con enfoque de género).', art: 'DS 44/2024 Art. 7 inc.2' },
+                { n: 4, t: 'La MIPER está disponible en los lugares de trabajo e informada a trabajadores, comité paritario, delegado SST, dirigentes sindicales y línea de mando.', art: 'DS 44/2024 Art. 7 inc.9' },
+                { n: 5, t: 'La MIPER contiene los elementos mínimos: a) identificación de peligros; b) evaluación de riesgos; c) magnitud o nivel de riesgo; d) medidas preventivas de control y de emergencia.', art: 'DS 44/2024 Art. 7 inc.3' },
+                { n: 6, t: 'La MIPER tiene fecha de elaboración y se revisa al menos anualmente o cuando cambian las condiciones, ocurre un accidente, se diagnostica una EP o hay riesgo grave e inminente.', art: 'DS 44/2024 Art. 7 inc.9 y 64 inc.2' },
+                { n: 7, t: 'La entidad de hasta 25 trabajadores identifica y evalúa condiciones ambientales, psicosociales y ergonómicas y el cumplimiento normativo con el instrumento de autoevaluación del Organismo Administrador Ley 16.744.', art: 'DS 44/2024 Art. 64 inc.1' },
+            ]},
+            { seccion: 'Programa de Trabajo en Prevención de Riesgos Laborales', organismo: 'SUSESO / Mutual', items: [
+                { n: 8, t: 'Cuenta con el programa de trabajo preventivo confeccionado o actualizado a partir de la MIPER dentro de 30 días corridos.', art: 'DS 44/2024 Art. 8 inc.1' },
+                { n: 9, t: 'El programa de trabajo preventivo está por escrito y aprobado por el representante legal.', art: 'DS 44/2024 Art. 8 inc.1' },
+                { n: 10, t: 'El programa contiene: a) medidas preventivas y correctivas según MIPER; b) plazos; c) responsables; d) prevención de alcohol y drogas; e) vida y alimentación saludable; f) conducción de vehículos cuando corresponda; g) fechas de modificación y aprobación.', art: 'DS 44/2024 Art. 8 inc.1, 2 y 3' },
+                { n: 11, t: 'El programa de trabajo preventivo ha sido difundido en los lugares de trabajo y se remitió un ejemplar al Comité Paritario.', art: 'DS 44/2024 Art. 8 inc.3' },
+                { n: 12, t: 'Sobre máquinas, equipos y elementos de trabajo: a) informa riesgos y manejo seguro; b) informa manuales/fichas técnicas; c) cuenta con procedimiento de trabajo seguro; d) informa y capacita su uso correcto.', art: 'DS 44/2024 Art. 10 inc.1 y 2' },
+                { n: 13, t: 'Se adoptan medidas según la prelación, privilegiando la protección colectiva por sobre el uso de EPP.', art: 'DS 44/2024 Art. 12' },
+                { n: 14, t: 'Ante el riesgo residual, se proporcionan los EPP libres de costo a las personas trabajadoras.', art: 'DS 44/2024 Art. 13 inc.1' },
+                { n: 15, t: 'Los EPP son adecuados al riesgo a cubrir.', art: 'DS 44/2024 Art. 13 inc.1' },
+                { n: 16, t: 'Los EPP cumplen las normas de certificación de calidad o están registrados en el ISP.', art: 'DS 44/2024 Art. 13 inc.2' },
+                { n: 17, t: 'Cuenta con procedimiento de utilización, mantenimiento, reposición o recambio de los EPP.', art: 'DS 44/2024 Art. 13 inc.2' },
+                { n: 18, t: 'Las personas trabajadoras están capacitadas en el uso y mantención de los EPP (curso mínimo de 1 hora).', art: 'DS 44/2024 Art. 13 inc.3' },
+                { n: 19, t: 'Cuenta con registro de las capacitaciones en EPP (actividades teóricas y prácticas, asistentes, relatores, evaluaciones y reforzamiento).', art: 'DS 44/2024 Art. 13 inc.4' },
+                { n: 20, t: 'Se realiza al menos anualmente una evaluación del cumplimiento del programa de trabajo preventivo y se disponen medidas de mejora continua.', art: 'DS 44/2024 Art. 14 y 52' },
+            ]},
+            { seccion: 'Información y formación en seguridad y salud en el trabajo', organismo: 'Dirección del Trabajo', items: [
+                { n: 21, t: 'Se informan los riesgos, las medidas preventivas y los procedimientos de trabajo correctos, de forma oportuna y previa al inicio de las labores y ante cambios de proceso, tecnología o materiales.', art: 'DS 44/2024 Art. 15 inc.1' },
+                { n: 22, t: 'La información considera al menos: a) características del lugar; b) riesgos y medidas, incl. emergencias; c) procedimientos de trabajo seguro; d) productos y sustancias; e) riesgos de emergencias/catástrofes del Plan de gestión.', art: 'DS 44/2024 Art. 15 inc.3 y 19 inc.1' },
+                { n: 23, t: 'Se efectuó capacitación teórica o práctica con la periodicidad del programa (máx. 2 años), con principales medidas de seguridad, enfoque de género, duración mínima de 8 horas y metodologías de aprendizaje.', art: 'DS 44/2024 Art. 16 inc.1' },
+                { n: 24, t: 'La capacitación aborda: factores de riesgo, efectos en la salud/EP, medidas preventivas, prestaciones, establecimiento asistencial del OAL, plan de emergencia, señalética y prevención de incendios.', art: 'DS 44/2024 Art. 16 inc.1' },
+            ]},
+            { seccion: 'Consulta y participación', organismo: 'Dirección del Trabajo', items: [
+                { n: 25, t: 'Se promueve la consulta y participación de los representantes de las personas trabajadoras en la gestión preventiva (consulta al CPHS ante cambios y en la investigación de causas).', art: 'DS 44/2024 Art. 17 inc.1, 37 inc.2 num.4 y 71 inc.1' },
+            ]},
+            { seccion: 'Riesgo Grave e Inminente y Plan de Gestión de emergencias', organismo: 'Seremi de Salud', items: [
+                { n: 26, t: 'Ante un riesgo grave e inminente: a) informa de inmediato a las personas trabajadoras afectadas y las medidas adoptadas; b) suspende y evacúa las faenas afectadas si el riesgo no se puede eliminar o atenuar.', art: 'DS 44/2024 Art. 18 inc.1' },
+                { n: 27, t: 'Cuenta con uno o más planes de gestión, reducción y respuesta ante emergencias, catástrofes o desastres, de origen interno o externo.', art: 'DS 44/2024 Art. 19 inc.1' },
+                { n: 28, t: 'Se realizan al menos una vez al año pruebas de ensayo de los planes de gestión, reducción y respuesta.', art: 'DS 44/2024 Art. 19 inc.1' },
+            ]},
+            { seccion: 'Coordinación y Cooperación de la actividad preventiva', organismo: 'Dirección del Trabajo', items: [
+                { n: 29, t: 'Existe coordinación, cooperación e información mutua cuando prestan servicios más de una entidad empleadora (o trabajadores independientes) en el mismo lugar de trabajo.', art: 'DS 44/2024 Art. 20 inc.1' },
+            ]},
+            { seccion: 'Comités Paritarios de Higiene y Seguridad', organismo: 'Dirección del Trabajo', items: [
+                { n: 30, t: 'El Comité Paritario de Higiene y Seguridad está constituido en la empresa, faena, sucursal o agencia con más de 25 personas.', art: 'DS 44/2024 Art. 23 inc.1' },
+                { n: 31, t: 'Los integrantes electos del CPHS sin curso de orientación lo realizan durante el primer semestre de su mandato.', art: 'DS 44/2024 Art. 32 inc.1' },
+                { n: 32, t: 'Se registró el acta de constitución del CPHS en el sitio web de la Dirección del Trabajo dentro de los 15 días hábiles siguientes a la elección.', art: 'DS 44/2024 Art. 36' },
+                { n: 33, t: 'La entidad otorga las facilidades y medidas para el adecuado funcionamiento del o los CPHS.', art: 'DS 44/2024 Art. 37' },
+                { n: 34, t: 'El CPHS efectúa reuniones mensuales ordinarias y extraordinarias (a petición, ante accidente fatal o grave, o riesgo grave e inminente).', art: 'DS 44/2024 Art. 39 inc.1 y 2' },
+                { n: 35, t: 'Cuenta con actas de las reuniones del CPHS, con materias tratadas, acuerdos, medidas preventivas y plazo de cumplimiento.', art: 'DS 44/2024 Art. 39 inc.4 y 42 inc.1' },
+                { n: 36, t: 'Los acuerdos del CPHS se comunican por escrito a la entidad empleadora.', art: 'DS 44/2024 Art. 42 inc.2' },
+                { n: 37, t: 'Se proporciona al CPHS toda la documentación de prevención de riesgos para cumplir su rol.', art: 'DS 44/2024 Art. 46 inc.3' },
+                { n: 38, t: 'El CPHS cumple las funciones mínimas (asesorar, vigilar, investigar causas, decidir negligencia, indicar medidas, promover cursos, informar riesgo grave e inminente y demás del OAL).', art: 'DS 44/2024 Art. 47' },
+                { n: 39, t: 'Donde laboren entre 10 y 25 personas, cuenta con Delegado de Seguridad y Salud en el Trabajo que participa en el sistema de gestión.', art: 'DS 44/2024 Art. 66 inc.1, 64 y 37' },
+                { n: 40, t: 'El Delegado SST es elegido cada 2 años mediante asamblea de las personas trabajadoras, dejando acta.', art: 'DS 44/2024 Art. 66 inc.2' },
+            ]},
+            { seccion: 'Departamentos de Prevención de Riesgos', organismo: 'SUSESO / Mutual', items: [
+                { n: 41, t: 'Cuenta con Departamento de Prevención de Riesgos si tiene más de 100 trabajadores, dirigido por un experto inscrito en la Seremi de Salud.', art: 'DS 44/2024 Art. 50 y 55 inc.2' },
+                { n: 42, t: 'Se proporcionan al Departamento de Prevención de Riesgos los medios y el personal necesarios para sus funciones.', art: 'DS 44/2024 Art. 51 inc.1' },
+                { n: 43, t: 'El Departamento de Prevención de Riesgos cumple sus funciones.', art: 'DS 44/2024 Art. 52' },
+                { n: 44, t: 'La categoría y tiempo de dedicación del encargado del DPR se determinan según el N° de trabajadores y la cotización genérica.', art: 'DS 44/2024 Art. 54 y 55 inc.1' },
+                { n: 45, t: 'El encargado del DPR registra asistencia cumpliendo el tiempo de atención según N° de trabajadores y cotización.', art: 'DS 44/2024 Art. 55 inc.1 y 3' },
+                { n: 46, t: 'El DPR mantiene: a) registro de incidentes; b) registros de accidentes y EP; c) registro de trabajadores en vigilancia; d) estadísticas (accidentabilidad, frecuencia, gravedad) diferenciadas por sexo.', art: 'DS 44/2024 Art. 73 y 74' },
+                { n: 47, t: 'Si no está obligada a contar con DPR, registra: a) tasa anual de accidentabilidad; b) accidentes del trabajo y trayecto; c) enfermedades profesionales.', art: 'DS 44/2024 Art. 75' },
+                { n: 48, t: 'La entidad de hasta 100 trabajadores con encargado de Gestión del Riesgo: dicha persona fue capacitada por el Organismo Administrador Ley 16.744.', art: 'DS 44/2024 Art. 65 inc.1' },
+            ]},
+            { seccion: 'Reglamentos Internos', organismo: 'Dirección del Trabajo', items: [
+                { n: 49, t: 'Cuenta y mantiene al día un Reglamento Interno de Higiene y Seguridad, entregado gratuitamente e ingresado a la página web de la Dirección del Trabajo.', art: 'DS 44/2024 Art. 56 inc.1 y 57 inc.1' },
+                { n: 50, t: 'El Reglamento Interno se envía 30 días antes de regir, para observaciones, a trabajadores, CPHS/Delegado SST y organizaciones sindicales.', art: 'DS 44/2024 Art. 57 inc.2' },
+                { n: 51, t: 'El Reglamento Interno se revisa con periodicidad no inferior a un año, con participación del DPR/CPHS/Delegado y organizaciones sindicales.', art: 'DS 44/2024 Art. 57 inc.5' },
+                { n: 52, t: 'El Reglamento Interno contiene al menos: preámbulo, disposiciones generales, obligaciones, prohibiciones y sanciones.', art: 'DS 44/2024 Art. 58' },
+            ]},
+            { seccion: 'Mapas de Riesgos', organismo: 'Seremi de Salud', items: [
+                { n: 53, t: 'Mantiene mapas de riesgos en lugares visibles, con un esquema del lugar de trabajo e indicación de los principales riesgos existentes.', art: 'DS 44/2024 Art. 62 inc.1 y 2' },
+            ]},
+            { seccion: 'Vigilancia del ambiente y de la salud', organismo: 'Seremi de Salud', items: [
+                { n: 54, t: 'Los lugares con exposición a agentes o factores de riesgo están en programa de vigilancia ambiental conforme a los protocolos del MINSAL y del OAL.', art: 'DS 44/2024 Art. 67 inc.1 y 3' },
+                { n: 55, t: 'Las personas trabajadoras expuestas están en programa de vigilancia de la salud conforme a los protocolos del MINSAL y del OAL.', art: 'DS 44/2024 Art. 67 inc.1, 3 y 5' },
+                { n: 56, t: 'Autoriza a las personas trabajadoras a asistir a los exámenes de control del OAL, considerando ese tiempo como trabajado.', art: 'DS 44/2024 Art. 68' },
+            ]},
+            { seccion: 'Traslado del puesto de trabajo y prescripción de medidas', organismo: 'SUSESO / Mutual', items: [
+                { n: 57, t: 'La persona trabajadora con EP fue trasladada a un puesto sin exposición al riesgo de origen, sin detrimento de sus remuneraciones.', art: 'DS 44/2024 Art. 69' },
+                { n: 58, t: 'Implementa las medidas de SST que ordenen los fiscalizadores, el OAL, el DPR o el CPHS.', art: 'DS 44/2024 Art. 70' },
+            ]},
+            { seccion: 'Investigación de causas de accidentes del trabajo y EP', organismo: 'SUSESO / Mutual', items: [
+                { n: 59, t: 'Investiga con enfoque de género las causas de los accidentes del trabajo y enfermedades profesionales, con la metodología del OAL.', art: 'DS 44/2024 Art. 71' },
+            ]},
+            { seccion: 'Registro de la actividad preventiva e indicadores de gestión', organismo: 'SUSESO / Mutual', items: [
+                { n: 60, t: 'Registra y respalda documental y fidedignamente toda la información de la gestión de riesgos, a disposición de los fiscalizadores y del OAL.', art: 'DS 44/2024 Art. 72 inc.1' },
+            ]},
+        ];
+
+        // Índice item N° -> { item, seccion, organismo }
+        const ITEM_INDEX = {};
+        const TOTAL_ITEMS = FUF.reduce((acc, s) => { s.items.forEach(it => ITEM_INDEX[it.n] = { item: it, seccion: s.seccion, organismo: s.organismo }); return acc + s.items.length; }, 0);
+
+        const estado = {}; // n -> 'si' | 'no' | 'na'
+
+        function tarjetaItem(it) {
+            return `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-item="${it.n}">
+                <div class="p-5 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div class="pr-4">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="bg-gray-100 text-gray-700 text-xs font-bold px-2 py-0.5 rounded">${it.n}</span>
+                            <span class="text-[11px] font-semibold text-primary">${it.art}</span>
+                        </div>
+                        <p class="text-sm text-gray-700">${it.t}</p>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        <button type="button" onclick="setEstado(${it.n},'si')" data-opt="si" class="opt px-4 py-2 rounded-lg text-xs font-bold border transition whitespace-nowrap">Cumple</button>
+                        <button type="button" onclick="setEstado(${it.n},'no')" data-opt="no" class="opt px-4 py-2 rounded-lg text-xs font-bold border transition whitespace-nowrap">No Cumple</button>
+                        <button type="button" onclick="setEstado(${it.n},'na')" data-opt="na" class="opt px-4 py-2 rounded-lg text-xs font-bold border transition whitespace-nowrap">N/A</button>
+                    </div>
+                </div>
+                <div class="accion hidden border-t border-gray-100 bg-gray-50 p-5"></div>
+            </div>`;
+        }
+
+        function bloqueSeccion(s) {
+            return `
+            <div>
+                <div class="flex items-center gap-3 mb-3">
+                    <h3 class="text-lg font-extrabold text-gray-900">${s.seccion}</h3>
+                    <span class="bg-primary/10 text-primary text-[11px] font-bold px-2.5 py-0.5 rounded-full">${s.organismo}</span>
+                </div>
+                <div class="space-y-3">${s.items.map(tarjetaItem).join('')}</div>
+            </div>`;
+        }
+
+        function setEstado(n, valor) {
+            estado[n] = valor;
+            const card = document.querySelector(`[data-item="${n}"]`);
+            card.querySelectorAll('.opt').forEach(b => {
+                const on = b.dataset.opt === valor;
+                b.classList.remove('text-white', 'border-primary', 'bg-secondary', 'bg-amber-500', 'border-secondary', 'border-amber-500', 'bg-primary');
+                b.classList.add('text-gray-600', 'border-gray-300');
+                if (on) {
+                    b.classList.remove('text-gray-600', 'border-gray-300');
+                    b.classList.add('text-white');
+                    if (valor === 'si') b.classList.add('bg-secondary', 'border-secondary');
+                    if (valor === 'no') b.classList.add('bg-amber-500', 'border-amber-500');
+                    if (valor === 'na') b.classList.add('bg-primary', 'border-primary');
+                }
+            });
+            const zona = card.querySelector('.accion');
+            zona.classList.remove('hidden');
+            zona.innerHTML = render(n, valor);
+            if (window.lucide) lucide.createIcons();
+            actualizarKPIs();
+        }
+
+        function render(n, valor) {
+            if (valor === 'si') {
+                return `
+                <p class="text-sm font-bold text-secondary mb-3 flex items-center gap-2"><i data-lucide="upload-cloud" class="w-4 h-4"></i> Cargar Evidencia</p>
+                <label class="block border-2 border-dashed border-secondary/40 rounded-xl p-8 text-center cursor-pointer hover:bg-secondary/5 transition">
+                    <i data-lucide="file-up" class="w-8 h-8 mx-auto text-secondary mb-2"></i>
+                    <span class="block text-sm text-gray-600">Arrastra y suelta el documento aquí, o haz clic para seleccionar</span>
+                    <input type="file" class="hidden" onchange="this.nextElementSibling.textContent = this.files[0] ? this.files[0].name : ''">
+                    <span class="block text-xs font-semibold text-gray-800 mt-2"></span>
+                </label>`;
+            }
+            if (valor === 'no') {
+                return `
+                <p class="text-sm font-bold text-amber-600 mb-3 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Plan de Trabajo (No Cumple)</p>
+                <textarea data-f="nota" rows="2" placeholder="Acción correctiva propuesta (opcional, se incluirá en el plan)..." class="w-full p-3 border rounded-lg text-sm mb-3"></textarea>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" data-f="resp" placeholder="Responsable" class="w-full p-3 border rounded-lg text-sm">
+                    <input type="date" data-f="fecha" class="w-full p-3 border rounded-lg text-sm">
+                </div>
+                <p class="text-xs text-gray-500 mt-3">Esta brecha se consolidará al pulsar <span class="font-semibold text-amber-600">Generar Plan de Trabajo</span>.</p>`;
+            }
+            if (valor === 'na') {
+                const info = ITEM_INDEX[n];
+                return `
+                <p class="text-sm font-bold text-primary mb-3 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Generar Carta de Fundamento N/A</p>
+                <textarea data-f="nota" rows="3" class="w-full p-3 border rounded-lg text-sm mb-3">Fundamento de no aplicabilidad respecto del ${info.item.art}: </textarea>
+                <button type="button" onclick="generarCarta(${n}, this)" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Descargar carta (.txt)
+                </button>`;
+            }
+            return '';
+        }
+
+        function generarCarta(n, btn) {
+            const info = ITEM_INDEX[n];
+            const texto = btn.closest('.accion').querySelector('textarea').value;
+            const fecha = new Date().toLocaleDateString('es-CL');
+            const contenido =
+`SMART HSE — CARTA DE FUNDAMENTO "NO APLICA" (FUF DS N°44/2024)
+==============================================================
+Fecha: ${fecha}
+Asesor (ID SNS): 12.345.678-K
+Ítem FUF N° ${n} — ${info.organismo}
+Norma: ${info.item.art}
+
+Requisito evaluado:
+${info.item.t}
+
+DECLARACIÓN DE NO APLICABILIDAD
+-------------------------------
+${texto}
+
+Esta declaración se emite en el marco del Decreto Supremo N°44/2024 sobre gestión
+preventiva de los riesgos laborales, dejando constancia del fundamento técnico-legal
+por el cual el requisito no resulta aplicable a la faena/contrato evaluado.
+
+_____________________________
+Firma Asesor en Prevención`;
+
+            descargar(`Carta_NA_FUF_item_${n}.txt`, contenido, 'text/plain;charset=utf-8');
+        }
+
+        function actualizarKPIs() {
+            const vals = Object.values(estado);
+            const conformes = vals.filter(v => v === 'si').length;
+            const brechas = vals.filter(v => v === 'no').length;
+            const na = vals.filter(v => v === 'na').length;
+            const evaluables = TOTAL_ITEMS - na;
+            const cumpl = evaluables > 0 ? Math.round((conformes / evaluables) * 100) : 0;
+            document.getElementById('kpiConformes').textContent = conformes;
+            document.getElementById('kpiBrechas').textContent = brechas;
+            document.getElementById('kpiNA').textContent = na;
+            document.getElementById('kpiCumplimiento').textContent = cumpl + '%';
+        }
+
+        // ── Plan de Trabajo (auditor-hse): consolida las brechas "No Cumple" ──
+        function generarPlanTrabajo() {
+            const brechas = Object.keys(estado).filter(n => estado[n] === 'no').map(Number).sort((a, b) => a - b);
+            const cont = document.getElementById('planTrabajoContainer');
+            if (brechas.length === 0) {
+                cont.classList.remove('hidden');
+                cont.innerHTML = `<div class="bg-secondary/10 border border-secondary/30 text-secondary rounded-2xl p-5 text-sm font-semibold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-5 h-5"></i> Sin brechas marcadas como "No Cumple". No hay plan de trabajo que generar.</div>`;
+                if (window.lucide) lucide.createIcons();
+                cont.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+
+            const filas = brechas.map((n, i) => {
+                const info = ITEM_INDEX[n];
+                const card = document.querySelector(`[data-item="${n}"] .accion`);
+                const val = (sel) => { const el = card.querySelector(sel); return el ? el.value.trim() : ''; };
+                const nota = val('[data-f="nota"]');
+                const resp = val('[data-f="resp"]') || 'Asesor en Prevención / Empleador';
+                const fch = val('[data-f="fecha"]') || 'Por definir';
+                const accion = (nota ? nota + ' ' : '') +
+                    `Subsanar la brecha: implementar y formalizar el requisito dejando evidencia documental trazable (registro, acta o procedimiento) conforme al ${info.item.art}. Riesgo: hallazgo fiscalizable y sancionable.`;
+                return { i: i + 1, n, info, accion, resp, fch };
+            });
+
+            const rows = filas.map(f => `
+                <tr class="border-b border-gray-100 align-top">
+                    <td class="p-3 font-bold text-gray-700">${f.i}</td>
+                    <td class="p-3"><span class="font-semibold text-primary">${f.info.item.art}</span></td>
+                    <td class="p-3 text-gray-700">No cumple (ítem ${f.n}): ${f.info.item.t}</td>
+                    <td class="p-3 text-gray-700">${f.accion}</td>
+                    <td class="p-3 text-gray-700 whitespace-nowrap">${f.resp}</td>
+                    <td class="p-3 text-gray-700 whitespace-nowrap">${f.fch}</td>
+                    <td class="p-3"><span class="bg-gray-100 text-gray-700 text-xs font-semibold px-2 py-1 rounded whitespace-nowrap">${f.info.organismo}</span></td>
+                </tr>`).join('');
+
+            cont.classList.remove('hidden');
+            cont.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+                    <div class="bg-amber-50 border-b border-amber-200 px-5 py-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="clipboard-list" class="w-6 h-6 text-amber-600"></i>
+                            <div>
+                                <h3 class="font-extrabold text-gray-900">Plan de Trabajo — Cierre de Brechas FUF</h3>
+                                <p class="text-xs text-gray-600">${filas.length} brecha(s) detectada(s) · Fundamento legal DS N°44/2024 · Auditor Legal SST</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="descargarPlanCSV()" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0">
+                            <i data-lucide="download" class="w-4 h-4"></i> Descargar (.csv)
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th class="p-3">#</th><th class="p-3">Norma / Artículo</th><th class="p-3">Brecha detectada</th>
+                                    <th class="p-3">Acción para cerrar</th><th class="p-3">Responsable</th><th class="p-3">Fecha</th><th class="p-3">Organismo</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            window._planFilas = filas; // para el CSV
+            if (window.lucide) lucide.createIcons();
+            cont.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function descargarPlanCSV() {
+            const filas = window._planFilas || [];
+            const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+            const cab = ['N°', 'Norma / Artículo', 'Brecha detectada', 'Acción para cerrar', 'Responsable', 'Fecha compromiso', 'Organismo'];
+            const lineas = [cab.map(esc).join(';')];
+            filas.forEach(f => lineas.push([f.i, f.info.item.art, 'No cumple (ítem ' + f.n + '): ' + f.info.item.t, f.accion, f.resp, f.fch, f.info.organismo].map(esc).join(';')));
+            descargar('Plan_Trabajo_FUF_DS44.csv', '﻿' + lineas.join('\n'), 'text/csv;charset=utf-8');
+        }
+
+        function descargar(nombre, contenido, tipo) {
+            const blob = new Blob([contenido], { type: tipo });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombre; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ── Flujo: Cumplimiento DS 44 → ¿responder cuestionario FUF? → desplegar ──
+        function abrirFUF() {
+            if (!confirm('¿Desea responder el cuestionario FUF?')) return;
+            document.getElementById('lanzadorDS44').classList.add('hidden');
+            const modulo = document.getElementById('moduloFUF');
+            modulo.classList.remove('hidden');
+            modulo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // CHECKLISTS DIGITALES (Conducción / Fatiga) — fuente: /checklist-digital
+        // ─────────────────────────────────────────────────────────────
+        const CHECKLISTS = {
+            vehiculo: { tipo: 'conformidad', secciones: {
+                '1. Documentación': [
+                    { t: 'Licencia de conducir vigente y de la clase requerida', c: 'critica' },
+                    { t: 'Permiso de circulación vigente', c: 'critica' },
+                    { t: 'Revisión técnica vigente', c: 'critica' },
+                    { t: 'Seguro obligatorio (SOAP) vigente', c: 'critica' },
+                    { t: 'Padrón / certificado de inscripción', c: 'menor' },
+                ],
+                '2. Luces y señalización': [
+                    { t: 'Luces altas y bajas operativas', c: 'menor' },
+                    { t: 'Luces de freno operativas', c: 'mantencion' },
+                    { t: 'Intermitentes / direccionales operativas', c: 'menor' },
+                    { t: 'Baliza / luz estroboscópica operativa', c: 'mantencion' },
+                    { t: 'Alarma de retroceso operativa', c: 'critica' },
+                ],
+                '3. Mecánica y neumáticos': [
+                    { t: 'Freno de servicio operativo', c: 'critica' },
+                    { t: 'Freno de mano operativo', c: 'critica' },
+                    { t: 'Neumáticos en buen estado (banda y presión)', c: 'inmediata' },
+                    { t: 'Neumático de repuesto en buen estado', c: 'mantencion' },
+                    { t: 'Sin luces de advertencia encendidas en el tablero', c: 'mantencion' },
+                    { t: 'Nivel de aceite de motor', c: 'mantencion' },
+                    { t: 'Nivel de refrigerante', c: 'mantencion' },
+                    { t: 'Nivel de líquido de frenos', c: 'critica' },
+                    { t: 'Nivel de agua / limpiaparabrisas', c: 'menor' },
+                ],
+                '4. Cabina y carrocería': [
+                    { t: 'Espejos completos y sin daños', c: 'mantencion' },
+                    { t: 'Cinturones de seguridad operativos', c: 'critica' },
+                    { t: 'Bocina operativa', c: 'menor' },
+                    { t: 'Limpiaparabrisas operativo', c: 'mantencion' },
+                    { t: 'Parabrisas y vidrios sin daños que afecten visibilidad', c: 'mantencion' },
+                    { t: 'Carrocería sin daños estructurales', c: 'menor' },
+                ],
+                '5. Equipo de emergencia': [
+                    { t: 'Extintor vigente y cargado', c: 'inmediata' },
+                    { t: 'Botiquín de primeros auxilios', c: 'menor' },
+                    { t: 'Triángulos / conos de seguridad', c: 'menor' },
+                    { t: 'Cuñas de seguridad', c: 'menor' },
+                    { t: 'Gata y llave de ruedas', c: 'menor' },
+                    { t: 'Kit anti-derrame (si aplica)', c: 'mantencion' },
+                ],
+            }},
+            fatiga: { tipo: 'fatiga', secciones: {
+                '1. Descanso y sueño': [
+                    { t: 'Dormí menos de 7 horas en las últimas 24 horas', c: 'critico' },
+                    { t: 'Mi sueño fue de mala calidad o interrumpido', c: 'critico' },
+                    { t: 'Llevo más de 12 horas continuas despierto', c: 'critico' },
+                    { t: 'He trabajado más de 11 horas en este turno', c: 'critico' },
+                ],
+                '2. Síntomas de somnolencia': [
+                    { t: 'Tengo bostezos frecuentes', c: 'critico' },
+                    { t: 'Siento los ojos pesados o visión borrosa', c: 'critico' },
+                    { t: 'Tengo dificultad para concentrarme', c: 'critico' },
+                    { t: 'He tenido microsueños o cabeceos', c: 'critico' },
+                    { t: 'Me siento irritable o de mal humor', c: 'critico' },
+                ],
+                '3. Factores adicionales': [
+                    { t: 'Consumí medicamentos que producen somnolencia', c: 'critico' },
+                    { t: 'No me he alimentado adecuadamente en el turno', c: 'secundario' },
+                    { t: 'Estoy deshidratado / no he tomado suficiente agua', c: 'secundario' },
+                    { t: 'Tengo preocupaciones personales que me distraen', c: 'secundario' },
+                ],
+            }},
+        };
+
+        const CRIT_RANK = { menor: 1, mantencion: 2, inmediata: 3, critica: 4 };
+        const CRIT_LABEL = { menor: 'Menor', mantencion: 'Mantención', inmediata: 'Acción inmediata', critica: 'Crítica' };
+        const CRIT_COLOR = { menor: 'text-green-700 bg-green-50', mantencion: 'text-amber-700 bg-amber-50', inmediata: 'text-orange-700 bg-orange-50', critica: 'text-red-700 bg-red-50' };
+
+        const clEstado = { vehiculo: {}, fatiga: {} };
+        const clItems = { vehiculo: {}, fatiga: {} };
+
+        function toggleCL(id) {
+            const card = document.querySelector(`[data-cl="${id}"]`);
+            card.querySelector('.cuerpo').classList.toggle('hidden');
+            card.querySelector('.chev').classList.toggle('rotate-180');
+        }
+
+        function renderCL(id) {
+            const cfg = CHECKLISTS[id];
+            const cuerpo = document.querySelector(`[data-cl="${id}"] .cuerpo`);
+            let html = '';
+            Object.entries(cfg.secciones).forEach(([sec, items]) => {
+                html += `<div><p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">${sec}</p><div class="space-y-2.5">`;
+                items.forEach((it, i) => {
+                    const key = `${sec}|${i}`;
+                    clItems[id][key] = it.c;
+                    const opts = cfg.tipo === 'fatiga' ? [['no', 'No'], ['si', 'Sí']] : [['conforme', 'C'], ['noconforme', 'NC'], ['na', 'N/A']];
+                    const btns = opts.map(([v, lbl]) => `<button type="button" onclick="setCL('${id}','${key.replace(/'/g, "\\'")}','${v}')" data-k="${key}" data-v="${v}" class="clopt text-[11px] font-bold px-2 py-1 rounded border border-gray-300 text-gray-600 transition">${lbl}</button>`).join('');
+                    const tag = cfg.tipo === 'conformidad' ? `<span class="text-[9px] font-semibold px-1.5 py-0.5 rounded ${CRIT_COLOR[it.c]} whitespace-nowrap">${CRIT_LABEL[it.c]}</span>` : '';
+                    html += `<div class="flex items-start justify-between gap-2">
+                                <p class="text-xs text-gray-700 leading-snug">${it.t} ${tag}</p>
+                                <div class="flex gap-1 shrink-0">${btns}</div>
+                             </div>`;
+                });
+                html += '</div></div>';
+            });
+            cuerpo.innerHTML = html;
+        }
+
+        function setCL(id, key, valor) {
+            clEstado[id][key] = valor;
+            const card = document.querySelector(`[data-cl="${id}"]`);
+            card.querySelectorAll('.clopt').forEach(b => {
+                if (b.dataset.k !== key) return;
+                const on = b.dataset.v === valor;
+                b.classList.remove('text-white', 'bg-secondary', 'border-secondary', 'bg-red-500', 'border-red-500', 'bg-gray-400', 'border-gray-400');
+                b.classList.add('text-gray-600', 'border-gray-300');
+                if (on) {
+                    b.classList.remove('text-gray-600', 'border-gray-300');
+                    b.classList.add('text-white');
+                    if (valor === 'conforme' || valor === 'no') b.classList.add('bg-secondary', 'border-secondary');
+                    else if (valor === 'noconforme' || valor === 'si') b.classList.add('bg-red-500', 'border-red-500');
+                    else b.classList.add('bg-gray-400', 'border-gray-400');
+                }
+            });
+            actualizarVeredicto(id);
+        }
+
+        function actualizarVeredicto(id) {
+            const est = clEstado[id], idx = clItems[id];
+            let v;
+            if (CHECKLISTS[id].tipo === 'fatiga') {
+                let answered = 0, critico = false, secundario = false;
+                for (const k in est) { answered++; if (est[k] === 'si') { if (idx[k] === 'critico') critico = true; else secundario = true; } }
+                if (answered === 0) v = { txt: 'Sin evaluar', cls: 'bg-gray-100 text-gray-500' };
+                else if (critico) v = { txt: '🔴 NO APTO', cls: 'bg-red-100 text-red-700' };
+                else if (secundario) v = { txt: '🟡 Requiere descanso', cls: 'bg-amber-100 text-amber-700' };
+                else v = { txt: '🟢 Apto', cls: 'bg-green-100 text-green-700' };
+            } else {
+                let answered = 0, maxRank = 0;
+                for (const k in est) { answered++; if (est[k] === 'noconforme') { const r = CRIT_RANK[idx[k]]; if (r > maxRank) maxRank = r; } }
+                if (answered === 0) v = { txt: 'Sin evaluar', cls: 'bg-gray-100 text-gray-500' };
+                else if (maxRank === 4) v = { txt: '🔴 NO operar', cls: 'bg-red-100 text-red-700' };
+                else if (maxRank === 3) v = { txt: '🟠 Reparar antes', cls: 'bg-orange-100 text-orange-700' };
+                else if (maxRank === 2) v = { txt: '🟡 Mantención', cls: 'bg-amber-100 text-amber-700' };
+                else v = { txt: '🟢 Puede operar', cls: 'bg-green-100 text-green-700' };
+            }
+            const badge = document.querySelector(`[data-cl="${id}"] .veredicto`);
+            badge.textContent = v.txt;
+            badge.className = 'veredicto text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ' + v.cls;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // INSPECCIÓN EN TERRENO — Informe de visita a terreno
+        // ─────────────────────────────────────────────────────────────
+        function abrirIET() {
+            document.getElementById('lanzadorIET').classList.add('hidden');
+            const m = document.getElementById('moduloIET');
+            m.classList.remove('hidden');
+            const hoy = new Date().toISOString().slice(0, 10);
+            if (!document.getElementById('iet_fecha').value) document.getElementById('iet_fecha').value = hoy;
+            if (!document.getElementById('iet_hallazgos').children.length) agregarHallazgo();
+            if (!document.getElementById('iet_compromisos').children.length) agregarCompromiso();
+            m.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        let _hallazgoN = 0;
+        function agregarHallazgo() {
+            _hallazgoN++;
+            const div = document.createElement('div');
+            div.className = 'border border-gray-200 rounded-xl p-4 bg-gray-50/60';
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold text-gray-700">Hallazgo ${_hallazgoN}</span>
+                    <button type="button" onclick="this.closest('div.border').remove()" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="block md:col-span-2"><span class="text-xs font-semibold text-gray-600">Descripción del peligro</span>
+                        <input type="text" class="iet-in h-desc" placeholder="Ej: Falta de baranda perimetral en plataforma sobre 1.8 m"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Ubicación</span>
+                        <input type="text" class="iet-in h-ubic" placeholder="Ej: Área de bodegas, sector poniente"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Riesgo asociado</span>
+                        <input type="text" class="iet-in h-riesgo" placeholder="Ej: Caída a distinto nivel con consecuencias graves"></label>
+                    <label class="block md:col-span-2"><span class="text-xs font-semibold text-gray-600">Medida correctiva inmediata</span>
+                        <input type="text" class="iet-in h-medida" placeholder="Ej: Detener trabajos hasta instalar protección certificada"></label>
+                    <label class="iet-foto md:col-span-2"><span>Evidencia fotográfica in situ (antes / después)</span><input type="file" accept="image/*" capture="environment" class="iet-file" multiple></label>
+                </div>`;
+            document.getElementById('iet_hallazgos').appendChild(div);
+            if (window.lucide) lucide.createIcons();
+        }
+
+        let _compromisoN = 0;
+        function agregarCompromiso() {
+            _compromisoN++;
+            const tr = document.createElement('tr');
+            tr.className = 'border-t border-gray-100';
+            tr.innerHTML = `
+                <td class="py-2 pr-2 text-gray-500 font-bold align-top"><span class="c-n">${_compromisoN}</span></td>
+                <td class="py-2 px-2"><input type="text" class="iet-in c-sit" placeholder="Cables expuestos en suelo"></td>
+                <td class="py-2 px-2"><input type="text" class="iet-in c-med" placeholder="Canalizar / entubar cableado"></td>
+                <td class="py-2 px-2"><input type="text" class="iet-in c-resp" placeholder="Juan Pérez"></td>
+                <td class="py-2 px-2"><input type="text" class="iet-in c-plazo" placeholder="48 horas"></td>
+                <td class="align-top pt-3"><button type="button" onclick="this.closest('tr').remove()" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>`;
+            document.getElementById('iet_compromisos').appendChild(tr);
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function generarInformeIET() {
+            const v = id => (document.getElementById(id)?.value || '').trim();
+            const chk = id => document.getElementById(id)?.checked ? 'Sí' : 'No';
+            if (!v('iet_empresa')) { alert('Indique al menos la Empresa / Faena antes de generar el informe.'); return; }
+
+            const L = [];
+            L.push('INFORME DE VISITA A TERRENO — PREVENCIÓN DE RIESGOS');
+            L.push('Smart HSE Chile · ' + new Date().toLocaleString('es-CL'));
+            L.push('='.repeat(60), '');
+            L.push('1. INFORMACIÓN GENERAL');
+            L.push('Empresa / Obra / Faena : ' + v('iet_empresa'));
+            L.push('Ubicación / Área       : ' + v('iet_ubicacion'));
+            L.push('Fecha de la visita     : ' + v('iet_fecha'));
+            L.push('Hora inicio / término  : ' + v('iet_hora'));
+            L.push('Objetivo               : ' + v('iet_objetivo'));
+            L.push('Responsable(s)         : ' + v('iet_responsable'));
+            L.push('Acompañante(s)         : ' + v('iet_acompanante'), '');
+            L.push('2. ACTIVIDADES REALIZADAS');
+            L.push('Lugar específico       : ' + v('iet_lugar'));
+            L.push('Tipo inspección legal  : ' + v('iet_tipo'));
+            L.push('PTS analizado          : ' + chk('iet_pts'));
+            L.push('Verificación EPP        : ' + chk('iet_epp'));
+            L.push('Cierre perimetral área : ' + chk('iet_cierre'), '');
+            L.push('3. HALLAZGOS Y DESVIACIONES');
+            const hs = document.querySelectorAll('#iet_hallazgos > div');
+            if (!hs.length) L.push('(Sin hallazgos registrados)');
+            hs.forEach((h, i) => {
+                const g = s => (h.querySelector(s)?.value || '').trim() || '—';
+                L.push(`Hallazgo ${i + 1}: ${g('.h-desc')}`);
+                L.push(`   Ubicación        : ${g('.h-ubic')}`);
+                L.push(`   Riesgo asociado  : ${g('.h-riesgo')}`);
+                L.push(`   Medida correctiva: ${g('.h-medida')}`);
+            });
+            L.push('', '4. PLAN DE ACCIÓN Y COMPROMISOS');
+            const cs = document.querySelectorAll('#iet_compromisos > tr');
+            if (!cs.length) L.push('(Sin compromisos registrados)');
+            cs.forEach((c, i) => {
+                const g = s => (c.querySelector(s)?.value || '').trim() || '—';
+                L.push(`${i + 1}. ${g('.c-sit')} | Control: ${g('.c-med')} | Resp.: ${g('.c-resp')} | Plazo: ${g('.c-plazo')}`);
+            });
+            L.push('', '5. OBSERVACIONES GENERALES / CONCLUSIONES');
+            L.push(v('iet_conclusiones') || '(Sin observaciones)');
+            L.push('Requiere visita de seguimiento: ' + chk('iet_seguimiento'), '');
+            L.push('_'.repeat(40));
+            L.push('Nombre y Firma del Prevencionista        Nombre y Firma del Receptor');
+
+            const fecha = v('iet_fecha') || new Date().toISOString().slice(0, 10);
+            const slug = (v('iet_empresa') || 'Faena').replace(/[^\wáéíóúñ ]/gi, '').replace(/\s+/g, '_');
+            descargar(`Informe_Terreno_${slug}_${fecha}.txt`, L.join('\n'), 'text/plain;charset=utf-8');
+        }
+
+        // init
+        document.getElementById('pilaresContainer').innerHTML = FUF.map(bloqueSeccion).join('');
+        renderCL('vehiculo');
+        renderCL('fatiga');
+        lucide.createIcons();
+    </script>
+</body>
+</html>

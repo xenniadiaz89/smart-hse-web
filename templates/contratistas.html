@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Vista Empresas Contratistas (EECC)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#006a9b',
+                        secondary: '#7ab038'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+
+    <!-- ── Header ── -->
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-9 w-auto">
+            <span class="hidden md:inline-block text-sm font-semibold text-gray-400 border-l pl-4">Vista Empresas Contratistas (EECC)</span>
+        </div>
+        <div class="flex items-center gap-5">
+            <!-- Notificaciones -->
+            <div class="relative">
+                <button onclick="toggleNotif()" class="relative text-gray-500 hover:text-primary transition" title="Notificaciones">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span id="notifBadge" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center">3</span>
+                </button>
+                <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                    <div class="px-4 py-3 border-b bg-gray-50 font-bold text-sm text-gray-800">Notificaciones</div>
+                    <ul id="notifList" class="max-h-72 overflow-y-auto text-sm"></ul>
+                </div>
+            </div>
+            <div class="text-right leading-tight">
+                <p class="text-sm font-bold text-gray-800">Empresa Contratista</p>
+                <p class="text-xs text-gray-500">ID SNS: <span class="font-mono font-semibold text-primary">12.345.678-K</span></p>
+            </div>
+            <div class="h-10 w-10 rounded-full bg-secondary text-white flex items-center justify-center font-bold">
+                <i data-lucide="hard-hat" class="w-5 h-5"></i>
+            </div>
+            <a href="/" class="text-gray-500 hover:text-primary transition" title="Salir">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+            </a>
+        </div>
+    </nav>
+
+    <!-- ── Banner prueba gratuita ── -->
+    <div class="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-center gap-3 text-sm">
+        <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+        <span class="text-amber-800">Te quedan <span id="diasPrueba" class="font-bold">5</span> días de prueba gratuita.</span>
+        <a href="#" class="font-bold text-primary hover:underline">Activar plan</a>
+    </div>
+
+    <main class="max-w-6xl mx-auto px-6 py-8">
+
+        <!-- ── Aviso régimen subcontratación ── -->
+        <div class="bg-primary/5 border border-primary/20 rounded-2xl p-6 mb-8 flex gap-4">
+            <i data-lucide="info" class="w-6 h-6 text-primary shrink-0 mt-0.5"></i>
+            <div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <h1 class="text-xl font-extrabold text-gray-900">Régimen de Subcontratación · Ley 20.123</h1>
+                    <span id="badgeMandante" class="hidden bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full"></span>
+                </div>
+                <p class="text-sm text-gray-600 mt-1">Como Empresa Contratista (EECC) debes acreditar tu sistema de gestión ante la empresa mandante. Esta consola integra los requisitos de acreditación, RESSO V9 y obligaciones de la Ley 16.744.</p>
+            </div>
+        </div>
+
+        <!-- ── KPIs EECC ── -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Acreditación</span>
+                    <i data-lucide="badge-check" class="w-5 h-5 text-secondary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiAcred">0%</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Requisitos OK</span>
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-secondary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900"><span id="kpiOk">0</span> / 5</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Brechas Abiertas</span>
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiBrechas">0</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">No Aplica (N/A)</span>
+                    <i data-lucide="file-text" class="w-5 h-5 text-primary"></i>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiNA">0</p>
+            </div>
+        </section>
+
+        <!-- ── Checklist de acreditación EECC ── -->
+        <section>
+            <div class="flex items-center gap-3 mb-2">
+                <h2 class="text-2xl font-extrabold text-gray-900">Acreditación de Empresa Contratista</h2>
+                <span class="bg-secondary/10 text-secondary text-xs font-bold px-3 py-1 rounded-full">RESSO V9 · Ley 16.744</span>
+            </div>
+            <p class="text-gray-600 mb-6 text-sm">Evalúe cada requisito: <span class="font-semibold text-secondary">Sí</span> → cargar evidencia · <span class="font-semibold text-amber-600">No</span> → plan de trabajo · <span class="font-semibold text-primary">N/A</span> → generar carta de fundamento.</p>
+
+            <div id="reqContainer" class="space-y-4"></div>
+        </section>
+    </main>
+
+    <script>
+        // ── Empresa mandante (desde el modal de demo) ──
+        const MANDANTES = { codelco_rt: 'Codelco División RT', spence: 'Spence', abra: 'Abra' };
+        (function mostrarMandante() {
+            const m = new URLSearchParams(window.location.search).get('mandante');
+            if (m && MANDANTES[m]) {
+                const b = document.getElementById('badgeMandante');
+                b.textContent = 'Mandante: ' + MANDANTES[m];
+                b.classList.remove('hidden');
+            }
+        })();
+
+        // ── Contador de días de prueba gratuita ──
+        const PRUEBA_DIAS_TOTAL = 30;
+        const PRUEBA_INICIO = new Date();
+        PRUEBA_INICIO.setDate(PRUEBA_INICIO.getDate() - 25);
+        (function diasRestantes() {
+            const transcurridos = Math.floor((Date.now() - PRUEBA_INICIO) / 86400000);
+            const restan = Math.max(0, PRUEBA_DIAS_TOTAL - transcurridos);
+            document.getElementById('diasPrueba').textContent = restan;
+        })();
+
+        // ── Notificaciones ──
+        const NOTIFS = [
+            { icon: 'alert-triangle', color: 'text-amber-600', txt: 'Acreditación de equipos pendiente ante la empresa mandante.' },
+            { icon: 'file-text', color: 'text-primary', txt: 'Carta N/A de CPHS pendiente de firma (dotación < 25).' },
+            { icon: 'calendar-clock', color: 'text-red-500', txt: 'LOD semanal por enviar — vence en 2 días.' },
+        ];
+        document.getElementById('notifList').innerHTML = NOTIFS.map(n => `
+            <li class="px-4 py-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50">
+                <i data-lucide="${n.icon}" class="w-4 h-4 mt-0.5 shrink-0 ${n.color}"></i>
+                <span class="text-gray-700">${n.txt}</span>
+            </li>`).join('');
+        document.getElementById('notifBadge').textContent = NOTIFS.length;
+
+        function toggleNotif() {
+            document.getElementById('notifDropdown').classList.toggle('hidden');
+        }
+        document.addEventListener('click', (e) => {
+            const dd = document.getElementById('notifDropdown');
+            if (!dd.classList.contains('hidden') && !e.target.closest('.relative')) dd.classList.add('hidden');
+        });
+
+        // ── Requisitos de acreditación EECC ──
+        const REQUISITOS = [
+            { id: 'r1', titulo: 'Reglamento Especial de Subcontratistas (RESSO V9)',
+              desc: 'Reglamento vigente y firmado, alineado a las exigencias de la empresa mandante.' },
+            { id: 'r2', titulo: 'Constitución de CPHS (Art. 66 Ley 16.744)',
+              desc: 'Comité Paritario constituido cuando la dotación en faena supera los 25 trabajadores.' },
+            { id: 'r3', titulo: 'Acreditación de equipos y maquinaria',
+              desc: 'Certificados y acreditaciones vigentes de equipos según el contrato (DS 44 §8.2).' },
+            { id: 'r4', titulo: 'Matriz de riesgos (IPER) del contrato',
+              desc: 'Matriz IPER específica del servicio, con medidas de control jerarquizadas.' },
+            { id: 'r5', titulo: 'Registro de dotación y obligaciones laborales (LOD)',
+              desc: 'Lista de Obreros y Dotación al día, con cumplimiento de obligaciones previsionales.' },
+        ];
+
+        const FUNDAMENTOS_NA = {
+            r1: 'No aplica reglamento independiente: el servicio se rige por el RESSO corporativo de la empresa mandante.',
+            r2: 'No aplica constitución de CPHS (Art. 66 Ley 16.744): dotación inferior a 25 trabajadores en faena.',
+            r3: 'No aplica acreditación de maquinaria autopropulsada (DS 44 §8.2): el contrato no contempla equipos autopropulsados.',
+            r4: 'No aplica matriz adicional: las tareas están cubiertas por la matriz de riesgos del mandante (Riesgo Moderado).',
+            r5: 'No aplica registro adicional: la dotación se gestiona íntegramente en el sistema del mandante.',
+        };
+
+        const estado = {}; // id -> 'si' | 'no' | 'na'
+
+        function tarjeta(p) {
+            return `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-req="${p.id}">
+                <div class="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="pr-4">
+                        <h3 class="font-bold text-gray-900">${p.titulo}</h3>
+                        <p class="text-sm text-gray-500 mt-1">${p.desc}</p>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        <button type="button" onclick="setEstado('${p.id}','si')" data-opt="si" class="opt px-4 py-2 rounded-lg text-sm font-bold border transition">Sí</button>
+                        <button type="button" onclick="setEstado('${p.id}','no')" data-opt="no" class="opt px-4 py-2 rounded-lg text-sm font-bold border transition">No</button>
+                        <button type="button" onclick="setEstado('${p.id}','na')" data-opt="na" class="opt px-4 py-2 rounded-lg text-sm font-bold border transition">N/A</button>
+                    </div>
+                </div>
+                <div class="accion hidden border-t border-gray-100 bg-gray-50 p-5"></div>
+            </div>`;
+        }
+
+        function setEstado(id, valor) {
+            estado[id] = valor;
+            const card = document.querySelector(`[data-req="${id}"]`);
+            card.querySelectorAll('.opt').forEach(b => {
+                const on = b.dataset.opt === valor;
+                b.classList.remove('text-white', 'border-primary', 'bg-secondary', 'bg-amber-500', 'border-secondary', 'border-amber-500', 'bg-primary');
+                b.classList.add('text-gray-600', 'border-gray-300');
+                if (on) {
+                    b.classList.remove('text-gray-600', 'border-gray-300');
+                    b.classList.add('text-white');
+                    if (valor === 'si') b.classList.add('bg-secondary', 'border-secondary');
+                    if (valor === 'no') b.classList.add('bg-amber-500', 'border-amber-500');
+                    if (valor === 'na') b.classList.add('bg-primary', 'border-primary');
+                }
+            });
+            const zona = card.querySelector('.accion');
+            zona.classList.remove('hidden');
+            zona.innerHTML = render(id, valor);
+            if (window.lucide) lucide.createIcons();
+            actualizarKPIs();
+        }
+
+        function render(id, valor) {
+            if (valor === 'si') {
+                return `
+                <p class="text-sm font-bold text-secondary mb-3 flex items-center gap-2"><i data-lucide="upload-cloud" class="w-4 h-4"></i> Cargar Evidencia</p>
+                <label class="block border-2 border-dashed border-secondary/40 rounded-xl p-8 text-center cursor-pointer hover:bg-secondary/5 transition">
+                    <i data-lucide="file-up" class="w-8 h-8 mx-auto text-secondary mb-2"></i>
+                    <span class="block text-sm text-gray-600">Arrastra y suelta el documento aquí, o haz clic para seleccionar</span>
+                    <input type="file" class="hidden" onchange="this.nextElementSibling.textContent = this.files[0] ? this.files[0].name : ''">
+                    <span class="block text-xs font-semibold text-gray-800 mt-2"></span>
+                </label>`;
+            }
+            if (valor === 'no') {
+                return `
+                <p class="text-sm font-bold text-amber-600 mb-3 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Plan de Trabajo</p>
+                <textarea rows="3" placeholder="Describa la acción correctiva, responsable y plazo de cierre..." class="w-full p-3 border rounded-lg text-sm mb-3"></textarea>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" placeholder="Responsable" class="w-full p-3 border rounded-lg text-sm">
+                    <input type="date" class="w-full p-3 border rounded-lg text-sm">
+                </div>
+                <button type="button" class="mt-3 bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold">Agregar al plan</button>`;
+            }
+            if (valor === 'na') {
+                const fundamento = FUNDAMENTOS_NA[id] || '';
+                return `
+                <p class="text-sm font-bold text-primary mb-3 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Generar Carta de Fundamento N/A</p>
+                <textarea rows="3" class="w-full p-3 border rounded-lg text-sm mb-3">${fundamento}</textarea>
+                <button type="button" onclick="generarCarta('${id}', this)" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Descargar carta (.txt)
+                </button>`;
+            }
+            return '';
+        }
+
+        function generarCarta(id, btn) {
+            const req = REQUISITOS.find(p => p.id === id);
+            const texto = btn.closest('.accion').querySelector('textarea').value;
+            const fecha = new Date().toLocaleDateString('es-CL');
+            const contenido =
+`SMART HSE — CARTA DE FUNDAMENTO "NO APLICA" (EECC / RESSO V9)
+=============================================================
+Fecha: ${fecha}
+Empresa Contratista (ID SNS): 12.345.678-K
+Requisito evaluado: ${req.titulo}
+
+DECLARACIÓN DE NO APLICABILIDAD
+-------------------------------
+${texto}
+
+Esta declaración se emite en el marco del régimen de subcontratación (Ley 20.123),
+el Reglamento Especial de Subcontratistas (RESSO V9) y la Ley 16.744, dejando
+constancia del fundamento técnico-legal por el cual el requisito no resulta
+aplicable al contrato evaluado.
+
+_____________________________
+Firma Representante EECC`;
+
+            const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Carta_NA_EECC_${id}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function actualizarKPIs() {
+            const vals = Object.values(estado);
+            const conformes = vals.filter(v => v === 'si').length;
+            const brechas = vals.filter(v => v === 'no').length;
+            const na = vals.filter(v => v === 'na').length;
+            const evaluables = REQUISITOS.length - na;
+            const acred = evaluables > 0 ? Math.round((conformes / evaluables) * 100) : 0;
+            document.getElementById('kpiOk').textContent = conformes;
+            document.getElementById('kpiBrechas').textContent = brechas;
+            document.getElementById('kpiNA').textContent = na;
+            document.getElementById('kpiAcred').textContent = acred + '%';
+        }
+
+        // init
+        document.getElementById('reqContainer').innerHTML = REQUISITOS.map(tarjeta).join('');
+        lucide.createIcons();
+    </script>
+</body>
+</html>

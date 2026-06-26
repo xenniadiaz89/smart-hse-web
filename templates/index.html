@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Gestión Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#006a9b',
+                        secondary: '#7ab038'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-marquee { animation: marquee 30s linear infinite; }
+
+        /* Fondo del hero: foto real de faena HSE con velo oscuro para legibilidad */
+        .hero-photo {
+            background-image:
+                linear-gradient(rgba(0,30,55,0.55), rgba(0,30,55,0.65)),
+                url("{{ url_for('static', filename='fondo_hero.jpg') }}");
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans">
+
+    <nav class="px-12 py-5 flex justify-end items-center bg-white border-b shadow-sm">
+        <button onclick="toggleModal(true)" class="bg-secondary text-white px-6 py-2 rounded-full font-semibold hover:bg-[#6a9e32] transition shadow-md">
+            Solicitar Demo
+        </button>
+    </nav>
+
+    <!-- Cinta infinita de legislación (verde corporativo) -->
+    <div class="bg-secondary text-white py-2 overflow-hidden whitespace-nowrap text-sm font-medium">
+        <div class="inline-block animate-marquee">
+            <span>Ley 16.744 Accidentes del Trabajo &nbsp; • &nbsp; Ley 21.643 Ley Karin &nbsp; • &nbsp; DS 44/2024 Gestión Preventiva &nbsp; • &nbsp; DS 594 Condiciones Sanitarias &nbsp; • &nbsp; Código del Trabajo &nbsp; • &nbsp; Ley 20.005 Acoso Sexual &nbsp; • &nbsp; Ley 21.012 Acoso Laboral &nbsp; • &nbsp; </span>
+            <span>Ley 16.744 Accidentes del Trabajo &nbsp; • &nbsp; Ley 21.643 Ley Karin &nbsp; • &nbsp; DS 44/2024 Gestión Preventiva &nbsp; • &nbsp; DS 594 Condiciones Sanitarias &nbsp; • &nbsp; Código del Trabajo &nbsp; • &nbsp; Ley 20.005 Acoso Sexual &nbsp; • &nbsp; Ley 21.012 Acoso Laboral &nbsp; • &nbsp; </span>
+        </div>
+    </div>
+
+    <section class="hero-photo relative px-6 md:px-12 pt-20 pb-40 text-center overflow-hidden">
+        <div class="relative z-10 max-w-5xl mx-auto">
+            <!-- Logo grande y centrado (sin marco, directo sobre la foto) -->
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE"
+                 class="h-56 md:h-72 w-auto mx-auto mb-10 drop-shadow-2xl">
+            <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight text-white drop-shadow-lg">
+                Automatización Inteligente para tu <span class="text-secondary">Gestión HSE en Chile</span>
+            </h1>
+            <p class="text-lg md:text-xl text-gray-100 mb-10 max-w-3xl mx-auto drop-shadow">Potenciando la seguridad, el cumplimiento y el crecimiento sostenible.</p>
+            <button onclick="toggleModal(true)" class="bg-secondary hover:bg-[#6a9e32] text-white px-10 py-4 rounded-xl font-bold shadow-lg transition text-lg">
+                Pedir tu Demo
+            </button>
+        </div>
+    </section>
+
+    <!-- ── Cuadrícula de valor (gestión preventiva) ── -->
+    <section class="px-6 md:px-12 pb-24 -mt-24 relative z-20">
+        <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Gestión de Riesgos (informativa) -->
+            <div class="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 text-center">
+                <div class="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-5">
+                    <i data-lucide="shield-alert" class="w-8 h-8"></i>
+                </div>
+                <h3 class="font-extrabold text-lg text-gray-900 mb-2">Gestión de Riesgos</h3>
+                <p class="text-sm text-gray-600">Identificación de peligros, matriz IPER y control de brechas en terreno.</p>
+            </div>
+
+            <!-- Auditoría Ágil (entra al panel de control) -->
+            <a href="/dashboard" class="group bg-white rounded-2xl p-8 shadow-xl border-2 border-secondary/40 text-center hover:-translate-y-1 hover:shadow-2xl transition cursor-pointer">
+                <div class="h-16 w-16 rounded-2xl bg-secondary/15 text-secondary flex items-center justify-center mx-auto mb-5 group-hover:bg-secondary group-hover:text-white transition">
+                    <i data-lucide="clipboard-check" class="w-8 h-8"></i>
+                </div>
+                <h3 class="font-extrabold text-lg text-gray-900 mb-2">Auditoría Ágil</h3>
+                <p class="text-sm text-gray-600">Ingresa al panel de control y evalúa el Cumplimiento DS 44.</p>
+                <span class="inline-flex items-center gap-1 text-secondary font-bold text-sm mt-4">Ingresar al panel <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+            </a>
+
+            <!-- Legislación Laboral (biblioteca legal enlazada a BCN) -->
+            <a href="/legislacion" class="group bg-white rounded-2xl p-8 shadow-xl border border-gray-100 text-center hover:-translate-y-1 hover:shadow-2xl transition cursor-pointer">
+                <div class="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-5 group-hover:bg-primary group-hover:text-white transition">
+                    <i data-lucide="scale" class="w-8 h-8"></i>
+                </div>
+                <h3 class="font-extrabold text-lg text-gray-900 mb-2">Legislación Laboral</h3>
+                <p class="text-sm text-gray-600">Ley 16.744, Ley Karin, DS 44/2024 y DS 594 enlazadas a la Biblioteca del Congreso (BCN).</p>
+                <span class="inline-flex items-center gap-1 text-primary font-bold text-sm mt-4">Ver biblioteca <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+            </a>
+        </div>
+    </section>
+
+    <div id="demoModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-primary" id="modalTitle">Solicitar Demo</h2>
+                <button onclick="toggleModal(false)" class="text-gray-500 hover:text-gray-700 font-bold">✕</button>
+            </div>
+
+            <form id="demoForm" class="space-y-4">
+                <div id="pasoPersonal">
+                    <label class="block mb-2 font-semibold">Seleccione su rol:</label>
+                    <select id="rolSeleccion" class="w-full p-3 border rounded-lg mb-4">
+                        <option value="">-- Seleccione --</option>
+                        <option value="asesor">Asesor en Prevención</option>
+                        <option value="empresa">Empresa</option>
+                    </select>
+                    <div class="space-y-4">
+                        <input type="text" placeholder="Nombres" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" placeholder="Apellidos" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" placeholder="RUT" class="w-full p-3 border rounded-lg" required>
+                        <input type="text" placeholder="Número de Carnet SNS (ID)" class="w-full p-3 border rounded-lg" required>
+                        <input type="email" placeholder="Correo Electrónico" class="w-full p-3 border rounded-lg" required>
+                        <input type="tel" placeholder="Número de Teléfono" class="w-full p-3 border rounded-lg" required>
+                    </div>
+                    <button type="button" onclick="avanzarEmpresa()" class="w-full bg-primary text-white py-3 rounded-lg font-bold mt-6">Siguiente</button>
+                </div>
+
+                <div id="pasoEmpresa" class="hidden space-y-4">
+                    <input type="text" placeholder="Nombre de la Empresa" class="w-full p-3 border rounded-lg">
+
+                    <label class="block text-sm font-semibold text-gray-600">Rubro SII (Actividad Económica):</label>
+                    <select class="w-full p-3 border rounded-lg">
+                        <option value="">Seleccione rubro...</option>
+                        <option value="mineria">Minería</option>
+                        <option value="construccion">Construcción</option>
+                        <option value="servicios">Servicios Técnicos y Profesionales</option>
+                        <option value="transporte">Transporte y Almacenamiento</option>
+                        <option value="agro">Agricultura y Ganadería</option>
+                        <option value="alimentacion">Alimentación</option>
+                        <option value="retail">Retail</option>
+                        <option value="energias">Energías Renovables</option>
+                    </select>
+
+                    <label class="block text-sm font-semibold text-gray-600">Rol de la empresa (SII):</label>
+                    <select class="w-full p-3 border rounded-lg">
+                        <option value="principal">Empresa Principal</option>
+                        <option value="contratista">Empresa Contratista</option>
+                        <option value="subcontratista">Subcontratista</option>
+                    </select>
+
+                    <input type="text" placeholder="RUT de la Empresa" class="w-full p-3 border rounded-lg">
+                    <input type="number" placeholder="Cantidad total de trabajadores" class="w-full p-3 border rounded-lg">
+
+                    <label class="block font-semibold text-sm">¿Es empresa contratista (EECC)?</label>
+                    <select id="esEECC" onchange="toggleMandante()" class="w-full p-3 border rounded-lg">
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                    </select>
+
+                    <div id="bloqueMandante" class="hidden">
+                        <label class="block text-sm font-semibold text-gray-600 mb-2">Empresa mandante (cliente):</label>
+                        <select id="mandante" class="w-full p-3 border rounded-lg">
+                            <option value="">Seleccione mandante...</option>
+                            <option value="codelco_rt">Codelco División RT</option>
+                            <option value="spence">Spence</option>
+                            <option value="abra">Abra</option>
+                        </select>
+                    </div>
+
+                    <button type="button" onclick="submitForm()" class="w-full bg-secondary text-white py-3 rounded-lg font-bold mt-4">Enviar Solicitud</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function toggleModal(show) {
+            document.getElementById('demoModal').classList.toggle('hidden', !show);
+        }
+
+        function avanzarEmpresa() {
+            const rol = document.getElementById('rolSeleccion').value;
+            if (rol === 'empresa') {
+                document.getElementById('pasoPersonal').classList.add('hidden');
+                document.getElementById('pasoEmpresa').classList.remove('hidden');
+                document.getElementById('modalTitle').innerText = "Datos de la Empresa";
+            } else if (rol === 'asesor') {
+                submitForm();
+            } else {
+                alert("Por favor, seleccione un rol.");
+            }
+        }
+
+        function toggleMandante() {
+            const si = document.getElementById('esEECC').value === 'si';
+            document.getElementById('bloqueMandante').classList.toggle('hidden', !si);
+        }
+
+        function submitForm() {
+            const rol = document.getElementById('rolSeleccion').value;
+            const esEECC = document.getElementById('esEECC').value;
+
+            if (rol === 'empresa' && esEECC === 'si') {
+                const mandante = document.getElementById('mandante').value;
+                if (!mandante) { alert("Por favor, seleccione la empresa mandante."); return; }
+                alert("Redirigiendo a la vista especial para empresas contratistas (EECC)...");
+                window.location.href = "/contratistas?mandante=" + encodeURIComponent(mandante);
+            } else {
+                alert("Verificando identidad... Redirigiendo a su dashboard de trabajo.");
+                window.location.href = "/dashboard";
+            }
+        }
+    </script>
+</body>
+</html>

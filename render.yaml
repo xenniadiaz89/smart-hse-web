@@ -3,5 +3,5 @@ services:
     name: smart-hse
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     plan: free
