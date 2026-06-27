@@ -20,3 +20,6 @@ env/
 .env.*
 *.key
 *.pem
+
+# Cuentas de usuario locales (MVP, no subir al repo)
+usuarios.json

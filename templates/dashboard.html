@@ -22,8 +22,14 @@
         .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
         .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
         .iet-chk { display:flex; align-items:flex-start; gap:.5rem; font-size:.8rem; color:#374151; line-height:1.3; }
-        .iet-foto { display:flex; flex-direction:column; gap:.35rem; font-size:.75rem; font-weight:600; color:#4b5563; border:1px dashed #d1d5db; border-radius:.6rem; padding:.6rem .75rem; }
+        .iet-foto { display:flex; flex-direction:column; gap:.4rem; font-size:.75rem; font-weight:600; color:#4b5563; border:1px dashed #d1d5db; border-radius:.6rem; padding:.6rem .75rem; }
         .iet-file { font-size:.7rem; color:#6b7280; }
+        .nav-item { display:flex; align-items:center; gap:.6rem; padding:.6rem .8rem; border-radius:.7rem; font-size:.8rem; font-weight:700; color:#4b5563; transition:all .15s; white-space:nowrap; }
+        .nav-item:hover { background:#f3f4f6; color:#006a9b; }
+        .nav-item.nav-on { background:#006a9b; color:#fff; box-shadow:0 2px 8px rgba(0,106,155,.25); }
+        .nav-item.nav-on i { color:#fff; }
+        .cam-btn { display:inline-flex; align-items:center; gap:.4rem; align-self:flex-start; background:#006a9b; color:#fff; font-size:.72rem; font-weight:700; padding:.4rem .7rem; border-radius:.5rem; }
+        .cam-btn:hover { background:#005580; }
     </style>
 </head>
 <body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
@@ -47,13 +53,13 @@
                 </div>
             </div>
             <div class="text-right leading-tight">
-                <p class="text-sm font-bold text-gray-800">Asesor en Prevención</p>
-                <p class="text-xs text-gray-500">ID SNS: <span class="font-mono font-semibold text-primary">12.345.678-K</span></p>
+                <p class="text-sm font-bold text-gray-800">{{ nombre or 'Asesor en Prevención' }}</p>
+                <p class="text-xs text-gray-500">ID SNS: <span class="font-mono font-semibold text-primary">{{ sns or '—' }}</span></p>
             </div>
             <div class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-bold">
                 <i data-lucide="user" class="w-5 h-5"></i>
             </div>
-            <a href="/" class="text-gray-500 hover:text-primary transition" title="Salir">
+            <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir">
                 <i data-lucide="log-out" class="w-5 h-5"></i>
             </a>
         </div>
@@ -67,11 +73,29 @@
     </div>
 
     <main class="max-w-7xl mx-auto px-6 py-8">
-      <div class="flex flex-col lg:flex-row gap-8 items-start">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+       <!-- ── Menú lateral de módulos ── -->
+       <aside class="w-full lg:w-56 shrink-0 lg:sticky lg:top-24">
+           <nav class="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+               <button type="button" data-nav="avance" onclick="mostrarVista('avance')" class="nav-item nav-on">
+                   <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance</span></button>
+               <button type="button" data-nav="checklist" onclick="mostrarVista('checklist')" class="nav-item">
+                   <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist</span></button>
+               <button type="button" data-nav="ds44" onclick="mostrarVista('ds44')" class="nav-item">
+                   <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
+               <button type="button" data-nav="iet" onclick="mostrarVista('iet')" class="nav-item">
+                   <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Inspección en Terreno</span></button>
+           </nav>
+       </aside>
+
+       <!-- ── Columna central (vistas conmutables) ── -->
        <div class="flex-1 min-w-0 w-full">
 
+        <!-- VISTA: Avance de trabajos y actividades -->
+        <section id="vista-avance">
         <!-- ── Panel de KPIs ── -->
-        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cumplimiento</span>
@@ -100,29 +124,32 @@
                 </div>
                 <p class="text-3xl font-extrabold text-gray-900" id="kpiNA">0</p>
             </div>
-        </section>
+        </div><!-- /KPIs -->
 
-        <!-- ── Módulo DS 44 ── -->
-        <section>
-            <!-- Lanzador: Cumplimiento DS 44 → cuestionario FUF -->
-            <button id="lanzadorDS44" type="button" onclick="abrirFUF()"
-                    class="w-full text-left bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between gap-4 hover:shadow-lg hover:border-primary/40 transition">
-                <div class="flex items-center gap-4">
-                    <div class="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                        <i data-lucide="clipboard-check" class="w-7 h-7"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-xl font-extrabold text-gray-900">Cumplimiento DS 44</h1>
-                        <p class="text-sm text-gray-500">Auditoría ágil de gestión preventiva — Formulario Único de Fiscalización (FUF).</p>
-                    </div>
+        <!-- ── Avance de trabajos y actividades ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Progreso de módulos -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center gap-2 mb-5">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-primary"></i>
+                    <h2 class="font-extrabold text-gray-900">Avance de trabajos</h2>
                 </div>
-                <span class="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
-                    Iniciar <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                </span>
-            </button>
+                <div id="avanceModulos" class="space-y-5"></div>
+            </div>
+            <!-- Actividades recurrentes -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center gap-2 mb-5">
+                    <i data-lucide="calendar-check" class="w-5 h-5 text-secondary"></i>
+                    <h2 class="font-extrabold text-gray-900">Actividades</h2>
+                </div>
+                <ul id="avanceActividades" class="space-y-3"></ul>
+            </div>
+        </div>
+        </section><!-- /vista-avance -->
 
-            <!-- Cuestionario FUF (oculto hasta confirmar) -->
-            <div id="moduloFUF" class="hidden mt-6">
+        <!-- VISTA: Cumplimiento DS 44 -->
+        <section id="vista-ds44" class="hidden">
+            <div id="moduloFUF">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
                     <div class="flex items-center gap-3">
                         <h2 class="text-2xl font-extrabold text-gray-900">Cuestionario FUF</h2>
@@ -141,27 +168,10 @@
             </div>
         </section>
 
-        <!-- ── Módulo Inspección en Terreno ── -->
-        <section class="mt-6">
-            <!-- Lanzador -->
-            <button id="lanzadorIET" type="button" onclick="abrirIET()"
-                    class="w-full text-left bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between gap-4 hover:shadow-lg hover:border-secondary/40 transition">
-                <div class="flex items-center gap-4">
-                    <div class="h-14 w-14 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                        <i data-lucide="map-pin" class="w-7 h-7"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-xl font-extrabold text-gray-900">Inspección en Terreno</h1>
-                        <p class="text-sm text-gray-500">Informe de visita a terreno de prevención de riesgos — evidencia fotográfica in situ.</p>
-                    </div>
-                </div>
-                <span class="inline-flex items-center gap-2 bg-secondary text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
-                    Iniciar <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                </span>
-            </button>
-
-            <!-- Formulario IET (oculto hasta iniciar) -->
-            <div id="moduloIET" class="hidden mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-8">
+        <!-- VISTA: Inspección en Terreno -->
+        <section id="vista-iet" class="hidden">
+            <!-- Formulario IET -->
+            <div id="moduloIET" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-8">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <h2 class="text-2xl font-extrabold text-gray-900">Informe de Visita a Terreno</h2>
@@ -212,12 +222,7 @@
                         <label class="iet-chk"><input type="checkbox" id="iet_cierre" class="accent-secondary"> <span>Cierre perimetral del área de trabajo <em class="text-gray-400">(si aplica según PTS)</em></span></label>
                     </div>
                     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-5 mb-2">Documentación básica del PTS — <span class="normal-case text-gray-500">foto in situ firmada por ambas partes (no se admite carga desde galería)</span></p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <label class="iet-foto"><span>Análisis Seguro de Trabajo (AST / ART)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
-                        <label class="iet-foto"><span>Charla de 5 minutos</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
-                        <label class="iet-foto"><span>Permiso de bloqueo (si aplica)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
-                        <label class="iet-foto"><span>Permiso de trabajo (si aplica)</span><input type="file" accept="image/*" capture="environment" class="iet-file"></label>
-                    </div>
+                    <div id="iet_docs" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
                 </div>
 
                 <!-- 3. Hallazgos y desviaciones -->
@@ -260,54 +265,74 @@
             </div>
         </section>
 
-       </div><!-- /columna izquierda -->
-
-       <!-- ── Checklists digitales (costado derecho de la consola) ── -->
-       <aside class="w-full lg:w-96 shrink-0 lg:sticky lg:top-24 space-y-5">
-           <div class="flex items-center gap-2">
+        <!-- VISTA: Checklist -->
+        <section id="vista-checklist" class="hidden">
+           <div class="flex items-center gap-2 mb-5">
                <i data-lucide="list-checks" class="w-5 h-5 text-primary"></i>
-               <h2 class="font-extrabold text-gray-900">Checklists digitales</h2>
+               <h2 class="text-xl font-extrabold text-gray-900">Checklists digitales</h2>
            </div>
-
-           <!-- Conducción · Preuso de vehículo -->
-           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-cl="vehiculo">
-               <button type="button" onclick="toggleCL('vehiculo')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
-                   <span class="flex items-center gap-3 min-w-0">
-                       <span class="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="truck" class="w-5 h-5"></i></span>
-                       <span class="min-w-0">
-                           <span class="block font-bold text-gray-900 text-sm">Conducción · Preuso vehículo</span>
-                           <span class="block text-xs text-gray-500">Inspección diaria antes de operar</span>
+           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <!-- Conducción · Preuso de vehículo -->
+               <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit" data-cl="vehiculo">
+                   <button type="button" onclick="toggleCL('vehiculo')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
+                       <span class="flex items-center gap-3 min-w-0">
+                           <span class="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="truck" class="w-5 h-5"></i></span>
+                           <span class="min-w-0">
+                               <span class="block font-bold text-gray-900 text-sm">Conducción · Preuso vehículo</span>
+                           </span>
                        </span>
-                   </span>
-                   <span class="flex items-center gap-2 shrink-0">
-                       <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
-                       <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
-                   </span>
-               </button>
-               <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
-           </div>
-
-           <!-- Fatiga y Somnolencia -->
-           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-cl="fatiga">
-               <button type="button" onclick="toggleCL('fatiga')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
-                   <span class="flex items-center gap-3 min-w-0">
-                       <span class="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i data-lucide="bed" class="w-5 h-5"></i></span>
-                       <span class="min-w-0">
-                           <span class="block font-bold text-gray-900 text-sm">Fatiga y Somnolencia</span>
-                           <span class="block text-xs text-gray-500">Autoevaluación previa a conducir/operar</span>
+                       <span class="flex items-center gap-2 shrink-0">
+                           <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
+                           <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
                        </span>
-                   </span>
-                   <span class="flex items-center gap-2 shrink-0">
-                       <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
-                       <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
-                   </span>
-               </button>
-               <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
-           </div>
-       </aside>
+                   </button>
+                   <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
+               </div>
 
-      </div><!-- /flex dos columnas -->
+               <!-- Fatiga y Somnolencia -->
+               <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit" data-cl="fatiga">
+                   <button type="button" onclick="toggleCL('fatiga')" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 transition">
+                       <span class="flex items-center gap-3 min-w-0">
+                           <span class="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i data-lucide="bed" class="w-5 h-5"></i></span>
+                           <span class="min-w-0">
+                               <span class="block font-bold text-gray-900 text-sm">Fatiga y Somnolencia</span>
+                           </span>
+                       </span>
+                       <span class="flex items-center gap-2 shrink-0">
+                           <span class="veredicto text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">Sin evaluar</span>
+                           <i data-lucide="chevron-down" class="chev w-4 h-4 text-gray-400 transition"></i>
+                       </span>
+                   </button>
+                   <div class="cuerpo hidden border-t border-gray-100 max-h-[28rem] overflow-y-auto p-4 space-y-4"></div>
+               </div>
+           </div>
+        </section>
+
+       </div><!-- /columna central -->
+
+      </div><!-- /flex -->
     </main>
+
+    <!-- ── Modal de cámara (captura in situ con permiso) ── -->
+    <div id="camModal" class="hidden fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="px-5 py-3 border-b flex items-center justify-between">
+                <h3 class="font-extrabold text-gray-900 text-sm flex items-center gap-2"><i data-lucide="camera" class="w-4 h-4 text-primary"></i> <span id="camTitulo">Tomar foto in situ</span></h3>
+                <button type="button" onclick="cerrarCamara()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="bg-black aspect-video flex items-center justify-center">
+                <video id="camVideo" autoplay playsinline class="w-full h-full object-contain"></video>
+            </div>
+            <div id="camError" class="hidden px-5 py-3 text-sm text-red-600 bg-red-50"></div>
+            <div class="px-5 py-3 flex items-center justify-end gap-3">
+                <button type="button" onclick="cerrarCamara()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                <button type="button" onclick="capturarFoto()" class="inline-flex items-center gap-2 bg-secondary hover:brightness-95 text-white px-5 py-2.5 rounded-xl font-bold text-sm">
+                    <i data-lucide="camera" class="w-4 h-4"></i> Capturar
+                </button>
+            </div>
+        </div>
+    </div>
+    <canvas id="camCanvas" class="hidden"></canvas>
 
     <script>
         // ── Contador de días de prueba gratuita ──
@@ -569,6 +594,7 @@ Firma Asesor en Prevención`;
             document.getElementById('kpiBrechas').textContent = brechas;
             document.getElementById('kpiNA').textContent = na;
             document.getElementById('kpiCumplimiento').textContent = cumpl + '%';
+            if (typeof actualizarAvance === 'function') actualizarAvance();
         }
 
         // ── Plan de Trabajo (auditor-hse): consolida las brechas "No Cumple" ──
@@ -655,13 +681,122 @@ Firma Asesor en Prevención`;
             URL.revokeObjectURL(url);
         }
 
-        // ── Flujo: Cumplimiento DS 44 → ¿responder cuestionario FUF? → desplegar ──
-        function abrirFUF() {
-            if (!confirm('¿Desea responder el cuestionario FUF?')) return;
-            document.getElementById('lanzadorDS44').classList.add('hidden');
-            const modulo = document.getElementById('moduloFUF');
-            modulo.classList.remove('hidden');
-            modulo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // ─────────────────────────────────────────────────────────────
+        // NAVEGACIÓN DE VISTAS (menú lateral)
+        // ─────────────────────────────────────────────────────────────
+        const VISTAS = ['avance', 'checklist', 'ds44', 'iet'];
+        function mostrarVista(id) {
+            // resaltar ítem del menú
+            document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
+            VISTAS.forEach(v => document.getElementById('vista-' + v).classList.toggle('hidden', v !== id));
+            if (id === 'iet') initIET();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Tablero de avance (trabajos y actividades) ──
+        const ACTIVIDADES = [
+            { t: 'Registro FYS / ECF21 diario', cli: 'Codelco DRT', frec: 'Diaria', hecho: true },
+            { t: 'Actualización ECF21 Terreno', cli: 'Minera Spence', frec: 'Diaria', hecho: true },
+            { t: 'Registro All Scan', cli: 'Centinela', frec: 'Diaria', hecho: false },
+            { t: 'Revisión LOD semanal', cli: 'Codelco DRT', frec: 'Semanal', hecho: false },
+            { t: 'Acreditación de Equipos', cli: 'Minera Spence', frec: 'Semanal', hecho: false },
+            { t: 'Reunión CPHS', cli: 'Minera El Abra', frec: 'Mensual', hecho: false },
+        ];
+
+        function actualizarAvance() {
+            // progreso de módulos
+            const vals = Object.values(estado);
+            const ds44Pct = Math.round((vals.length / TOTAL_ITEMS) * 100);
+            const clEval = ['vehiculo', 'fatiga'].filter(id => Object.keys(clEstado[id] || {}).length > 0).length;
+            const ietGen = window._ietGenerado ? 'Informe generado' : (document.getElementById('iet_empresa')?.value ? 'Borrador' : 'Sin iniciar');
+            const ietPct = window._ietGenerado ? 100 : (document.getElementById('iet_empresa')?.value ? 40 : 0);
+            const barras = [
+                { t: 'Cumplimiento DS 44', sub: vals.length + ' / ' + TOTAL_ITEMS + ' ítems', pct: ds44Pct, col: 'bg-primary' },
+                { t: 'Inspección en Terreno', sub: ietGen, pct: ietPct, col: 'bg-secondary' },
+                { t: 'Checklists evaluados', sub: clEval + ' / 2', pct: Math.round((clEval / 2) * 100), col: 'bg-amber-500' },
+            ];
+            document.getElementById('avanceModulos').innerHTML = barras.map(b => `
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-sm font-bold text-gray-800">${b.t}</span>
+                        <span class="text-xs text-gray-500">${b.sub}</span>
+                    </div>
+                    <div class="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div class="h-full ${b.col} rounded-full transition-all" style="width:${b.pct}%"></div>
+                    </div>
+                </div>`).join('');
+            // actividades
+            document.getElementById('avanceActividades').innerHTML = ACTIVIDADES.map(a => `
+                <li class="flex items-start gap-3">
+                    <span class="mt-0.5 ${a.hecho ? 'text-secondary' : 'text-amber-500'}"><i data-lucide="${a.hecho ? 'check-circle-2' : 'clock'}" class="w-4 h-4"></i></span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-gray-800 leading-tight">${a.t}</span>
+                        <span class="block text-xs text-gray-500">${a.cli} · ${a.frec} · ${a.hecho ? 'Realizada' : 'Pendiente'}</span>
+                    </span>
+                </li>`).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // CÁMARA — captura in situ con permiso (getUserMedia)
+        // ─────────────────────────────────────────────────────────────
+        const FOTOS = {};            // slotId -> [dataURL, ...]
+        let _camStream = null, _camSlot = null;
+
+        async function abrirCamara(slot, titulo) {
+            _camSlot = slot;
+            document.getElementById('camTitulo').textContent = titulo || 'Tomar foto in situ';
+            const err = document.getElementById('camError');
+            err.classList.add('hidden'); err.textContent = '';
+            document.getElementById('camModal').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+            try {
+                _camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                document.getElementById('camVideo').srcObject = _camStream;
+            } catch (e) {
+                err.textContent = 'No se pudo acceder a la cámara: ' + (e && e.message ? e.message : e) +
+                    '. Revise el permiso de cámara del navegador (requiere HTTPS o localhost).';
+                err.classList.remove('hidden');
+            }
+        }
+
+        function capturarFoto() {
+            const video = document.getElementById('camVideo');
+            if (!_camStream || !video.videoWidth) { return; }
+            const canvas = document.getElementById('camCanvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const url = canvas.toDataURL('image/jpeg', 0.8);
+            (FOTOS[_camSlot] = FOTOS[_camSlot] || []).push(url);
+            pintarFotos(_camSlot);
+            cerrarCamara();
+        }
+
+        function cerrarCamara() {
+            if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+            document.getElementById('camVideo').srcObject = null;
+            document.getElementById('camModal').classList.add('hidden');
+        }
+
+        function pintarFotos(slot) {
+            const cont = document.querySelector(`[data-fotos="${slot}"]`);
+            if (!cont) return;
+            const fotos = FOTOS[slot] || [];
+            cont.innerHTML = fotos.map((u, i) => `
+                <span class="relative inline-block">
+                    <img src="${u}" class="h-14 w-14 object-cover rounded-lg border border-gray-200">
+                    <button type="button" onclick="quitarFoto('${slot}',${i})" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">×</button>
+                </span>`).join('');
+        }
+
+        function quitarFoto(slot, i) { (FOTOS[slot] || []).splice(i, 1); pintarFotos(slot); }
+
+        // Genera un widget de cámara reutilizable (botón + miniaturas)
+        function widgetFoto(slot, etiqueta) {
+            return `<div class="iet-foto"><span>${etiqueta}</span>
+                <button type="button" class="cam-btn" onclick="abrirCamara('${slot}','${etiqueta.replace(/'/g, "")}')"><i data-lucide="camera" class="w-3.5 h-3.5"></i> Tomar foto</button>
+                <div class="flex flex-wrap gap-2 mt-1" data-fotos="${slot}"></div></div>`;
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -810,26 +945,33 @@ Firma Asesor en Prevención`;
             const badge = document.querySelector(`[data-cl="${id}"] .veredicto`);
             badge.textContent = v.txt;
             badge.className = 'veredicto text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ' + v.cls;
+            if (typeof actualizarAvance === 'function') actualizarAvance();
         }
 
         // ─────────────────────────────────────────────────────────────
         // INSPECCIÓN EN TERRENO — Informe de visita a terreno
         // ─────────────────────────────────────────────────────────────
-        function abrirIET() {
-            document.getElementById('lanzadorIET').classList.add('hidden');
-            const m = document.getElementById('moduloIET');
-            m.classList.remove('hidden');
+        let _ietInit = false;
+        function initIET() {
+            if (_ietInit) return;
+            _ietInit = true;
             const hoy = new Date().toISOString().slice(0, 10);
             if (!document.getElementById('iet_fecha').value) document.getElementById('iet_fecha').value = hoy;
+            // widgets de cámara para documentación del PTS
+            document.getElementById('iet_docs').innerHTML =
+                widgetFoto('doc_ast', 'Análisis Seguro de Trabajo (AST / ART)') +
+                widgetFoto('doc_charla', 'Charla de 5 minutos') +
+                widgetFoto('doc_bloqueo', 'Permiso de bloqueo (si aplica)') +
+                widgetFoto('doc_trabajo', 'Permiso de trabajo (si aplica)');
             if (!document.getElementById('iet_hallazgos').children.length) agregarHallazgo();
             if (!document.getElementById('iet_compromisos').children.length) agregarCompromiso();
-            m.scrollIntoView({ behavior: 'smooth', block: 'start' });
             if (window.lucide) lucide.createIcons();
         }
 
         let _hallazgoN = 0;
         function agregarHallazgo() {
             _hallazgoN++;
+            const slot = 'hallazgo_' + _hallazgoN;
             const div = document.createElement('div');
             div.className = 'border border-gray-200 rounded-xl p-4 bg-gray-50/60';
             div.innerHTML = `
@@ -846,7 +988,7 @@ Firma Asesor en Prevención`;
                         <input type="text" class="iet-in h-riesgo" placeholder="Ej: Caída a distinto nivel con consecuencias graves"></label>
                     <label class="block md:col-span-2"><span class="text-xs font-semibold text-gray-600">Medida correctiva inmediata</span>
                         <input type="text" class="iet-in h-medida" placeholder="Ej: Detener trabajos hasta instalar protección certificada"></label>
-                    <label class="iet-foto md:col-span-2"><span>Evidencia fotográfica in situ (antes / después)</span><input type="file" accept="image/*" capture="environment" class="iet-file" multiple></label>
+                    <div class="md:col-span-2">${widgetFoto(slot, 'Evidencia fotográfica in situ (antes / después)')}</div>
                 </div>`;
             document.getElementById('iet_hallazgos').appendChild(div);
             if (window.lucide) lucide.createIcons();
@@ -890,16 +1032,21 @@ Firma Asesor en Prevención`;
             L.push('Tipo inspección legal  : ' + v('iet_tipo'));
             L.push('PTS analizado          : ' + chk('iet_pts'));
             L.push('Verificación EPP        : ' + chk('iet_epp'));
-            L.push('Cierre perimetral área : ' + chk('iet_cierre'), '');
+            L.push('Cierre perimetral área : ' + chk('iet_cierre'));
+            const nf = s => (FOTOS[s] || []).length;
+            L.push('Documentación (fotos in situ): ' +
+                `AST/ART ${nf('doc_ast')} · Charla ${nf('doc_charla')} · Bloqueo ${nf('doc_bloqueo')} · Trabajo ${nf('doc_trabajo')}`, '');
             L.push('3. HALLAZGOS Y DESVIACIONES');
             const hs = document.querySelectorAll('#iet_hallazgos > div');
             if (!hs.length) L.push('(Sin hallazgos registrados)');
             hs.forEach((h, i) => {
                 const g = s => (h.querySelector(s)?.value || '').trim() || '—';
+                const slot = h.querySelector('[data-fotos]')?.dataset.fotos;
                 L.push(`Hallazgo ${i + 1}: ${g('.h-desc')}`);
                 L.push(`   Ubicación        : ${g('.h-ubic')}`);
                 L.push(`   Riesgo asociado  : ${g('.h-riesgo')}`);
                 L.push(`   Medida correctiva: ${g('.h-medida')}`);
+                L.push(`   Evidencia fotos  : ${nf(slot)}`);
             });
             L.push('', '4. PLAN DE ACCIÓN Y COMPROMISOS');
             const cs = document.querySelectorAll('#iet_compromisos > tr');
@@ -917,12 +1064,17 @@ Firma Asesor en Prevención`;
             const fecha = v('iet_fecha') || new Date().toISOString().slice(0, 10);
             const slug = (v('iet_empresa') || 'Faena').replace(/[^\wáéíóúñ ]/gi, '').replace(/\s+/g, '_');
             descargar(`Informe_Terreno_${slug}_${fecha}.txt`, L.join('\n'), 'text/plain;charset=utf-8');
+            window._ietGenerado = true;
+            actualizarAvance();
         }
 
         // init
         document.getElementById('pilaresContainer').innerHTML = FUF.map(bloqueSeccion).join('');
         renderCL('vehiculo');
         renderCL('fatiga');
+        actualizarAvance();
+        const _vistaInicial = (location.hash || '').replace('#', '');
+        mostrarVista(['ds44', 'iet', 'checklist'].includes(_vistaInicial) ? _vistaInicial : 'avance');
         lucide.createIcons();
     </script>
 </body>
