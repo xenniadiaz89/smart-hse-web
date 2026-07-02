@@ -1,27 +1,36 @@
 import os
 import json
 import re
+from io import BytesIO
 from datetime import date
 from functools import wraps
 
 from flask import (Flask, render_template, request, redirect, url_for,
-                   session, flash, jsonify, send_from_directory)
+                   session, flash, jsonify, send_file)
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 
+from models import sqla
 import db
 import normativa
 import resso
 import ia
 
-UPLOADS_DIR = os.path.join(os.path.dirname(__file__), 'uploads')
-
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
 
+# ── Base de datos: PostgreSQL en producción (DATABASE_URL), SQLite en local ──
+_db_url = os.environ.get('DATABASE_URL', '')
+if _db_url.startswith('postgres://'):          # Render entrega 'postgres://'; SQLAlchemy pide 'postgresql://'
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
+    os.path.dirname(__file__), 'smarthse.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+sqla.init_app(app)
+
 USERS_FILE = os.path.join(os.path.dirname(__file__), 'usuarios.json')
 
-db.init_db()
+with app.app_context():
+    db.init_db()                                # crea tablas (auto-migración) + siembra mapping
 
 
 # ─────────────────────────── Almacén de usuarios ───────────────────────────
@@ -253,20 +262,12 @@ def _carpeta(cid):
                       'estado': e.get('estado', 'pendiente'),
                       'observacion': e.get('observacion', '') or '',
                       'fecha_compromiso': e.get('fecha_compromiso', '') or '',
-                      'docs': [{'nombre': d['nombre'], 'tipo': d.get('tipo', 'evidencia')}
+                      'docs': [{'id': d['id'], 'nombre': d['nombre'], 'tipo': d.get('tipo', 'evidencia')}
                                for d in docs.get(it['n'], [])]})
     aplicables = [i for i in items if i['estado'] != 'na']
     cumple = [i for i in aplicables if i['estado'] == 'cumple']
     pct = round(len(cumple) / len(aplicables) * 100) if aplicables else 0
     return {'items': items, 'cumplimiento_pct': pct}
-
-
-def _carpeta_dir(numero, n):
-    item = resso.CARPETA_DICT.get(n)
-    carpeta = f"{n:02d}_" + re.sub(r'[^\w]+', '_', item['titulo'])[:40] if item else f"{n:02d}"
-    destino = os.path.join(UPLOADS_DIR, secure_filename(numero), carpeta)
-    os.makedirs(destino, exist_ok=True)
-    return destino
 
 
 def _datos(contrato):
@@ -278,29 +279,33 @@ def _datos(contrato):
     return {}
 
 
-def _logo_data_uri(numero, datos):
-    """Devuelve un data URI del logo de la empresa, o None."""
-    logo = datos.get('logo')
-    if not logo:
+def _logo_doc(cid):
+    """Devuelve el documento-logo (tipo='logo') más reciente del contrato, o None."""
+    logos = [d for d in db.documentos_de(cid) if d.get('tipo') == 'logo']
+    return logos[0] if logos else None
+
+
+def _logo_data_uri(rut, cid):
+    """Data URI del logo de la empresa (leído desde la BD), o None."""
+    doc = _logo_doc(cid)
+    if not doc:
         return None
-    ruta = os.path.join(UPLOADS_DIR, secure_filename(numero), secure_filename(logo))
-    if not os.path.exists(ruta):
+    blob = db.documento_contenido(rut, doc['id'])
+    if not blob:
         return None
     import base64
-    ext = os.path.splitext(logo)[1].lstrip('.').lower() or 'png'
-    mime = 'jpeg' if ext in ('jpg', 'jpeg') else ext
-    with open(ruta, 'rb') as fh:
-        b64 = base64.b64encode(fh.read()).decode()
-    return f"data:image/{mime};base64,{b64}"
+    contenido, mimetype, _ = blob
+    b64 = base64.b64encode(contenido).decode()
+    return f"data:{mimetype or 'image/png'};base64,{b64}"
 
 
-def carta_na_html(contrato, datos, item, fundamento):
+def carta_na_html(rut, contrato, datos, item, fundamento):
     """Genera una Carta de No Aplica (N/A) en HTML autocontenido (con logo si existe)."""
     hoy = date.today().strftime('%d-%m-%Y')
     empresa = (datos.get('empresa_contratista') or contrato.get('empresa') or '').strip()
     fund = (fundamento.strip() if fundamento and fundamento.strip() else '[Pendiente de fundamentar]')
     mandante = contrato.get('mandante', '') + (f" — {contrato.get('faena')}" if contrato.get('faena') else '')
-    logo = _logo_data_uri(contrato.get('numero', ''), datos)
+    logo = _logo_data_uri(rut, contrato.get('id'))
     logo_html = f'<img src="{logo}" alt="Logo" style="max-height:80px;max-width:220px">' if logo else \
         f'<div style="font-weight:800;color:#006a9b;font-size:20px">{empresa or "Empresa Contratista"}</div>'
     def esc(s):
@@ -339,18 +344,17 @@ def carta_na_html(contrato, datos, item, fundamento):
 
 
 def generar_carta_na(rut, cid, contrato, n, fundamento):
-    """Crea/actualiza la carta N/A (HTML con logo) del ítem n y la registra en su carpeta."""
+    """Crea/actualiza la carta N/A (HTML con logo) del ítem n, guardándola en la BD."""
     item = resso.CARPETA_DICT.get(n)
     if not item:
         return
     datos = _datos(contrato)
-    html = carta_na_html(contrato, datos, item, fundamento)
-    nombre = f"Carta_NA_item{n:02d}_{secure_filename(contrato.get('numero', ''))}.html"
-    destino = _carpeta_dir(contrato.get('numero', ''), n)
-    with open(os.path.join(destino, nombre), 'w', encoding='utf-8') as fh:
-        fh.write(html)
+    html = carta_na_html(rut, contrato, datos, item, fundamento)
+    numero = re.sub(r'[^\w-]+', '_', contrato.get('numero', '') or '')
+    nombre = f"Carta_NA_item{n:02d}_{numero}.html"
     db.eliminar_doc_tipo(cid, n, 'carta_na')          # evitar duplicados
-    db.registrar_documento(cid, nombre, 'N/A', 'carta_na', item_n=n)
+    db.registrar_documento(cid, nombre, 'N/A', 'carta_na', item_n=n,
+                           contenido=html.encode('utf-8'), mimetype='text/html')
 
 
 def replicar_controles(rut, control_key, origen_contrato_id):
@@ -679,12 +683,12 @@ def api_carpeta_doc(cid, n):
     archivos = request.files.getlist('archivo') or []
     if not archivos:
         return jsonify({'error': 'No se recibió archivo.'}), 400
-    destino = _carpeta_dir(c['numero'], n)
     for archivo in archivos:
         if not archivo or not archivo.filename:
             continue
-        archivo.save(os.path.join(destino, secure_filename(archivo.filename)))
-        db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n)
+        db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n,
+                               contenido=archivo.read(),
+                               mimetype=archivo.mimetype or 'application/octet-stream')
     return jsonify(_carpeta(cid))
 
 
@@ -705,25 +709,27 @@ def api_carpeta_bulk(cid):
         # webkitdirectory envía rutas relativas; respetar numeración de carpeta si existe
         nombre = archivo.filename.replace('\\', '/').split('/')[-1]
         n, fuente = ia.clasificar_path(archivo.filename)
-        destino = _carpeta_dir(c['numero'], n)
-        archivo.save(os.path.join(destino, secure_filename(nombre)))
-        db.registrar_documento(cid, nombre, '', 'evidencia', item_n=n)
+        db.registrar_documento(cid, nombre, '', 'evidencia', item_n=n,
+                               contenido=archivo.read(),
+                               mimetype=archivo.mimetype or 'application/octet-stream')
         reporte.append({'archivo': nombre, 'item': n,
                         'titulo': resso.CARPETA_DICT.get(n, {}).get('titulo', ''),
                         'fuente': fuente})
     return jsonify({'carpeta': _carpeta(cid), 'reporte': reporte})
 
 
-@app.route('/api/contratos/<int:cid>/carpeta/<int:n>/archivo/<path:nombre>', methods=['GET'])
+@app.route('/api/doc/<int:doc_id>', methods=['GET'])
 @login_required
-def api_carpeta_descargar(cid, n, nombre):
-    c = db.contrato_de(session['rut'], cid)
-    if not c:
-        return ('Contrato no encontrado', 404)
-    carpeta = _carpeta_dir(c['numero'], n)
-    # HTML (cartas) se abre en el navegador; el resto se descarga
-    inline = nombre.lower().endswith(('.html', '.htm'))
-    return send_from_directory(carpeta, secure_filename(nombre), as_attachment=not inline)
+def api_doc(doc_id):
+    """Sirve un documento (evidencia, carta o logo) desde la BD, resolviendo referencias."""
+    blob = db.documento_contenido(session['rut'], doc_id)
+    if not blob:
+        return ('Documento no encontrado', 404)
+    contenido, mimetype, nombre = blob
+    inline = (mimetype or '').startswith(('image/', 'text/html')) or \
+        (nombre or '').lower().endswith(('.html', '.htm'))
+    return send_file(BytesIO(contenido), mimetype=mimetype or 'application/octet-stream',
+                     as_attachment=not inline, download_name=nombre or f'doc_{doc_id}')
 
 
 @app.route('/api/contratos/<int:cid>/logo', methods=['POST'])
@@ -736,12 +742,17 @@ def api_subir_logo(cid):
     if not archivo or not archivo.filename:
         return jsonify({'error': 'No se recibió imagen.'}), 400
     ext = os.path.splitext(archivo.filename)[1].lower() or '.png'
-    nombre = 'empresa_logo' + ext  # sin guion bajo inicial (secure_filename lo eliminaría)
-    destino = os.path.join(UPLOADS_DIR, secure_filename(c['numero']))
-    os.makedirs(destino, exist_ok=True)
-    archivo.save(os.path.join(destino, nombre))
+    # reemplazar logo anterior
+    for d in db.documentos_de(cid):
+        if d.get('tipo') == 'logo':
+            db.eliminar_doc_tipo(cid, None, 'logo')
+            break
+    doc_id = db.registrar_documento(cid, 'empresa_logo' + ext, '', 'logo',
+                                    contenido=archivo.read(),
+                                    mimetype=archivo.mimetype or 'image/png')
     datos = _datos(c)
-    datos['logo'] = nombre
+    datos['logo_doc_id'] = doc_id                 # referencia al blob en la BD
+    datos.pop('logo', None)                       # limpiar esquema antiguo (filesystem)
     db.actualizar_datos(cid, json.dumps(datos, ensure_ascii=False))
     return jsonify(_consolidar(session['rut']))
 
@@ -752,11 +763,14 @@ def api_ver_logo(cid):
     c = db.contrato_de(session['rut'], cid)
     if not c:
         return ('', 404)
-    datos = _datos(c)
-    if not datos.get('logo'):
+    doc = _logo_doc(cid)
+    if not doc:
         return ('', 404)
-    return send_from_directory(os.path.join(UPLOADS_DIR, secure_filename(c['numero'])),
-                               secure_filename(datos['logo']))
+    blob = db.documento_contenido(session['rut'], doc['id'])
+    if not blob:
+        return ('', 404)
+    contenido, mimetype, _ = blob
+    return send_file(BytesIO(contenido), mimetype=mimetype or 'image/png')
 
 
 if __name__ == '__main__':

@@ -1,3 +1,7 @@
+databases:
+  - name: smart-hse-db
+    plan: free
+
 services:
   - type: web
     name: smart-hse
@@ -5,3 +9,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-hse-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true

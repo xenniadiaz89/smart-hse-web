@@ -1,255 +1,157 @@
-"""Capa de datos local (SQLite) para contratos, documentos y estados de control."""
-import os
-import sqlite3
-from datetime import date
+"""Capa de datos de Smart HSE sobre SQLAlchemy (PostgreSQL en prod, SQLite local).
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'smarthse.db')
+Conserva la misma API pública que la versión sqlite3 previa (mismos nombres y
+firmas de función) para que `app.py` no cambie. Las funciones devuelven `dict`
+(vía `Model.to_dict()`), igual que antes con `sqlite3.Row`.
+"""
+from datetime import date, timedelta
 
-
-def conn():
-    c = sqlite3.connect(DB_PATH, timeout=10)
-    c.row_factory = sqlite3.Row
-    # journal en memoria: evita el error "readonly database" en discos exFAT/NTFS
-    # (locales). En Render (ext4) es inocuo.
-    c.execute('PRAGMA journal_mode=MEMORY;')
-    c.execute('PRAGMA synchronous=OFF;')
-    return c
+from models import (sqla, Contrato, Documento, ControlEstado, CarpetaEstado,
+                    FufEstado, MappingReq, Trabajador, AuditoriaEstado,
+                    Aplicabilidad, DocumentoGenerado)
 
 
+def _hoy():
+    return date.today().isoformat()
+
+
+def _commit():
+    sqla.session.commit()
+
+
+# ─────────────────────────────── Inicialización ───────────────────────────
 def init_db():
-    with conn() as c:
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS contrato (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rut_asesor TEXT NOT NULL,
-            empresa TEXT NOT NULL,
-            faena TEXT,
-            numero TEXT NOT NULL,
-            mandante TEXT,
-            creado TEXT
-        );
-        CREATE TABLE IF NOT EXISTS documento (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            nombre TEXT NOT NULL,
-            flujo TEXT,
-            tipo TEXT,
-            fecha TEXT,
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS control_estado (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rut_asesor TEXT NOT NULL,
-            contrato_id INTEGER NOT NULL,
-            control_key TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'pendiente',
-            origen_contrato_id INTEGER,
-            fecha TEXT,
-            UNIQUE (contrato_id, control_key),
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS carpeta_estado (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            item_n INTEGER NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'pendiente',
-            observacion TEXT,
-            fecha TEXT,
-            UNIQUE (contrato_id, item_n),
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS fuf_estado (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rut_asesor TEXT NOT NULL,
-            item_n INTEGER NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'pendiente',
-            observacion TEXT,
-            fecha_compromiso TEXT,
-            fecha TEXT,
-            UNIQUE (rut_asesor, item_n)
-        );
-        -- ── Ronda 7: Fuente Única de Verdad + herencia Carpeta↔RESSO ──
-        CREATE TABLE IF NOT EXISTS mapping_req (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            categoria TEXT NOT NULL,
-            arranque_item_n INTEGER,
-            reso_codigo TEXT,
-            UNIQUE (categoria)
-        );
-        CREATE TABLE IF NOT EXISTS trabajador (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            rut TEXT NOT NULL,
-            nombre TEXT,
-            rol TEXT,
-            fecha_ingreso TEXT,
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS auditoria_estado (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            punto_key TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'pendiente',
-            observacion TEXT,
-            fecha_compromiso TEXT,
-            fecha TEXT,
-            UNIQUE (contrato_id, punto_key),
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS aplicabilidad (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            tipo TEXT NOT NULL,
-            codigo TEXT NOT NULL,
-            aplica TEXT NOT NULL DEFAULT 'no',
-            evidencia_doc_id INTEGER,
-            fecha TEXT,
-            UNIQUE (contrato_id, tipo, codigo),
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS documento_generado (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            contrato_id INTEGER NOT NULL,
-            tipo_doc TEXT NOT NULL,
-            nombre TEXT,
-            estado TEXT NOT NULL DEFAULT 'Creado',
-            historial_json TEXT,
-            fecha TEXT,
-            FOREIGN KEY (contrato_id) REFERENCES contrato(id) ON DELETE CASCADE
-        );
-        """)
-        # Migraciones suaves (columnas nuevas en tablas existentes)
-        _add_column(c, 'contrato', 'datos_json', 'TEXT')
-        _add_column(c, 'contrato', 'arranque_aprobado', 'INTEGER')
-        _add_column(c, 'contrato', 'resso_estado', 'TEXT')
-        _add_column(c, 'documento', 'item_n', 'INTEGER')
-        _add_column(c, 'carpeta_estado', 'fecha_compromiso', 'TEXT')
-        # documento: herencia + trazabilidad legal
-        _add_column(c, 'documento', 'categoria', 'TEXT')
-        _add_column(c, 'documento', 'is_master', 'INTEGER')
-        _add_column(c, 'documento', 'ref_doc_id', 'INTEGER')
-        _add_column(c, 'documento', 'fecha_vencimiento', 'TEXT')
-        _add_column(c, 'documento', 'vigencia_meses', 'INTEGER')
-        _add_column(c, 'documento', 'version', 'TEXT')
-        _add_column(c, 'documento', 'fecha_aprobacion', 'TEXT')
-        _add_column(c, 'documento', 'firma', 'TEXT')
-        _sembrar_mapping(c)
+    """Crea las tablas (auto-migración al desplegar) y siembra el mapping."""
+    sqla.create_all()
+    seed_mapping()
 
 
-def _sembrar_mapping(c):
-    """Siembra la tabla de mapping Arranque↔RESO desde el catálogo canónico (resso.EQUIVALENCIAS)."""
+def seed_mapping():
+    """Siembra mapping_req desde el catálogo canónico (resso.EQUIVALENCIAS)."""
     import resso
     for categoria, m in resso.EQUIVALENCIAS.items():
-        c.execute("""
-            INSERT INTO mapping_req (categoria, arranque_item_n, reso_codigo)
-            VALUES (?,?,?)
-            ON CONFLICT(categoria) DO UPDATE SET
-                arranque_item_n=excluded.arranque_item_n, reso_codigo=excluded.reso_codigo
-        """, (categoria, m.get('carpeta'), m.get('reso')))
-
-
-def _add_column(c, tabla, columna, tipo):
-    cols = [r['name'] for r in c.execute(f'PRAGMA table_info({tabla})').fetchall()]
-    if columna not in cols:
-        c.execute(f'ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}')
+        row = MappingReq.query.filter_by(categoria=categoria).first()
+        if not row:
+            row = MappingReq(categoria=categoria)
+            sqla.session.add(row)
+        row.arranque_item_n = m.get('carpeta')
+        row.reso_codigo = m.get('reso')
+    _commit()
 
 
 # ───────────────────────────── Contratos ──────────────────────────────────
 def listar_contratos(rut):
-    with conn() as c:
-        rows = c.execute(
-            'SELECT * FROM contrato WHERE rut_asesor=? ORDER BY id', (rut,)).fetchall()
-        return [dict(r) for r in rows]
+    return [c.to_dict() for c in
+            Contrato.query.filter_by(rut_asesor=rut).order_by(Contrato.id).all()]
 
 
 def crear_contrato(rut, empresa, faena, numero, mandante, datos_json=None):
-    with conn() as c:
-        cur = c.execute(
-            'INSERT INTO contrato (rut_asesor, empresa, faena, numero, mandante, creado, datos_json) '
-            'VALUES (?,?,?,?,?,?,?)',
-            (rut, empresa, faena, numero, mandante, date.today().isoformat(), datos_json))
-        return cur.lastrowid
+    c = Contrato(rut_asesor=rut, empresa=empresa, faena=faena, numero=numero,
+                 mandante=mandante, creado=_hoy(), datos_json=datos_json,
+                 arranque_aprobado=0)
+    sqla.session.add(c)
+    _commit()
+    return c.id
 
 
 def actualizar_datos(contrato_id, datos_json):
-    with conn() as c:
-        c.execute('UPDATE contrato SET datos_json=? WHERE id=?', (datos_json, contrato_id))
+    c = Contrato.query.get(contrato_id)
+    if c:
+        c.datos_json = datos_json
+        _commit()
 
 
 def eliminar_contrato(rut, contrato_id):
-    with conn() as c:
-        c.execute('DELETE FROM control_estado WHERE contrato_id=? AND rut_asesor=?',
-                  (contrato_id, rut))
-        c.execute('DELETE FROM documento WHERE contrato_id=?', (contrato_id,))
-        c.execute('DELETE FROM contrato WHERE id=? AND rut_asesor=?', (contrato_id, rut))
+    c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
+    if not c:
+        return
+    for M in (ControlEstado, CarpetaEstado, AuditoriaEstado, Aplicabilidad,
+              Trabajador, Documento, DocumentoGenerado):
+        M.query.filter_by(contrato_id=contrato_id).delete()
+    Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).delete()
+    _commit()
 
 
 def contrato_de(rut, contrato_id):
-    with conn() as c:
-        r = c.execute('SELECT * FROM contrato WHERE id=? AND rut_asesor=?',
-                      (contrato_id, rut)).fetchone()
-        return dict(r) if r else None
+    c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
+    return c.to_dict() if c else None
 
 
 # ───────────────────────────── Documentos ─────────────────────────────────
 def registrar_documento(contrato_id, nombre, flujo, tipo, item_n=None,
                         categoria=None, is_master=0, ref_doc_id=None,
                         version=None, fecha_aprobacion=None, firma=None,
-                        vigencia_meses=None, fecha_vencimiento=None):
-    """Inserta un documento (o una referencia si ref_doc_id) y devuelve su id."""
-    with conn() as c:
-        cur = c.execute(
-            'INSERT INTO documento (contrato_id, nombre, flujo, tipo, fecha, item_n, '
-            'categoria, is_master, ref_doc_id, version, fecha_aprobacion, firma, '
-            'vigencia_meses, fecha_vencimiento) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-            (contrato_id, nombre, flujo, tipo, date.today().isoformat(), item_n,
-             categoria, is_master, ref_doc_id, version, fecha_aprobacion, firma,
-             vigencia_meses, fecha_vencimiento))
-        return cur.lastrowid
+                        vigencia_meses=None, fecha_vencimiento=None,
+                        contenido=None, mimetype=None):
+    """Inserta un documento (o una referencia si ref_doc_id) y devuelve su id.
+    Si `contenido` viene, se guarda el archivo como BLOB en la base."""
+    d = Documento(contrato_id=contrato_id, nombre=nombre, flujo=flujo, tipo=tipo,
+                  fecha=_hoy(), item_n=item_n, categoria=categoria,
+                  is_master=is_master, ref_doc_id=ref_doc_id, version=version,
+                  fecha_aprobacion=fecha_aprobacion, firma=firma,
+                  vigencia_meses=vigencia_meses, fecha_vencimiento=fecha_vencimiento,
+                  contenido=contenido, mimetype=mimetype)
+    sqla.session.add(d)
+    _commit()
+    return d.id
 
 
 def documentos_de(contrato_id):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM documento WHERE contrato_id=? ORDER BY id DESC',
-                         (contrato_id,)).fetchall()
-        return [dict(r) for r in rows]
+    return [d.to_dict() for d in
+            Documento.query.filter_by(contrato_id=contrato_id)
+            .order_by(Documento.id.desc()).all()]
 
 
 def documento_por_id(rut, doc_id):
     """Documento + validación de pertenencia al asesor (join contrato por rut)."""
-    with conn() as c:
-        r = c.execute("""
-            SELECT d.* FROM documento d JOIN contrato ct ON ct.id = d.contrato_id
-            WHERE d.id=? AND ct.rut_asesor=?
-        """, (doc_id, rut)).fetchone()
-        return dict(r) if r else None
+    d = (Documento.query.join(Contrato, Contrato.id == Documento.contrato_id)
+         .filter(Documento.id == doc_id, Contrato.rut_asesor == rut).first())
+    return d.to_dict() if d else None
+
+
+def documento_contenido(rut, doc_id):
+    """Devuelve (bytes, mimetype, nombre) del archivo, resolviendo referencias
+    (ref_doc_id) al documento maestro. None si no existe o no pertenece al asesor."""
+    d = (Documento.query.join(Contrato, Contrato.id == Documento.contrato_id)
+         .filter(Documento.id == doc_id, Contrato.rut_asesor == rut).first())
+    if not d:
+        return None
+    if d.contenido is None and d.ref_doc_id:
+        base = Documento.query.get(d.ref_doc_id)
+        if base and base.contenido is not None:
+            return (base.contenido, base.mimetype, base.nombre)
+    if d.contenido is None:
+        return None
+    return (d.contenido, d.mimetype, d.nombre)
 
 
 def set_doc_maestro(doc_id, categoria=None):
-    with conn() as c:
-        if categoria:
-            c.execute('UPDATE documento SET is_master=1, categoria=? WHERE id=?', (categoria, doc_id))
-        else:
-            c.execute('UPDATE documento SET is_master=1 WHERE id=?', (doc_id,))
+    d = Documento.query.get(doc_id)
+    if not d:
+        return
+    d.is_master = 1
+    if categoria:
+        d.categoria = categoria
+    _commit()
 
 
 def docs_por_categoria(contrato_id, categoria):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM documento WHERE contrato_id=? AND categoria=? ORDER BY id DESC',
-                         (contrato_id, categoria)).fetchall()
-        return [dict(r) for r in rows]
+    return [d.to_dict() for d in
+            Documento.query.filter_by(contrato_id=contrato_id, categoria=categoria)
+            .order_by(Documento.id.desc()).all()]
 
 
 def doc_maestro_de_categoria(rut, categoria):
     """Documento maestro (is_master=1) de una categoría para el asesor, o None."""
-    with conn() as c:
-        r = c.execute("""
-            SELECT d.*, ct.numero AS contrato_numero FROM documento d
-            JOIN contrato ct ON ct.id = d.contrato_id
-            WHERE ct.rut_asesor=? AND d.categoria=? AND d.is_master=1
-            ORDER BY d.id DESC LIMIT 1
-        """, (rut, categoria)).fetchone()
-        return dict(r) if r else None
+    row = (sqla.session.query(Documento, Contrato.numero)
+           .join(Contrato, Contrato.id == Documento.contrato_id)
+           .filter(Contrato.rut_asesor == rut, Documento.categoria == categoria,
+                   Documento.is_master == 1)
+           .order_by(Documento.id.desc()).first())
+    if not row:
+        return None
+    d, numero = row
+    return {**d.to_dict(), 'contrato_numero': numero}
 
 
 def crear_doc_referencia(target_cid, master, tipo='matriz'):
@@ -263,184 +165,169 @@ def crear_doc_referencia(target_cid, master, tipo='matriz'):
 
 
 def existe_referencia(target_cid, master_id):
-    with conn() as c:
-        r = c.execute('SELECT 1 FROM documento WHERE contrato_id=? AND ref_doc_id=? LIMIT 1',
-                      (target_cid, master_id)).fetchone()
-        return r is not None
+    return Documento.query.filter_by(contrato_id=target_cid, ref_doc_id=master_id).first() is not None
 
 
 def mapping_de(categoria):
-    with conn() as c:
-        r = c.execute('SELECT * FROM mapping_req WHERE categoria=?', (categoria,)).fetchone()
-        return dict(r) if r else None
+    r = MappingReq.query.filter_by(categoria=categoria).first()
+    return r.to_dict() if r else None
 
 
 def maestros_vencidos(rut, dias_aviso=30):
     """Documentos maestros vencidos o próximos a vencer, del asesor."""
-    from datetime import timedelta
     limite = (date.today() + timedelta(days=dias_aviso)).isoformat()
-    with conn() as c:
-        rows = c.execute("""
-            SELECT d.*, ct.numero AS contrato_numero FROM documento d
-            JOIN contrato ct ON ct.id = d.contrato_id
-            WHERE ct.rut_asesor=? AND d.is_master=1 AND d.fecha_vencimiento IS NOT NULL
-              AND d.fecha_vencimiento <= ?
-            ORDER BY d.fecha_vencimiento
-        """, (rut, limite)).fetchall()
-        return [dict(r) for r in rows]
+    rows = (sqla.session.query(Documento, Contrato.numero)
+            .join(Contrato, Contrato.id == Documento.contrato_id)
+            .filter(Contrato.rut_asesor == rut, Documento.is_master == 1,
+                    Documento.fecha_vencimiento.isnot(None),
+                    Documento.fecha_vencimiento <= limite)
+            .order_by(Documento.fecha_vencimiento).all())
+    return [{**d.to_dict(), 'contrato_numero': numero} for d, numero in rows]
 
 
 def referencias_de(master_id):
     """Docs hijos (auditorías vinculadas) que referencian a un maestro."""
-    with conn() as c:
-        rows = c.execute('SELECT * FROM documento WHERE ref_doc_id=?', (master_id,)).fetchall()
-        return [dict(r) for r in rows]
+    return [d.to_dict() for d in Documento.query.filter_by(ref_doc_id=master_id).all()]
 
 
 # ── Contrato: hito de arranque / estado RESSO ──
 def set_arranque_aprobado(contrato_id, resso_estado='en_progreso'):
-    with conn() as c:
-        c.execute('UPDATE contrato SET arranque_aprobado=1, resso_estado=? WHERE id=?',
-                  (resso_estado, contrato_id))
+    c = Contrato.query.get(contrato_id)
+    if c:
+        c.arranque_aprobado = 1
+        c.resso_estado = resso_estado
+        _commit()
 
 
 def set_resso_estado(contrato_id, estado):
-    with conn() as c:
-        c.execute('UPDATE contrato SET resso_estado=? WHERE id=?', (estado, contrato_id))
+    c = Contrato.query.get(contrato_id)
+    if c:
+        c.resso_estado = estado
+        _commit()
 
 
 # ── Auditoría RESSO (estado por punto) ──
 def set_auditoria_estado(contrato_id, punto_key, estado, observacion='', fecha_compromiso=None):
-    with conn() as c:
-        c.execute("""
-            INSERT INTO auditoria_estado (contrato_id, punto_key, estado, observacion, fecha_compromiso, fecha)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(contrato_id, punto_key) DO UPDATE SET
-                estado=excluded.estado, observacion=excluded.observacion,
-                fecha_compromiso=excluded.fecha_compromiso, fecha=excluded.fecha
-        """, (contrato_id, punto_key, estado, observacion, fecha_compromiso, date.today().isoformat()))
+    row = AuditoriaEstado.query.filter_by(contrato_id=contrato_id, punto_key=punto_key).first()
+    if not row:
+        row = AuditoriaEstado(contrato_id=contrato_id, punto_key=punto_key)
+        sqla.session.add(row)
+    row.estado = estado
+    row.observacion = observacion
+    row.fecha_compromiso = fecha_compromiso
+    row.fecha = _hoy()
+    _commit()
 
 
 def estados_auditoria(contrato_id):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM auditoria_estado WHERE contrato_id=?', (contrato_id,)).fetchall()
-        return {r['punto_key']: dict(r) for r in rows}
+    return {r.punto_key: r.to_dict()
+            for r in AuditoriaEstado.query.filter_by(contrato_id=contrato_id).all()}
 
 
 # ──────────────────────────── Carpeta de Arranque ─────────────────────────
 def set_item_estado(contrato_id, item_n, estado, observacion='', fecha_compromiso=None):
-    with conn() as c:
-        c.execute("""
-            INSERT INTO carpeta_estado (contrato_id, item_n, estado, observacion, fecha_compromiso, fecha)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(contrato_id, item_n) DO UPDATE SET
-                estado=excluded.estado, observacion=excluded.observacion,
-                fecha_compromiso=excluded.fecha_compromiso, fecha=excluded.fecha
-        """, (contrato_id, item_n, estado, observacion, fecha_compromiso, date.today().isoformat()))
+    row = CarpetaEstado.query.filter_by(contrato_id=contrato_id, item_n=item_n).first()
+    if not row:
+        row = CarpetaEstado(contrato_id=contrato_id, item_n=item_n)
+        sqla.session.add(row)
+    row.estado = estado
+    row.observacion = observacion
+    row.fecha_compromiso = fecha_compromiso
+    row.fecha = _hoy()
+    _commit()
 
 
 def estados_carpeta(contrato_id):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM carpeta_estado WHERE contrato_id=?', (contrato_id,)).fetchall()
-        return {r['item_n']: dict(r) for r in rows}
+    return {r.item_n: r.to_dict()
+            for r in CarpetaEstado.query.filter_by(contrato_id=contrato_id).all()}
 
 
 def eliminar_doc_tipo(contrato_id, item_n, tipo):
-    with conn() as c:
-        c.execute('DELETE FROM documento WHERE contrato_id=? AND item_n=? AND tipo=?',
-                  (contrato_id, item_n, tipo))
+    Documento.query.filter_by(contrato_id=contrato_id, item_n=item_n, tipo=tipo).delete()
+    _commit()
 
 
 def docs_por_item(contrato_id):
-    with conn() as c:
-        rows = c.execute("SELECT * FROM documento WHERE contrato_id=? AND item_n IS NOT NULL "
-                         "ORDER BY id DESC", (contrato_id,)).fetchall()
-        out = {}
-        for r in rows:
-            out.setdefault(r['item_n'], []).append(dict(r))
-        return out
+    out = {}
+    for d in (Documento.query.filter(Documento.contrato_id == contrato_id,
+                                     Documento.item_n.isnot(None))
+              .order_by(Documento.id.desc()).all()):
+        out.setdefault(d.item_n, []).append(d.to_dict())
+    return out
 
 
 def set_carpeta_compromiso(contrato_id, item_n, fecha_compromiso):
-    """Actualiza solo la fecha de compromiso de un ítem de carpeta (si existe)."""
-    with conn() as c:
-        c.execute('UPDATE carpeta_estado SET fecha_compromiso=? WHERE contrato_id=? AND item_n=?',
-                  (fecha_compromiso, contrato_id, item_n))
+    row = CarpetaEstado.query.filter_by(contrato_id=contrato_id, item_n=item_n).first()
+    if row:
+        row.fecha_compromiso = fecha_compromiso
+        _commit()
 
 
 # ──────────────────────────── Estado FUF (DS 44) ──────────────────────────
 def set_fuf_estado(rut, item_n, estado, observacion='', fecha_compromiso=None):
-    with conn() as c:
-        c.execute("""
-            INSERT INTO fuf_estado (rut_asesor, item_n, estado, observacion, fecha_compromiso, fecha)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(rut_asesor, item_n) DO UPDATE SET
-                estado=excluded.estado, observacion=excluded.observacion,
-                fecha_compromiso=excluded.fecha_compromiso, fecha=excluded.fecha
-        """, (rut, item_n, estado, observacion, fecha_compromiso, date.today().isoformat()))
+    row = FufEstado.query.filter_by(rut_asesor=rut, item_n=item_n).first()
+    if not row:
+        row = FufEstado(rut_asesor=rut, item_n=item_n)
+        sqla.session.add(row)
+    row.estado = estado
+    row.observacion = observacion
+    row.fecha_compromiso = fecha_compromiso
+    row.fecha = _hoy()
+    _commit()
 
 
 def estados_fuf(rut):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM fuf_estado WHERE rut_asesor=?', (rut,)).fetchall()
-        return {r['item_n']: dict(r) for r in rows}
+    return {r.item_n: r.to_dict()
+            for r in FufEstado.query.filter_by(rut_asesor=rut).all()}
 
 
 def set_fuf_compromiso(rut, item_n, fecha_compromiso):
-    with conn() as c:
-        c.execute('UPDATE fuf_estado SET fecha_compromiso=? WHERE rut_asesor=? AND item_n=?',
-                  (fecha_compromiso, rut, item_n))
+    row = FufEstado.query.filter_by(rut_asesor=rut, item_n=item_n).first()
+    if row:
+        row.fecha_compromiso = fecha_compromiso
+        _commit()
 
 
 # ──────────────────────────── Brechas (Carpeta + FUF) ─────────────────────
 def brechas_carpeta(rut):
     """Ítems de Carpeta en estado 'pendiente' de todos los contratos del asesor."""
-    with conn() as c:
-        rows = c.execute("""
-            SELECT ce.item_n, ce.observacion, ce.fecha_compromiso,
-                   ct.id AS contrato_id, ct.numero, ct.empresa, ct.faena
-            FROM carpeta_estado ce
-            JOIN contrato ct ON ct.id = ce.contrato_id
-            WHERE ct.rut_asesor=? AND ce.estado='pendiente'
-            ORDER BY ct.id, ce.item_n
-        """, (rut,)).fetchall()
-        return [dict(r) for r in rows]
+    rows = (sqla.session.query(CarpetaEstado, Contrato)
+            .join(Contrato, Contrato.id == CarpetaEstado.contrato_id)
+            .filter(Contrato.rut_asesor == rut, CarpetaEstado.estado == 'pendiente')
+            .order_by(Contrato.id, CarpetaEstado.item_n).all())
+    return [{'item_n': ce.item_n, 'observacion': ce.observacion,
+             'fecha_compromiso': ce.fecha_compromiso, 'contrato_id': ct.id,
+             'numero': ct.numero, 'empresa': ct.empresa, 'faena': ct.faena}
+            for ce, ct in rows]
 
 
 def brechas_fuf(rut):
     """Ítems del FUF en estado 'no' (No Cumple) del asesor."""
-    with conn() as c:
-        rows = c.execute("""
-            SELECT item_n, observacion, fecha_compromiso
-            FROM fuf_estado WHERE rut_asesor=? AND estado='no'
-            ORDER BY item_n
-        """, (rut,)).fetchall()
-        return [dict(r) for r in rows]
+    return [{'item_n': r.item_n, 'observacion': r.observacion,
+             'fecha_compromiso': r.fecha_compromiso}
+            for r in FufEstado.query.filter_by(rut_asesor=rut, estado='no')
+            .order_by(FufEstado.item_n).all()]
 
 
 # ──────────────────────────── Estados de control ──────────────────────────
 def set_estado_control(rut, contrato_id, control_key, estado, origen_contrato_id=None):
     """Inserta o actualiza el estado de un control para un contrato."""
-    with conn() as c:
-        c.execute("""
-            INSERT INTO control_estado (rut_asesor, contrato_id, control_key, estado, origen_contrato_id, fecha)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(contrato_id, control_key) DO UPDATE SET
-                estado=excluded.estado,
-                origen_contrato_id=excluded.origen_contrato_id,
-                fecha=excluded.fecha
-        """, (rut, contrato_id, control_key, estado, origen_contrato_id, date.today().isoformat()))
+    row = ControlEstado.query.filter_by(contrato_id=contrato_id, control_key=control_key).first()
+    if not row:
+        row = ControlEstado(contrato_id=contrato_id, control_key=control_key, rut_asesor=rut)
+        sqla.session.add(row)
+    row.rut_asesor = rut
+    row.estado = estado
+    row.origen_contrato_id = origen_contrato_id
+    row.fecha = _hoy()
+    _commit()
 
 
 def estado_control(contrato_id, control_key):
-    with conn() as c:
-        r = c.execute('SELECT estado FROM control_estado WHERE contrato_id=? AND control_key=?',
-                      (contrato_id, control_key)).fetchone()
-        return r['estado'] if r else None
+    r = ControlEstado.query.filter_by(contrato_id=contrato_id, control_key=control_key).first()
+    return r.estado if r else None
 
 
 def estados_de_contrato(contrato_id):
-    with conn() as c:
-        rows = c.execute('SELECT * FROM control_estado WHERE contrato_id=?',
-                         (contrato_id,)).fetchall()
-        return {r['control_key']: dict(r) for r in rows}
+    return {r.control_key: r.to_dict()
+            for r in ControlEstado.query.filter_by(contrato_id=contrato_id).all()}
