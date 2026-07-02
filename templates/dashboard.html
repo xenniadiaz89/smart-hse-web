@@ -428,6 +428,9 @@
                     </div>
                     <div class="flex items-center gap-3 shrink-0">
                         <span id="carpetaPct" class="text-sm font-extrabold text-secondary"></span>
+                        <button type="button" id="btnAprobarArranque" onclick="aprobarArranque()" class="hidden inline-flex items-center gap-1.5 bg-secondary hover:bg-[#6a9e32] text-white text-[11px] font-bold px-3 py-1.5 rounded">
+                            <i data-lucide="badge-check" class="w-3.5 h-3.5"></i> Aprobar Arranque y habilitar RESSO
+                        </button>
                         <button type="button" onclick="cerrarCarpeta()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
                     </div>
                 </div>
@@ -453,6 +456,24 @@
                     <div id="bulkReporte" class="hidden mt-3"></div>
                 </div>
                 <div id="carpetaItems" class="p-4 sm:p-6 space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- ── Modal: Auditoría RESSO (puntos heredados de la Carpeta) ── -->
+        <div id="auditoriaOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+            <div class="bg-[#f4f7f6] rounded-2xl shadow-2xl w-full max-w-4xl my-6">
+                <div class="sticky top-0 bg-white rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-3 z-10">
+                    <div class="min-w-0">
+                        <h2 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="clipboard-check" class="w-5 h-5 text-primary"></i> Auditoría RESSO <span class="text-xs font-normal text-gray-400">RESSO V9</span></h2>
+                        <p id="auditoriaSub" class="text-xs text-gray-500"></p>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span id="auditoriaEstadoBadge" class="text-[11px] font-bold px-2.5 py-1 rounded-full"></span>
+                        <span id="auditoriaPct" class="text-sm font-extrabold text-secondary"></span>
+                        <button type="button" onclick="cerrarAuditoria()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+                <div id="auditoriaBody" class="p-4 sm:p-6 space-y-3"></div>
             </div>
         </div>
 
@@ -1537,7 +1558,9 @@ Firma Asesor en Prevención`;
                             <input type="file" webkitdirectory multiple class="hidden" onchange="cargarCarpetaArranque(${c.id}, this)">
                         </label>
                         <button type="button" onclick="abrirCarpeta(${c.id})" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-2.5 py-1.5 rounded hover:brightness-95">
-                            <i data-lucide="folder-check" class="w-3.5 h-3.5"></i> Comenzar a trabajar en la Carpeta</button>` : ''}
+                            <i data-lucide="folder-check" class="w-3.5 h-3.5"></i> Comenzar a trabajar en la Carpeta</button>
+                        <button type="button" onclick="abrirAuditoria(${c.id})" class="inline-flex items-center gap-1.5 ${c.resso_estado === 'en_progreso' ? 'bg-secondary text-white hover:brightness-95' : 'bg-gray-100 text-gray-500'} text-[11px] font-bold px-2.5 py-1.5 rounded">
+                            <i data-lucide="${c.resso_estado === 'en_progreso' ? 'clipboard-check' : 'lock'}" class="w-3.5 h-3.5"></i> Auditoría RESSO${c.resso_estado === 'en_progreso' ? '' : ' (bloqueada)'}</button>` : ''}
                         <label class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-200">
                             <i data-lucide="image" class="w-3.5 h-3.5"></i> ${(c.datos && c.datos.logo) ? 'Cambiar logo' : 'Subir logo empresa'}
                             <input type="file" accept="image/*" class="hidden" onchange="subirLogo(${c.id}, this)">
@@ -1551,6 +1574,83 @@ Firma Asesor en Prevención`;
                         <button onclick="mostrarVista('ds44')" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> DS 44</button>
                         <button onclick="mostrarVista('checklist')" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="list-checks" class="w-3.5 h-3.5"></i> Controles críticos</button>
                     </div>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Hito ARRANQUE_APROBADO → habilita RESSO ──
+        async function aprobarArranque() {
+            if (!_carpetaCid) return;
+            if (!confirm('¿Confirmas que la Carpeta de Arranque está aprobada y las FIRMAS OFICIALES (acta de aprobación / Anexo 1) están cargadas?\n\nSe habilitará el módulo RESSO y se pre-cargarán los documentos equivalentes.')) return;
+            const r = await fetch(`/api/contratos/${_carpetaCid}/arranque/aprobar`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firmas_ok: true }) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo aprobar el arranque.'); return; }
+            alert(`✅ ${d.aviso}\n\nDocumentos pre-cargados al RESO: ${d.sincronizados}.`);
+            const cid = _carpetaCid;
+            cerrarCarpeta();
+            cargarContratos();
+            abrirAuditoria(cid);
+        }
+
+        // ── Módulo Auditoría RESSO ──
+        const AUD_BADGE = { pendiente: 'bg-gray-100 text-gray-500', cumple: 'bg-green-100 text-green-700', na: 'bg-slate-200 text-slate-600' };
+        const AUD_LABEL = { pendiente: 'Pendiente', cumple: 'Cumple', na: 'N/A' };
+        let _auditoriaCid = null;
+
+        async function abrirAuditoria(cid) {
+            _auditoriaCid = cid;
+            const c = (window._contratos || []).find(x => x.id === cid) || {};
+            document.getElementById('auditoriaSub').textContent =
+                `${c.empresa || ''} · N° ${c.numero || ''}${c.faena ? ' · ' + c.faena : ''}`;
+            document.getElementById('auditoriaOverlay').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            const r = await fetch(`/api/contratos/${cid}/auditoria`);
+            if (r.ok) renderAuditoria(await r.json());
+            else { const e = await r.json().catch(() => ({})); alert(e.error || 'Error al abrir la auditoría.'); cerrarAuditoria(); }
+        }
+
+        function cerrarAuditoria() {
+            document.getElementById('auditoriaOverlay').classList.add('hidden');
+            document.body.style.overflow = '';
+            _auditoriaCid = null;
+        }
+
+        function renderAuditoria(data) {
+            const bloqueado = data.resso_estado !== 'en_progreso';
+            const badge = document.getElementById('auditoriaEstadoBadge');
+            badge.textContent = bloqueado ? 'Bloqueado' : 'En Progreso';
+            badge.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full ' +
+                (bloqueado ? 'bg-gray-200 text-gray-600' : 'bg-green-100 text-green-700');
+            document.getElementById('auditoriaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
+            const body = document.getElementById('auditoriaBody');
+            if (bloqueado) {
+                body.innerHTML = `<div class="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-500">
+                    <i data-lucide="lock" class="w-8 h-8 mx-auto mb-2 text-gray-400"></i>
+                    <p class="font-bold text-gray-700">Módulo RESSO bloqueado</p>
+                    <p class="text-sm mt-1">Aprueba la <b>Carpeta de Arranque</b> (100% + firmas) para habilitar el RESO y heredar los documentos equivalentes.</p>
+                </div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+            body.innerHTML = data.puntos.map(p => {
+                const docs = p.docs.length
+                    ? `<ul class="mt-2 text-[11px] space-y-0.5">${p.docs.map(d => `
+                        <li class="text-primary font-semibold flex items-center gap-1">
+                            <i data-lucide="link" class="w-3 h-3"></i> ${d.nombre}
+                            <span class="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Heredado de Arranque</span>
+                            <span class="text-[10px] text-gray-400">${d.version || 'v1'} · aprob. ${d.fecha_aprobacion || '—'}${d.firma ? ' · firma: ' + d.firma : ''}</span>
+                        </li>`).join('')}</ul>` : '<p class="mt-1 text-[11px] text-gray-400">Sin documento heredado.</p>';
+                return `<div class="bg-white rounded-xl border border-gray-100 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="font-bold text-sm text-gray-900"><span class="text-primary">${p.punto_key}</span> · ${p.titulo}</p>
+                            <p class="text-[11px] text-gray-500 mt-0.5">${p.evidencia}</p>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${AUD_BADGE[p.estado]}">${AUD_LABEL[p.estado]}</span>
+                    </div>
+                    ${docs}
                 </div>`;
             }).join('');
             if (window.lucide) lucide.createIcons();
@@ -1584,6 +1684,7 @@ Firma Asesor en Prevención`;
 
         function renderCarpeta(data) {
             document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
+            document.getElementById('btnAprobarArranque').classList.toggle('hidden', (data.cumplimiento_pct || 0) < 100);
             _carpItems = data.items.map(it => ({ ...it, _saved: false }));
             pintarCarpeta();
         }
@@ -1657,6 +1758,7 @@ Firma Asesor en Prevención`;
             if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'No se pudo guardar.'); return; }
             const data = await r.json();
             document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
+            document.getElementById('btnAprobarArranque').classList.toggle('hidden', (data.cumplimiento_pct || 0) < 100);
             // merge: refrescar solo el ítem guardado, preservando ediciones locales de otros
             const fresh = data.items.find(x => x.n === n);
             const idx = _carpItems.findIndex(x => x.n === n);
