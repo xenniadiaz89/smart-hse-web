@@ -23,3 +23,7 @@ env/
 
 # Cuentas de usuario locales (MVP, no subir al repo)
 usuarios.json
+
+# Base de datos local y archivos subidos (MVP)
+smarthse.db
+uploads/

@@ -52,6 +52,9 @@
                     <ul id="notifList" class="max-h-72 overflow-y-auto text-sm"></ul>
                 </div>
             </div>
+            <span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold text-secondary bg-secondary/10 px-2.5 py-1 rounded-full">
+                <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span> En línea
+            </span>
             <div class="text-right leading-tight">
                 <p class="text-sm font-bold text-gray-800">{{ nombre or 'Asesor en Prevención' }}</p>
                 <p class="text-xs text-gray-500">ID SNS: <span class="font-mono font-semibold text-primary">{{ sns or '—' }}</span></p>
@@ -65,11 +68,13 @@
         </div>
     </nav>
 
-    <!-- ── Banner prueba gratuita ── -->
-    <div class="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-center gap-3 text-sm">
-        <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
-        <span class="text-amber-800">Te quedan <span id="diasPrueba" class="font-bold">5</span> días de prueba gratuita.</span>
-        <a href="#" class="font-bold text-primary hover:underline">Activar plan</a>
+    <!-- ── Banner Modo Testing ── -->
+    <div class="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
+        <span class="inline-flex items-center gap-1.5 font-bold text-amber-800 bg-amber-200/60 px-2.5 py-0.5 rounded-full">
+            <i data-lucide="flask-conical" class="w-3.5 h-3.5"></i> Modo Testing · Demo Activa
+        </span>
+        <span class="text-amber-800 inline-flex items-center gap-1.5"><i data-lucide="clock" class="w-4 h-4 text-amber-600"></i> Te quedan <span id="diasPrueba" class="font-bold">5</span> días de evaluación.</span>
+        <span class="text-amber-700">Tu feedback nos ayuda a mejorar.</span>
     </div>
 
     <main class="max-w-7xl mx-auto px-6 py-8">
@@ -80,6 +85,8 @@
            <nav class="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex flex-row flex-wrap lg:flex-col gap-1">
                <button type="button" data-nav="avance" onclick="mostrarVista('avance')" class="nav-item nav-on">
                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance</span></button>
+               <button type="button" data-nav="contratos" onclick="mostrarVista('contratos')" class="nav-item">
+                   <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis Contratos</span></button>
                <button type="button" data-nav="checklist" onclick="mostrarVista('checklist')" class="nav-item">
                    <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist</span></button>
                <button type="button" data-nav="ds44" onclick="mostrarVista('ds44')" class="nav-item">
@@ -126,6 +133,21 @@
             </div>
         </div><!-- /KPIs -->
 
+        <!-- ── Panel de Brechas Abiertas (Carpeta + FUF) ── -->
+        <div class="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 mb-6">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                    <h2 class="font-extrabold text-gray-900">Panel de Brechas Abiertas</h2>
+                    <span id="brechasCount" class="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-0.5 rounded-full">0</span>
+                </div>
+                <button type="button" onclick="cargarBrechas()" class="text-gray-400 hover:text-primary transition" title="Actualizar">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="panelBrechas" class="space-y-2"></div>
+        </div>
+
         <!-- ── Avance de trabajos y actividades ── -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Progreso de módulos -->
@@ -145,6 +167,18 @@
                 <ul id="avanceActividades" class="space-y-3"></ul>
             </div>
         </div>
+
+        <!-- ── Avance por contrato ── -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="briefcase" class="w-5 h-5 text-primary"></i>
+                    <h2 class="font-extrabold text-gray-900">Avance por contrato</h2>
+                </div>
+                <div id="avanceContratosResumen" class="flex flex-wrap gap-4 text-xs"></div>
+            </div>
+            <div id="avanceContratos" class="space-y-4"></div>
+        </div>
         </section><!-- /vista-avance -->
 
         <!-- VISTA: Cumplimiento DS 44 -->
@@ -155,9 +189,15 @@
                         <h2 class="text-2xl font-extrabold text-gray-900">Cuestionario FUF</h2>
                         <span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">DS N°44/2024 · 60 ítems</span>
                     </div>
-                    <button type="button" onclick="generarPlanTrabajo()" class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">
-                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Generar Plan de Trabajo
-                    </button>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span id="fufGuardado" class="text-xs font-semibold text-green-600 hidden">Guardado ✓</span>
+                        <button type="button" onclick="guardarFUF()" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-4 py-2.5 rounded-xl font-bold text-sm">
+                            <i data-lucide="save" class="w-4 h-4"></i> Guardar cambios
+                        </button>
+                        <button type="button" onclick="generarPlanTrabajo()" class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm">
+                            <i data-lucide="clipboard-list" class="w-4 h-4"></i> Generar Plan de Trabajo
+                        </button>
+                    </div>
                 </div>
                 <p class="text-gray-600 mb-6 text-sm">Marque cada ítem: <span class="font-semibold text-secondary">Cumple</span> → cargar evidencia · <span class="font-semibold text-amber-600">No Cumple</span> → plan de trabajo · <span class="font-semibold text-primary">No Aplica</span> → generar carta de fundamento.</p>
 
@@ -307,6 +347,114 @@
                </div>
            </div>
         </section>
+
+        <!-- VISTA: Mis Contratos Asesorados -->
+        <section id="vista-contratos" class="hidden">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="briefcase" class="w-5 h-5 text-primary"></i>
+                    <h2 class="text-xl font-extrabold text-gray-900">Mis Contratos Asesorados</h2>
+                </div>
+                <button type="button" onclick="toggleFormContrato()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm shrink-0">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Agregar empresa / contrato
+                </button>
+            </div>
+
+            <!-- Formulario alta de contrato (RESSO Anexo 2 - Información General) -->
+            <div id="formContrato" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Identificación del contrato</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Empresa Contratista (Razón Social)</span>
+                        <input id="ct_empresa" type="text" class="iet-in" placeholder="Ej: OMEGASERVICIOS SPA"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Nombre del contrato / servicio</span>
+                        <input id="ct_nombre_servicio" type="text" class="iet-in" placeholder="Ej: Servicio análisis de leyes en línea en ripios DRT"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">N° de Contrato / N° Orden de Compra</span>
+                        <input id="ct_numero" type="text" class="iet-in" placeholder="Ej: 4600026405"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Mandante</span>
+                        <select id="ct_mandante" class="iet-in">
+                            <option value="">Seleccione…</option>
+                            <option>Codelco DRT</option><option>Minera Spence</option>
+                            <option>Minera El Abra</option><option>Centinela</option><option>Otro</option>
+                        </select></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Faena / Centro de Trabajo</span>
+                        <input id="ct_faena" type="text" class="iet-in" placeholder="Ej: Radomiro Tomic"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Gerencia Administradora</span>
+                        <input id="ct_gerencia" type="text" class="iet-in" placeholder="Ej: GRMD"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Superintendencia / Dirección</span>
+                        <input id="ct_superintendencia" type="text" class="iet-in" placeholder="Ej: Chancado y Manejo de Materiales"></label>
+                </div>
+
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-5 mb-3">Responsables y datos del contrato</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Administrador Contrato EE.CC.</span>
+                        <input id="ct_admin_eecc" type="text" class="iet-in" placeholder="Nombre"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Experto en Prevención EE.CC.</span>
+                        <input id="ct_experto_eecc" type="text" class="iet-in" placeholder="Nombre"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Administrador Contrato CODELCO</span>
+                        <input id="ct_admin_codelco" type="text" class="iet-in" placeholder="Nombre"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Experto en Prevención CODELCO</span>
+                        <input id="ct_experto_codelco" type="text" class="iet-in" placeholder="Nombre"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Fecha inicio</span>
+                        <input id="ct_fecha_inicio" type="date" class="iet-in"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Fecha término</span>
+                        <input id="ct_fecha_termino" type="date" class="iet-in"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">N° de trabajadores</span>
+                        <input id="ct_n_trabajadores" type="number" class="iet-in" placeholder="Ej: 7"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">N° Riesgos Críticos aplicables</span>
+                        <input id="ct_n_riesgos_criticos" type="number" class="iet-in" placeholder="Ej: 7"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">Organismo Administrador del Seguro</span>
+                        <input id="ct_organismo_seguro" type="text" class="iet-in" placeholder="Ej: MUTUAL"></label>
+                    <label class="block"><span class="text-xs font-semibold text-gray-600">N° Empresas Subcontratistas</span>
+                        <input id="ct_n_subcontratistas" type="text" class="iet-in" placeholder="Ej: 0"></label>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" onclick="toggleFormContrato()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                    <button type="button" onclick="agregarContrato()" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-4 py-2 rounded-xl font-bold text-sm">
+                        <i data-lucide="save" class="w-4 h-4"></i> Guardar contrato
+                    </button>
+                </div>
+            </div>
+
+            <div id="contratosLista" class="grid grid-cols-1 xl:grid-cols-2 gap-5"></div>
+        </section>
+
+        <!-- Panel Carpeta de Arranque (overlay) -->
+        <div id="carpetaOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+            <div class="bg-[#f4f7f6] rounded-2xl shadow-2xl w-full max-w-4xl my-6">
+                <div class="sticky top-0 bg-white rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-3 z-10">
+                    <div class="min-w-0">
+                        <h2 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="folder-check" class="w-5 h-5 text-primary"></i> Carpeta de Arranque <span class="text-xs font-normal text-gray-400">RESSO Anexo 2</span></h2>
+                        <p id="carpetaSub" class="text-xs text-gray-500"></p>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span id="carpetaPct" class="text-sm font-extrabold text-secondary"></span>
+                        <button type="button" onclick="cerrarCarpeta()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+                <!-- Carga masiva con clasificación automática -->
+                <div class="px-4 sm:px-6 pt-4">
+                    <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div class="flex items-center gap-2 text-primary shrink-0">
+                            <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            <span class="font-bold text-sm">Carga inteligente</span>
+                        </div>
+                        <p class="text-xs text-gray-600 flex-1">Sube una <b>carpeta completa</b> o <b>varios documentos</b>; el sistema los analiza y los ordena en los 29 ítems.</p>
+                        <div class="flex gap-2 shrink-0">
+                            <label class="cam-btn cursor-pointer">
+                                <i data-lucide="folder-up" class="w-3.5 h-3.5"></i> Subir carpeta
+                                <input type="file" webkitdirectory multiple class="hidden" onchange="subirBulk(this)">
+                            </label>
+                            <label class="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-50">
+                                <i data-lucide="files" class="w-3.5 h-3.5"></i> Varios archivos
+                                <input type="file" multiple class="hidden" onchange="subirBulk(this)">
+                            </label>
+                        </div>
+                    </div>
+                    <div id="bulkReporte" class="hidden mt-3"></div>
+                </div>
+                <div id="carpetaItems" class="p-4 sm:p-6 space-y-3"></div>
+            </div>
+        </div>
 
        </div><!-- /columna central -->
 
@@ -535,12 +683,13 @@
             if (valor === 'no') {
                 return `
                 <p class="text-sm font-bold text-amber-600 mb-3 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Plan de Trabajo (No Cumple)</p>
-                <textarea data-f="nota" rows="2" placeholder="Acción correctiva propuesta (opcional, se incluirá en el plan)..." class="w-full p-3 border rounded-lg text-sm mb-3"></textarea>
+                <textarea data-f="nota" rows="2" placeholder="Observación / acción correctiva (obligatoria)..." class="w-full p-3 border rounded-lg text-sm mb-3"></textarea>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input type="text" data-f="resp" placeholder="Responsable" class="w-full p-3 border rounded-lg text-sm">
-                    <input type="date" data-f="fecha" class="w-full p-3 border rounded-lg text-sm">
+                    <label class="block text-xs text-gray-500">Fecha de compromiso de cierre
+                        <input type="date" data-f="fecha" class="w-full p-2 border rounded-lg text-sm"></label>
                 </div>
-                <p class="text-xs text-gray-500 mt-3">Esta brecha se consolidará al pulsar <span class="font-semibold text-amber-600">Generar Plan de Trabajo</span>.</p>`;
+                <p class="text-xs text-amber-600 mt-2 font-semibold">Observación obligatoria. Pulsa <span class="underline">Guardar cambios</span>; la brecha aparecerá en el Panel de Brechas.</p>`;
             }
             if (valor === 'na') {
                 const info = ITEM_INDEX[n];
@@ -591,10 +740,60 @@ Firma Asesor en Prevención`;
             const evaluables = TOTAL_ITEMS - na;
             const cumpl = evaluables > 0 ? Math.round((conformes / evaluables) * 100) : 0;
             document.getElementById('kpiConformes').textContent = conformes;
-            document.getElementById('kpiBrechas').textContent = brechas;
+            // kpiBrechas lo controla el Panel de Brechas unificado (cargarBrechas)
             document.getElementById('kpiNA').textContent = na;
             document.getElementById('kpiCumplimiento').textContent = cumpl + '%';
             if (typeof actualizarAvance === 'function') actualizarAvance();
+        }
+
+        // ── Persistencia del FUF (Guardar cambios explícito) ──
+        function recolectarFUF() {
+            const items = [];
+            Object.keys(estado).forEach(n => {
+                const card = document.querySelector(`[data-item="${n}"] .accion`);
+                const nota = card ? (card.querySelector('[data-f="nota"]')?.value || '').trim() : '';
+                const fecha = card ? (card.querySelector('[data-f="fecha"]')?.value || '') : '';
+                items.push({ item_n: Number(n), estado: estado[n], observacion: nota, fecha_compromiso: fecha });
+            });
+            return items;
+        }
+
+        async function guardarFUF() {
+            const items = recolectarFUF();
+            // Validación: 'No Cumple' exige observación
+            const falta = items.find(it => it.estado === 'no' && !it.observacion);
+            if (falta) {
+                alert(`La observación es obligatoria en el ítem ${falta.item_n} (No Cumple).`);
+                const card = document.querySelector(`[data-item="${falta.item_n}"] .accion [data-f="nota"]`);
+                if (card) { card.classList.add('border-red-400'); card.focus(); }
+                return;
+            }
+            const r = await fetch('/api/fuf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'No se pudo guardar el FUF.'); return; }
+            const av = document.getElementById('fufGuardado');
+            av.classList.remove('hidden');
+            setTimeout(() => av.classList.add('hidden'), 2500);
+            if (typeof cargarBrechas === 'function') cargarBrechas();
+        }
+
+        async function cargarFUF() {
+            try {
+                const r = await fetch('/api/fuf');
+                if (!r.ok) return;
+                const data = await r.json();   // { item_n: {estado, observacion, fecha_compromiso} }
+                Object.values(data).forEach(row => {
+                    const n = row.item_n;
+                    if (!['si', 'no', 'na'].includes(row.estado)) return;
+                    setEstado(n, row.estado);
+                    const card = document.querySelector(`[data-item="${n}"] .accion`);
+                    if (card) {
+                        const nota = card.querySelector('[data-f="nota"]');
+                        if (nota && row.observacion) nota.value = row.observacion;
+                        const fch = card.querySelector('[data-f="fecha"]');
+                        if (fch && row.fecha_compromiso) fch.value = row.fecha_compromiso;
+                    }
+                });
+            } catch (e) { /* sin datos previos */ }
         }
 
         // ── Plan de Trabajo (auditor-hse): consolida las brechas "No Cumple" ──
@@ -684,7 +883,7 @@ Firma Asesor en Prevención`;
         // ─────────────────────────────────────────────────────────────
         // NAVEGACIÓN DE VISTAS (menú lateral)
         // ─────────────────────────────────────────────────────────────
-        const VISTAS = ['avance', 'checklist', 'ds44', 'iet'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -1068,13 +1267,454 @@ Firma Asesor en Prevención`;
             actualizarAvance();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // MIS CONTRATOS ASESORADOS + motor de cumplimiento
+        // ─────────────────────────────────────────────────────────────
+        const EST_BADGE = {
+            pendiente: 'bg-gray-100 text-gray-500',
+            aprobado: 'bg-green-100 text-green-700',
+            acreditado: 'bg-sky-100 text-sky-700',
+        };
+        const EST_LABEL = { pendiente: 'Pendiente', aprobado: 'Aprobado', acreditado: 'Acreditado' };
+
+        function toggleFormContrato() {
+            document.getElementById('formContrato').classList.toggle('hidden');
+        }
+
+        async function cargarContratos() {
+            try {
+                const r = await fetch('/api/contratos');
+                if (r.ok) renderContratos(await r.json());
+            } catch (e) { /* offline */ }
+        }
+
+        // ── Panel de Brechas unificado (Carpeta Pendiente + FUF No Cumple) ──
+        async function cargarBrechas() {
+            let brechas = [];
+            try {
+                const r = await fetch('/api/brechas');
+                if (r.ok) brechas = await r.json();
+            } catch (e) { /* offline */ }
+            document.getElementById('kpiBrechas').textContent = brechas.length;
+            document.getElementById('brechasCount').textContent = brechas.length;
+            const cont = document.getElementById('panelBrechas');
+            if (!brechas.length) {
+                cont.innerHTML = `<p class="text-sm text-gray-400 py-2 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-secondary"></i> Sin brechas abiertas. ¡Buen trabajo!</p>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+            // ordenar: vencidas/menos días primero; sin fecha al final
+            brechas.sort((a, b) => {
+                const da = a.dias_restantes, db = b.dias_restantes;
+                if (da === null && db === null) return 0;
+                if (da === null) return 1;
+                if (db === null) return -1;
+                return da - db;
+            });
+            cont.innerHTML = brechas.map(b => {
+                const d = b.dias_restantes;
+                let venc = '<span class="text-[11px] text-gray-400">sin fecha</span>';
+                if (d !== null) {
+                    if (d < 0) venc = `<span class="text-[11px] font-bold text-red-600">🔴 Vencida (${-d}d)</span>`;
+                    else if (d <= 3) venc = `<span class="text-[11px] font-bold text-amber-600">${d}d restantes</span>`;
+                    else venc = `<span class="text-[11px] font-semibold text-gray-500">${d}d restantes</span>`;
+                }
+                const fuenteTag = b.fuente === 'fuf'
+                    ? '<span class="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">FUF</span>'
+                    : '<span class="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Carpeta</span>';
+                const cidAttr = b.contrato_id === null ? 'null' : b.contrato_id;
+                return `<div class="flex flex-col sm:flex-row sm:items-center gap-2 border border-gray-100 rounded-xl p-3">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            ${fuenteTag}
+                            <span class="text-xs font-bold text-gray-800">${b.etiqueta}</span>
+                            <span class="text-[11px] text-gray-400">${b.contrato}</span>
+                        </div>
+                        <p class="text-xs text-gray-600 mt-0.5 truncate">${(b.titulo ? b.titulo + ' — ' : '')}${b.observacion || '<span class="text-gray-400">(sin observación)</span>'}</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        ${venc}
+                        <input type="date" value="${b.fecha_compromiso || ''}"
+                               onchange="fijarCompromiso('${b.fuente}', ${b.item_n}, ${cidAttr}, this.value)"
+                               class="text-[11px] border border-gray-200 rounded px-2 py-1 outline-none focus:border-primary" title="Fecha de compromiso de cierre">
+                    </div>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function fijarCompromiso(fuente, item_n, contrato_id, fecha) {
+            await fetch('/api/brechas/compromiso', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fuente, item_n, contrato_id, fecha_compromiso: fecha })
+            });
+            cargarBrechas();
+        }
+
+        const CT_DATOS = ['nombre_servicio', 'gerencia', 'superintendencia', 'admin_eecc',
+            'experto_eecc', 'admin_codelco', 'experto_codelco', 'fecha_inicio', 'fecha_termino',
+            'n_trabajadores', 'n_riesgos_criticos', 'organismo_seguro', 'n_subcontratistas'];
+
+        async function agregarContrato() {
+            const val = id => (document.getElementById('ct_' + id)?.value || '').trim();
+            const datos = {};
+            CT_DATOS.forEach(k => { if (val(k)) datos[k] = val(k); });
+            const body = {
+                empresa: val('empresa'), faena: val('faena'),
+                numero: val('numero'), mandante: document.getElementById('ct_mandante').value,
+                datos,
+            };
+            if (!body.empresa || !body.numero) { alert('Indica al menos Empresa y N° de contrato.'); return; }
+            const r = await fetch('/api/contratos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!r.ok) { alert('No se pudo guardar el contrato.'); return; }
+            ['empresa', 'faena', 'numero', ...CT_DATOS].forEach(id => { const el = document.getElementById('ct_' + id); if (el) el.value = ''; });
+            document.getElementById('ct_mandante').value = '';
+            document.getElementById('formContrato').classList.add('hidden');
+            renderContratos(await r.json());
+        }
+
+        async function eliminarContrato(id) {
+            if (!confirm('¿Eliminar este contrato y sus estados de cumplimiento?')) return;
+            const r = await fetch('/api/contratos/eliminar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+            if (r.ok) renderContratos(await r.json());
+        }
+
+        async function subirMatriz(cid, input) {
+            if (!input.files.length) return;
+            const fd = new FormData();
+            fd.append('archivo', input.files[0]);
+            fd.append('flujo', 'RESSO');
+            const r = await fetch(`/api/contratos/${cid}/matriz`, { method: 'POST', body: fd });
+            input.value = '';
+            if (!r.ok) { alert('No se pudo procesar la matriz.'); return; }
+            const data = await r.json();
+            renderContratos(data.contratos);
+            mostrarVista('contratos');
+            if (data.aplicados && data.aplicados.length)
+                alert('Controles validados y replicados a tus contratos:\n• ' + data.aplicados.join('\n• '));
+            else
+                alert('Matriz cargada. No se detectaron controles transversales conformes (revisa columnas Requisito/Estado).');
+        }
+
+        async function subirDocs(cid, numero, input) {
+            if (!input.files.length) return;
+            const fecha = new Date().toISOString().slice(0, 10);
+            const flujo = (input.dataset.flujo || 'DOC');
+            for (const file of input.files) {
+                const nombre = `${fecha}_${flujo}_${numero}_${file.name}`;
+                descargar(nombre, file, file.type || 'application/octet-stream');
+                await fetch(`/api/contratos/${cid}/documento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, flujo }) });
+            }
+            input.value = '';
+            cargarContratos();
+        }
+
+        async function cargarCarpetaArranque(cid, input) {
+            if (!input.files.length) return;
+            await abrirCarpeta(cid);   // abre el panel de la carpeta
+            await subirBulk(input);    // sube y clasifica los archivos de la carpeta conformada
+        }
+
+        async function subirLogo(cid, input) {
+            if (!input.files.length) return;
+            const fd = new FormData();
+            fd.append('logo', input.files[0]);
+            const r = await fetch(`/api/contratos/${cid}/logo`, { method: 'POST', body: fd });
+            input.value = '';
+            if (r.ok) { renderContratos(await r.json()); alert('Logo guardado. Se incluirá en las cartas N/A y documentos generados.'); }
+            else alert('No se pudo subir el logo.');
+        }
+
+        function renderAvanceContratos(lista) {
+            const resumen = document.getElementById('avanceContratosResumen');
+            const cont = document.getElementById('avanceContratos');
+            if (!cont) return;
+            if (!lista.length) {
+                resumen.innerHTML = '';
+                cont.innerHTML = `<p class="text-sm text-gray-400">Aún no hay contratos. Agrégalos en <b>Mis Contratos</b>.</p>`;
+                return;
+            }
+            // métrica por contrato: carpeta (Codelco) o controles
+            const fila = c => {
+                if (c.carpeta) return { pct: c.carpeta.pct, pend: c.carpeta.pendientes, etiqueta: 'Carpeta de Arranque' };
+                const total = c.controles.length || 1;
+                return { pct: Math.round(c.cerradas / total * 100), pend: c.pendientes, etiqueta: 'Controles' };
+            };
+            const filas = lista.map(c => ({ c, ...fila(c) }));
+            const promedio = Math.round(filas.reduce((a, f) => a + f.pct, 0) / filas.length);
+            const totalPend = filas.reduce((a, f) => a + f.pend, 0);
+            resumen.innerHTML = `
+                <span class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 font-bold">${lista.length} contrato${lista.length === 1 ? '' : 's'}</span>
+                <span class="px-3 py-1 rounded-full bg-secondary/10 text-secondary font-bold">Cumplimiento promedio: ${promedio}%</span>
+                <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-700 font-bold">${totalPend} pendientes</span>`;
+            cont.innerHTML = filas.map(({ c, pct, pend, etiqueta }) => {
+                const color = pct >= 80 ? 'bg-secondary' : pct >= 40 ? 'bg-amber-500' : 'bg-red-400';
+                const accion = c.es_codelco ? `abrirCarpeta(${c.id})` : `mostrarVista('contratos')`;
+                return `<button type="button" onclick="${accion}" class="w-full text-left group">
+                    <div class="flex items-center justify-between gap-3 mb-1.5">
+                        <span class="text-sm font-bold text-gray-800 truncate group-hover:text-primary">${c.empresa} <span class="text-gray-400 font-normal">· N° ${c.numero}</span></span>
+                        <span class="text-xs text-gray-500 shrink-0">${pct}% · <span class="text-amber-600 font-semibold">${pend} pend.</span></span>
+                    </div>
+                    <div class="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div class="h-full ${color} rounded-full transition-all" style="width:${pct}%"></div>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-1">${c.faena || ''}${c.faena ? ' · ' : ''}${etiqueta}</p>
+                </button>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function datosContrato(c) {
+            const d = c.datos || {};
+            const filas = [
+                ['Empresa Contratista', d.empresa_contratista || c.empresa],
+                ['Faena / Centro de Trabajo', c.faena],
+                ['Mandante', c.mandante],
+                ['Gerencia', d.gerencia],
+                ['Superintendencia / Dirección', d.superintendencia],
+                ['Administrador EE.CC.', d.admin_eecc],
+                ['Administrador CODELCO', d.admin_codelco],
+            ].filter(([, v]) => v);
+            if (!filas.length) return '';
+            return `<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] mb-3 bg-gray-50/70 rounded-lg p-2.5">
+                ${filas.map(([k, v]) => `<div class="flex justify-between gap-2"><span class="text-gray-400">${k}</span><span class="text-gray-700 font-semibold text-right truncate">${v}</span></div>`).join('')}
+            </div>`;
+        }
+
+        function renderContratos(lista) {
+            window._contratos = lista;
+            renderAvanceContratos(lista);
+            const cont = document.getElementById('contratosLista');
+            if (!lista.length) {
+                cont.innerHTML = `<div class="col-span-full text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200 p-10">
+                    <i data-lucide="folder-plus" class="w-8 h-8 mx-auto mb-2"></i>
+                    <p class="text-sm">Aún no agregas contratos. Usa <b>“Agregar empresa / contrato”</b>.</p></div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+            cont.innerHTML = lista.map(c => {
+                const ctrls = c.controles.map(k => {
+                    const origen = k.estado === 'acreditado' && k.origen ? ` <span class="text-[10px] text-sky-600">(heredado de N° ${k.origen})</span>` : '';
+                    return `<div class="flex items-center justify-between gap-2 py-1.5 border-b border-gray-50 last:border-0">
+                        <span class="text-xs text-gray-700">${k.label}${origen}</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${EST_BADGE[k.estado]}">${EST_LABEL[k.estado]}</span>
+                    </div>`;
+                }).join('');
+                const docs = (c.documentos || []).filter(d => d.tipo === 'evidencia').slice(0, 4).map(d =>
+                    `<li class="truncate"><i data-lucide="file" class="w-3 h-3 inline"></i> ${d.nombre} <span class="text-gray-400">· ${d.flujo || ''}</span></li>`).join('');
+                return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="font-extrabold text-gray-900 truncate">${c.empresa}</h3>
+                                <span class="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">N° ${c.numero}</span>
+                            </div>
+                            <p class="text-xs text-gray-500">${c.faena || '—'}${c.mandante ? ' · ' + c.mandante : ''}</p>
+                        </div>
+                        <button type="button" onclick="eliminarContrato(${c.id})" class="text-gray-300 hover:text-red-500 shrink-0"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                    ${datosContrato(c)}
+
+                    <div class="flex items-center gap-2 text-xs mb-3">
+                        <span class="font-bold text-secondary">${c.cerradas} cerradas</span>
+                        <span class="text-gray-300">·</span>
+                        <span class="font-bold text-amber-600">${c.pendientes} pendientes</span>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-1">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Controles transversales</p>
+                        <label class="text-[10px] text-primary font-bold cursor-pointer hover:underline inline-flex items-center gap-1">
+                            <i data-lucide="file-spreadsheet" class="w-3 h-3"></i> cargar matriz
+                            <input type="file" accept=".xlsx,.csv" class="hidden" onchange="subirMatriz(${c.id}, this)">
+                        </label>
+                    </div>
+                    <div class="mb-4">${ctrls}</div>
+
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${c.es_codelco ? `
+                        <label class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:brightness-95">
+                            <i data-lucide="folder-up" class="w-3.5 h-3.5"></i> Cargar Carpeta de Arranque
+                            <input type="file" webkitdirectory multiple class="hidden" onchange="cargarCarpetaArranque(${c.id}, this)">
+                        </label>
+                        <button type="button" onclick="abrirCarpeta(${c.id})" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-2.5 py-1.5 rounded hover:brightness-95">
+                            <i data-lucide="folder-check" class="w-3.5 h-3.5"></i> Comenzar a trabajar en la Carpeta</button>` : ''}
+                        <label class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-200">
+                            <i data-lucide="image" class="w-3.5 h-3.5"></i> ${(c.datos && c.datos.logo) ? 'Cambiar logo' : 'Subir logo empresa'}
+                            <input type="file" accept="image/*" class="hidden" onchange="subirLogo(${c.id}, this)">
+                        </label>
+                        ${(c.datos && c.datos.logo) ? `<img src="/api/contratos/${c.id}/logo" alt="logo" class="h-7 w-auto rounded border border-gray-200">` : ''}
+                    </div>
+                    ${docs ? `<ul class="text-[11px] text-gray-500 space-y-0.5 mb-3">${docs}</ul>` : ''}
+
+                    <div class="flex flex-wrap gap-3 pt-2 border-t border-gray-50 text-xs font-bold">
+                        <button onclick="mostrarVista('iet')" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> ART</button>
+                        <button onclick="mostrarVista('ds44')" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> DS 44</button>
+                        <button onclick="mostrarVista('checklist')" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="list-checks" class="w-3.5 h-3.5"></i> Controles críticos</button>
+                    </div>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Carpeta de Arranque (RESSO Anexo 2) ──
+        const CARP_BADGE = { pendiente: 'bg-gray-100 text-gray-500', cumple: 'bg-green-100 text-green-700', na: 'bg-slate-200 text-slate-600' };
+        const CARP_LABEL = { pendiente: 'Pendiente', cumple: 'Cumple', na: 'N/A' };
+        let _carpetaCid = null;
+
+        async function abrirCarpeta(cid) {
+            _carpetaCid = cid;
+            const c = (window._contratos || []).find(x => x.id === cid) || {};
+            document.getElementById('carpetaSub').textContent =
+                `${c.empresa || ''} · N° ${c.numero || ''}${c.faena ? ' · ' + c.faena : ''}`;
+            document.getElementById('carpetaOverlay').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            const r = await fetch(`/api/contratos/${cid}/carpeta`);
+            if (r.ok) renderCarpeta(await r.json());
+            else { const e = await r.json(); alert(e.error || 'Error al abrir la carpeta.'); cerrarCarpeta(); }
+        }
+
+        function cerrarCarpeta() {
+            document.getElementById('carpetaOverlay').classList.add('hidden');
+            document.body.style.overflow = '';
+            _carpetaCid = null;
+        }
+
+        // Estado en memoria de la Carpeta abierta (guardado explícito por ítem).
+        let _carpItems = [];
+
+        function renderCarpeta(data) {
+            document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
+            _carpItems = data.items.map(it => ({ ...it, _saved: false }));
+            pintarCarpeta();
+        }
+
+        function _carpItem(n) { return _carpItems.find(x => x.n === n); }
+
+        function pintarCarpeta() {
+            document.getElementById('carpetaItems').innerHTML = _carpItems.map(it => {
+                const opts = ['cumple', 'na', 'pendiente'].map(v =>
+                    `<button type="button" onclick="stageEstado(${it.n},'${v}')" class="text-[10px] font-bold px-2 py-1 rounded border ${it.estado === v ? 'border-transparent ' + CARP_BADGE[v] : 'border-gray-300 text-gray-500'}">${CARP_LABEL[v]}</button>`).join('');
+                const docs = it.docs.length
+                    ? `<ul class="mt-2 text-[11px] space-y-0.5">${it.docs.map(d => {
+                        const carta = d.tipo === 'carta_na';
+                        const ico = carta ? 'file-signature' : 'file';
+                        const col = carta ? 'text-primary font-semibold' : 'text-gray-500';
+                        const tag = carta ? ' <span class="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Carta N/A</span>' : '';
+                        return `<li class="truncate ${col}"><i data-lucide="${ico}" class="w-3 h-3 inline"></i> <a href="/api/contratos/${_carpetaCid}/carpeta/${it.n}/archivo/${encodeURIComponent(d.nombre)}" class="hover:underline" target="_blank">${d.nombre}</a>${tag}</li>`;
+                      }).join('')}</ul>` : '';
+                const esPend = it.estado === 'pendiente';
+                const obsFalta = esPend && !(it.observacion || '').trim();
+                const fechaField = esPend
+                    ? `<input type="date" value="${it.fecha_compromiso || ''}" oninput="stageFecha(${it.n}, this.value)"
+                              title="Fecha de compromiso de cierre"
+                              class="text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-primary">` : '';
+                const guardar = it._saved
+                    ? `<span class="text-[11px] font-bold text-green-600 px-2">Guardado ✓</span>`
+                    : `<button type="button" onclick="guardarItem(${it.n})" class="inline-flex items-center gap-1 bg-secondary hover:bg-[#6a9e32] text-white text-[11px] font-bold px-3 py-1.5 rounded"><i data-lucide="save" class="w-3.5 h-3.5"></i> Guardar</button>`;
+                return `<div class="bg-white rounded-xl border ${obsFalta ? 'border-amber-300' : 'border-gray-100'} p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="font-bold text-sm text-gray-900"><span class="text-primary">${String(it.n).padStart(2, '0')}.</span> ${it.titulo}</p>
+                            <p class="text-[11px] text-gray-500 mt-0.5">${it.evidencia}</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">Responsable: ${it.a_quien}</p>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${CARP_BADGE[it.estado]}">${CARP_LABEL[it.estado]}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-3">
+                        <div class="flex gap-1">${opts}</div>
+                        <label class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-200">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Subir evidencia
+                            <input type="file" multiple class="hidden" onchange="subirEvidencia(${it.n}, this)">
+                        </label>
+                        <input type="text" value="${(it.observacion || '').replace(/"/g, '&quot;')}"
+                               placeholder="${esPend ? 'Observación (obligatoria)…' : 'Observación…'}"
+                               oninput="stageObs(${it.n}, this.value)"
+                               class="flex-1 min-w-[8rem] text-xs border ${obsFalta ? 'border-amber-400' : 'border-gray-200'} rounded px-2 py-1.5 outline-none focus:border-primary">
+                        ${fechaField}
+                        ${guardar}
+                    </div>
+                    ${docs}
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function stageEstado(n, v) { const it = _carpItem(n); if (!it) return; it.estado = v; it._saved = false; pintarCarpeta(); }
+        function stageObs(n, v) { const it = _carpItem(n); if (it) { it.observacion = v; it._saved = false; } }
+        function stageFecha(n, v) { const it = _carpItem(n); if (it) { it.fecha_compromiso = v; it._saved = false; } }
+
+        async function guardarItem(n) {
+            const it = _carpItem(n);
+            if (!it) return;
+            if (it.estado === 'pendiente' && !(it.observacion || '').trim()) {
+                alert('La observación es obligatoria para una brecha (Pendiente).');
+                pintarCarpeta();
+                return;
+            }
+            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/${n}/estado`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ estado: it.estado, observacion: it.observacion || '', fecha_compromiso: it.fecha_compromiso || '' }) });
+            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'No se pudo guardar.'); return; }
+            const data = await r.json();
+            document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
+            // merge: refrescar solo el ítem guardado, preservando ediciones locales de otros
+            const fresh = data.items.find(x => x.n === n);
+            const idx = _carpItems.findIndex(x => x.n === n);
+            if (fresh && idx >= 0) _carpItems[idx] = { ...fresh, _saved: true };
+            pintarCarpeta();
+            cargarContratos();
+            if (typeof cargarBrechas === 'function') cargarBrechas();
+        }
+
+        async function subirEvidencia(n, input) {
+            if (!input.files.length) return;
+            const fd = new FormData();
+            for (const f of input.files) fd.append('archivo', f);
+            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/${n}/documento`, { method: 'POST', body: fd });
+            input.value = '';
+            if (r.ok) renderCarpeta(await r.json());
+            else alert('No se pudo subir la evidencia.');
+        }
+
+        async function subirBulk(input) {
+            if (!input.files.length) return;
+            const fd = new FormData();
+            for (const f of input.files) fd.append('archivos', f);
+            const box = document.getElementById('bulkReporte');
+            box.classList.remove('hidden');
+            box.innerHTML = `<p class="text-xs text-gray-500 flex items-center gap-2"><i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Analizando ${input.files.length} archivo(s)…</p>`;
+            if (window.lucide) lucide.createIcons();
+            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/bulk`, { method: 'POST', body: fd });
+            input.value = '';
+            if (!r.ok) { box.innerHTML = '<p class="text-xs text-red-600">No se pudieron procesar los archivos.</p>'; return; }
+            const data = await r.json();
+            renderCarpeta(data.carpeta);
+            const rows = data.reporte.map(x => {
+                const ok = x.fuente !== 'sin_clasificar';
+                return `<li class="flex items-center justify-between gap-2 py-1 border-b border-gray-50 last:border-0">
+                    <span class="truncate text-gray-700"><i data-lucide="file" class="w-3 h-3 inline"></i> ${x.archivo}</span>
+                    <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">${String(x.item).padStart(2, '0')}. ${x.titulo}${ok ? '' : ' (revisar)'}</span>
+                </li>`;
+            }).join('');
+            box.innerHTML = `<div class="bg-white border border-gray-100 rounded-xl p-3">
+                <p class="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-primary"></i> Clasificación automática (${data.reporte.length})</p>
+                <ul class="text-[11px] space-y-0.5 max-h-48 overflow-y-auto">${rows}</ul>
+                <p class="text-[10px] text-gray-400 mt-2">Los marcados "(revisar)" quedaron en el ítem 29 (Otros). Puedes recolocarlos subiéndolos al ítem correcto.</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+            cargarContratos();
+        }
+
         // init
         document.getElementById('pilaresContainer').innerHTML = FUF.map(bloqueSeccion).join('');
         renderCL('vehiculo');
         renderCL('fatiga');
         actualizarAvance();
+        cargarContratos();
+        cargarFUF();
+        cargarBrechas();
         const _vistaInicial = (location.hash || '').replace('#', '');
-        mostrarVista(['ds44', 'iet', 'checklist'].includes(_vistaInicial) ? _vistaInicial : 'avance');
+        mostrarVista(['contratos', 'ds44', 'iet', 'checklist'].includes(_vistaInicial) ? _vistaInicial : 'avance');
         lucide.createIcons();
     </script>
 </body>
