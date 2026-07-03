@@ -77,6 +77,23 @@ DIALECTO_MANDANTE = {
 }
 
 
+# ── Fuentes legales vigentes (Ronda 13) — cuerpo normativo al que se amarra cada requisito ──
+FUENTES_LEGALES = [
+    {'codigo': 'L16744', 'nombre': 'Ley 16.744 — Accidentes del Trabajo y Enfermedades Profesionales',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=28650'},
+    {'codigo': 'DS44', 'nombre': 'DS 44/2024 — Nueva gestión preventiva de riesgos laborales',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1205298'},
+    {'codigo': 'DS594', 'nombre': 'DS 594 — Condiciones sanitarias y ambientales básicas',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=167766'},
+    {'codigo': 'DS40', 'nombre': 'DS 40 — Reglamento sobre Prevención de Riesgos Profesionales',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1041130'},
+    {'codigo': 'DS76', 'nombre': 'DS 76 — SST en obras/faenas subcontratadas',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=257601'},
+    {'codigo': 'DS54', 'nombre': 'DS 54 — Comités Paritarios de Higiene y Seguridad',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=8336'},
+]
+
+
 def dialecto_key(mandante):
     """Normaliza el mandante a su dialecto. None → solo base legal (sin traducción)."""
     m = (mandante or '').lower()

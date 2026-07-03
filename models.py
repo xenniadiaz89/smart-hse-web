@@ -232,11 +232,82 @@ class RequisitoLegal(_DictMixin, sqla.Model):
     control_operativo = sqla.Column(sqla.Text)             # '1.\nAcción.\n2.\nResponsable.'
     responsable = sqla.Column(sqla.Text)
     frecuencia = sqla.Column(sqla.Text)
-    estado_avance = sqla.Column(sqla.Text, default='pendiente')  # 'auditado'|'pendiente'
+    estado_avance = sqla.Column(sqla.Text, default='pendiente')  # 'auditado'|'pendiente'|'en_revision'
     evidencia_doc_id = sqla.Column(sqla.Integer)
     categoria = sqla.Column(sqla.Text)                     # enlaza con EQUIVALENCIAS/reglas
     fecha = sqla.Column(sqla.Text)
+    # Ronda 13 — Matriz Legal: fuente legal + detalle normativo + trazabilidad
+    fuente_legal_id = sqla.Column(sqla.Integer)            # FK lógico a fuente_legal.id (tabla existente)
+    articulo = sqla.Column(sqla.Text)
+    obligacion = sqla.Column(sqla.Text)
+    frecuencia_actualizacion_meses = sqla.Column(sqla.Integer)
+    fecha_actualizacion = sqla.Column(sqla.Text)          # última actualización del requisito
+    validado_por = sqla.Column(sqla.Text)                 # snapshot de la última validación
+    validado_en = sqla.Column(sqla.Text)
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'id_requisito'),)
+
+
+# ══════════ Ronda 13 — Dos pilares del SGSST (FK reales) ══════════
+class FuenteLegal(_DictMixin, sqla.Model):
+    """Cuerpo normativo vigente al que se amarra cada requisito (Ley 16.744, DS 44, DS 594…).
+    Si `vigente=0` (ley derogada/modificada), sus requisitos entran en alerta."""
+    __tablename__ = 'fuente_legal'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    codigo = sqla.Column(sqla.Text, nullable=False, unique=True)   # 'DS44','DS594','L16744'…
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    vigente = sqla.Column(sqla.Integer, default=1)
+    fecha_vigencia = sqla.Column(sqla.Text)
+    url = sqla.Column(sqla.Text)
+
+
+class ValidacionCumplimiento(_DictMixin, sqla.Model):
+    """Bitácora auditable append-only: quién y cuándo validó un requisito legal."""
+    __tablename__ = 'validacion_cumplimiento'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    requisito_id = sqla.Column(sqla.Integer, sqla.ForeignKey('requisito_legal.id'),
+                               index=True, nullable=False)
+    validado_por = sqla.Column(sqla.Text)
+    validado_en = sqla.Column(sqla.Text)                  # ISO timestamp
+    estado = sqla.Column(sqla.Text)                        # 'cumple'|'no_cumple'|'en_revision'
+    comentario = sqla.Column(sqla.Text)
+
+
+class MatrizRiesgo(_DictMixin, sqla.Model):
+    """Encabezado versionable de la Matriz de Riesgos (IPER) por empresa. Una 'Revisión V2'
+    bloquea la versión previa y crea una nueva vigente, conservando el histórico."""
+    __tablename__ = 'matriz_riesgo'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, sqla.ForeignKey('empresa.id'), index=True, nullable=False)
+    version = sqla.Column(sqla.Integer, default=1)
+    estado = sqla.Column(sqla.Text, default='vigente')     # 'vigente'|'bloqueada'|'borrador'
+    motivo_revision = sqla.Column(sqla.Text)
+    version_previa_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'))
+    creado_por = sqla.Column(sqla.Text)
+    creado_en = sqla.Column(sqla.Text)
+    __table_args__ = (sqla.UniqueConstraint('empresa_id', 'version'),)
+
+
+class RiesgoItem(_DictMixin, sqla.Model):
+    """Ítem IPER: Peligro / Riesgo / Evaluación (P×C) / Medida de Control, con dialecto por
+    mandante y lazo a la Matriz Legal (requisito_legal_id) + evidencia en terreno."""
+    __tablename__ = 'riesgo_item'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    matriz_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'),
+                            index=True, nullable=False)
+    peligro = sqla.Column(sqla.Text)
+    riesgo = sqla.Column(sqla.Text)
+    probabilidad = sqla.Column(sqla.Integer)
+    consecuencia = sqla.Column(sqla.Integer)
+    nivel_riesgo = sqla.Column(sqla.Text)                  # evaluación P×C (bajo/medio/alto/crítico)
+    medida_control = sqla.Column(sqla.Text)
+    tipo_control = sqla.Column(sqla.Text)                  # jerarquía de control
+    mandante_key = sqla.Column(sqla.Text)                  # dialecto: 'codelco'|'bhp_spence'|None
+    es_critico = sqla.Column(sqla.Integer, default=0)
+    # Lazo Riesgos → Legal: si el control es una norma legal, verifica su cumplimiento.
+    requisito_legal_id = sqla.Column(sqla.Integer, sqla.ForeignKey('requisito_legal.id'))
+    estado_control = sqla.Column(sqla.Text, default='vigente')  # 'vigente'|'en_revision'
+    evidencia_doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))  # control en terreno
+    fecha = sqla.Column(sqla.Text)
 
 
 class DocumentoGenerado(_DictMixin, sqla.Model):

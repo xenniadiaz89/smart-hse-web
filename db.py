@@ -12,7 +12,8 @@ import cumplimiento
 from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEstado,
                     FufEstado, MappingReq, Trabajador, AuditoriaEstado,
                     Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario,
-                    ReglaCumplimiento, DialectoMandante, RequisitoLegal)
+                    ReglaCumplimiento, DialectoMandante, RequisitoLegal,
+                    FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem)
 
 
 def _hoy():
@@ -42,6 +43,14 @@ _COLUMNAS_NUEVAS = [
     ('contrato', 'empresa_id', 'INTEGER'),                       # Ronda 12 (contrato → empresa)
     ('documento', 'base_legal', 'TEXT'),                        # Ronda 12 (motor cumplimiento)
     ('documento', 'estado_cumplimiento', 'TEXT'),              # Ronda 12
+    # Ronda 13 — Matriz Legal: fuente legal + detalle normativo + trazabilidad
+    ('requisito_legal', 'fuente_legal_id', 'INTEGER'),
+    ('requisito_legal', 'articulo', 'TEXT'),
+    ('requisito_legal', 'obligacion', 'TEXT'),
+    ('requisito_legal', 'frecuencia_actualizacion_meses', 'INTEGER'),
+    ('requisito_legal', 'fecha_actualizacion', 'TEXT'),
+    ('requisito_legal', 'validado_por', 'TEXT'),
+    ('requisito_legal', 'validado_en', 'TEXT'),
 ]
 
 
@@ -125,6 +134,21 @@ def seed_reglas():
                 sqla.session.add(row)
             row.estandar = d.get('estandar')
             row.metodologia = d.get('metodologia')
+    _commit()
+    seed_fuentes_legales()
+
+
+def seed_fuentes_legales():
+    """Siembra las fuentes legales vigentes (Ronda 13). Idempotente."""
+    for f in cumplimiento.FUENTES_LEGALES:
+        row = FuenteLegal.query.filter_by(codigo=f['codigo']).first()
+        if not row:
+            row = FuenteLegal(codigo=f['codigo'])
+            sqla.session.add(row)
+        row.nombre = f['nombre']
+        row.url = f.get('url')
+        if row.vigente is None:
+            row.vigente = 1
     _commit()
 
 
@@ -705,9 +729,181 @@ def requisito_guardar(empresa_id, data):
         row = RequisitoLegal(empresa_id=empresa_id, id_requisito=idr)
         sqla.session.add(row)
     for k in ('capa', 'origen', 'cuerpo_normativo', 'requisito_legal', 'riesgo_asociado',
-              'control_operativo', 'responsable', 'frecuencia', 'estado_avance', 'categoria'):
+              'control_operativo', 'responsable', 'frecuencia', 'estado_avance', 'categoria',
+              'fuente_legal_id', 'articulo', 'obligacion', 'frecuencia_actualizacion_meses',
+              'fecha_actualizacion'):
         if k in data and data[k] is not None:
             setattr(row, k, data[k])
     row.fecha = _hoy()
     _commit()
     return row.to_dict()
+
+
+# ══════════════ Ronda 13 — Pilares SGSST: Matriz Legal + Matriz de Riesgos ══════════════
+from datetime import datetime as _dt
+
+
+def fuentes_legales():
+    return [f.to_dict() for f in FuenteLegal.query.order_by(FuenteLegal.codigo).all()]
+
+
+def fuente_legal_de(codigo):
+    f = FuenteLegal.query.filter_by(codigo=codigo).first()
+    return f.to_dict() if f else None
+
+
+def set_fuente_vigencia(codigo, vigente):
+    """Marca una ley como vigente/derogada. Al derogarla, sus requisitos entran en alerta."""
+    f = FuenteLegal.query.filter_by(codigo=codigo).first()
+    if f:
+        f.vigente = 1 if vigente else 0
+        _commit()
+    return f.to_dict() if f else None
+
+
+# ── Trazabilidad auditable de la Matriz Legal ──
+def validar_requisito(requisito_id, validado_por, estado='cumple', comentario=''):
+    """Registra una validación auditable (quién/cuándo) y actualiza el snapshot del requisito."""
+    req = RequisitoLegal.query.get(requisito_id)
+    if not req:
+        return None
+    ahora = _dt.now().isoformat(timespec='seconds')
+    sqla.session.add(ValidacionCumplimiento(
+        requisito_id=requisito_id, validado_por=validado_por, validado_en=ahora,
+        estado=estado, comentario=comentario))
+    req.validado_por = validado_por
+    req.validado_en = ahora
+    req.estado_avance = 'auditado' if estado == 'cumple' else estado
+    _commit()
+    return req.to_dict()
+
+
+def validaciones_de(requisito_id):
+    return [v.to_dict() for v in
+            ValidacionCumplimiento.query.filter_by(requisito_id=requisito_id)
+            .order_by(ValidacionCumplimiento.id.desc()).all()]
+
+
+def requisito_alerta(req):
+    """True si el requisito está desactualizado: venció su frecuencia de actualización o su
+    fuente legal dejó de estar vigente. `req` puede ser dict o id."""
+    if isinstance(req, int):
+        r = RequisitoLegal.query.get(req)
+        req = r.to_dict() if r else {}
+    # (a) fuente legal derogada/modificada
+    fid = req.get('fuente_legal_id')
+    if fid:
+        f = FuenteLegal.query.get(fid)
+        if f and not f.vigente:
+            return True
+    # (b) vencimiento por frecuencia de actualización
+    venc = cumplimiento.calcular_vencimiento(req.get('fecha_actualizacion'),
+                                             req.get('frecuencia_actualizacion_meses'))
+    return cumplimiento.estado_cumplimiento(venc) == 'pendiente_actualizacion'
+
+
+# ── Matriz de Riesgos (IPER) con versionado ──
+def matriz_riesgo_vigente(empresa_id):
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    return m.to_dict() if m else None
+
+
+def crear_matriz_riesgo(empresa_id, creado_por=None):
+    """Crea (o devuelve) la matriz de riesgos vigente de la empresa (versión 1)."""
+    existente = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if existente:
+        return existente.id
+    m = MatrizRiesgo(empresa_id=empresa_id, version=1, estado='vigente',
+                     creado_por=creado_por, creado_en=_hoy())
+    sqla.session.add(m)
+    _commit()
+    return m.id
+
+
+def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None,
+                   consecuencia=None, nivel_riesgo=None, tipo_control=None, mandante_key=None,
+                   es_critico=0, requisito_legal_id=None, evidencia_doc_id=None):
+    it = RiesgoItem(matriz_id=matriz_id, peligro=peligro, riesgo=riesgo,
+                    medida_control=medida_control, probabilidad=probabilidad,
+                    consecuencia=consecuencia, nivel_riesgo=nivel_riesgo, tipo_control=tipo_control,
+                    mandante_key=mandante_key, es_critico=1 if es_critico else 0,
+                    requisito_legal_id=requisito_legal_id, evidencia_doc_id=evidencia_doc_id,
+                    estado_control='vigente', fecha=_hoy())
+    sqla.session.add(it)
+    _commit()
+    return it.id
+
+
+def riesgo_items(matriz_id):
+    return [i.to_dict() for i in
+            RiesgoItem.query.filter_by(matriz_id=matriz_id).order_by(RiesgoItem.id).all()]
+
+
+def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
+    """Genera una Revisión V2: bloquea la matriz vigente y crea una nueva versión (N+1) vigente,
+    clonando sus ítems y conservando el histórico (version_previa_id). Devuelve la nueva matriz."""
+    actual = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if not actual:
+        nueva_id = crear_matriz_riesgo(empresa_id, creado_por)
+        return MatrizRiesgo.query.get(nueva_id).to_dict()
+    actual.estado = 'bloqueada'
+    nueva = MatrizRiesgo(empresa_id=empresa_id, version=(actual.version or 1) + 1,
+                         estado='vigente', motivo_revision=motivo, version_previa_id=actual.id,
+                         creado_por=creado_por, creado_en=_hoy())
+    sqla.session.add(nueva)
+    sqla.session.flush()          # asigna nueva.id antes de clonar
+    for it in RiesgoItem.query.filter_by(matriz_id=actual.id).all():
+        sqla.session.add(RiesgoItem(
+            matriz_id=nueva.id, peligro=it.peligro, riesgo=it.riesgo, probabilidad=it.probabilidad,
+            consecuencia=it.consecuencia, nivel_riesgo=it.nivel_riesgo, medida_control=it.medida_control,
+            tipo_control=it.tipo_control, mandante_key=it.mandante_key, es_critico=it.es_critico,
+            requisito_legal_id=it.requisito_legal_id, estado_control=it.estado_control,
+            evidencia_doc_id=it.evidencia_doc_id, fecha=_hoy()))
+    _commit()
+    return nueva.to_dict()
+
+
+# ── Motor de integridad automática ──
+def riesgo_editar_control(item_id, medida_control, quien=None):
+    """Edita la medida de control de un riesgo. Si el ítem está amarrado a un requisito legal
+    (requisito_legal_id), ese requisito queda 'en_revision' y se deja traza — evita trabajo doble."""
+    it = RiesgoItem.query.get(item_id)
+    if not it:
+        return None
+    it.medida_control = medida_control
+    it.estado_control = 'vigente'
+    it.fecha = _hoy()
+    if it.requisito_legal_id:
+        req = RequisitoLegal.query.get(it.requisito_legal_id)
+        if req:
+            req.estado_avance = 'en_revision'
+            ahora = _dt.now().isoformat(timespec='seconds')
+            sqla.session.add(ValidacionCumplimiento(
+                requisito_id=req.id, validado_por=quien or 'sistema', validado_en=ahora,
+                estado='en_revision',
+                comentario='Cambió el control operativo en la Matriz de Riesgos; requiere re-validación legal.'))
+    _commit()
+    return it.to_dict()
+
+
+def registrar_requerimiento(afecta, empresa_id, datos, creado_por=None):
+    """Motor de integridad: '¿afecta a la Matriz Legal, a la de Riesgos, o a ambas?'.
+    afecta ∈ {'legal','riesgo','ambas'}. Crea el/los registro(s) y los vincula (requisito_legal_id
+    en el RiesgoItem cuando es 'ambas'). Devuelve {requisito, riesgo_item_id}."""
+    out = {'requisito': None, 'riesgo_item_id': None}
+    req_id = None
+    if afecta in ('legal', 'ambas'):
+        req = requisito_guardar(empresa_id, datos.get('legal', datos))
+        out['requisito'] = req
+        req_id = req.get('id')
+    if afecta in ('riesgo', 'ambas'):
+        r = datos.get('riesgo', datos)
+        matriz_id = matriz_riesgo_vigente(empresa_id)
+        matriz_id = matriz_id['id'] if matriz_id else crear_matriz_riesgo(empresa_id, creado_por)
+        out['riesgo_item_id'] = riesgo_agregar(
+            matriz_id, r.get('peligro'), r.get('riesgo'), r.get('medida_control'),
+            probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+            nivel_riesgo=r.get('nivel_riesgo'), tipo_control=r.get('tipo_control'),
+            mandante_key=r.get('mandante_key'), es_critico=r.get('es_critico', 0),
+            requisito_legal_id=req_id, evidencia_doc_id=r.get('evidencia_doc_id'))
+    return out
