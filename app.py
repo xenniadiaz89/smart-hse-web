@@ -14,6 +14,7 @@ import db
 import normativa
 import resso
 import ia
+import correccion
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -87,73 +88,53 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Acceso exclusivo con RUT + clave."""
     if request.method == 'POST':
-        sns_raw = request.form.get('sns', '')
-        key = normalizar_id(sns_raw)
+        rut_raw = request.form.get('rut', '')
+        clave = request.form.get('clave', '')
+        key = normalizar_rut(rut_raw)
         u = db.usuario_get(key)
-        # Simulación: se ingresa solo con el N° SNS (sin exigir clave).
-        # En producción, validar aquí: check_password_hash(u['pass_hash'], request.form.get('clave',''))
-        if u:
-            session['rut'] = key            # identificador interno = N° SNS normalizado
-            session['sns'] = u.get('sns_raw') or u['sns']
-            session['nombre'] = u['nombre']
-            session['rol'] = u.get('rol', '')
-            return redirect(url_for('dashboard'))
-        return render_template('login.html',
-                               error='No existe una cuenta con ese N° SNS. Regístrate primero.',
-                               sns=sns_raw)
+        if not u or not (u.get('pass_hash') and check_password_hash(u['pass_hash'], clave)):
+            return render_template('login.html', error='RUT o clave incorrectos.', rut=rut_raw)
+        session['rut'] = key                 # llave de cuenta = RUT normalizado
+        session['sns'] = u.get('sns') or ''  # ID profesional visible
+        session['nombre'] = u.get('nombre')
+        session['rol'] = u.get('rol', 'asesor')
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
+    """Registro con RUT + clave + SNS (ID profesional) + nombre. El SNS se pide solo aquí."""
     if request.method == 'POST':
         f = request.form
         nombre = (f.get('nombre', '')).strip()
+        rut_raw = (f.get('rut', '')).strip()
         sns = (f.get('sns', '')).strip()
-        clave = f.get('clave', '')  # opcional en simulación (preparado para producción)
-        datos = {'nombre': nombre, 'sns': sns}
+        clave = f.get('clave', '')
+        datos = {'nombre': nombre, 'rut': rut_raw, 'sns': sns}
 
-        if not (nombre and sns):
-            return render_template('registro.html', error='Completa nombre y N° SNS.', **datos)
+        if not (nombre and rut_raw and sns):
+            return render_template('registro.html', error='Completa nombre, RUT y N° SNS.', **datos)
+        if not rut_valido(rut_raw):
+            return render_template('registro.html', error='El RUT ingresado no es válido.', **datos)
+        if not clave_valida(clave):
+            return render_template('registro.html',
+                                   error='La clave debe ser alfanumérica de al menos 6 caracteres (con letras y números).', **datos)
 
-        key = normalizar_id(sns)
+        key = normalizar_rut(rut_raw)
         if db.usuario_get(key):
-            return render_template('registro.html', error='Ya existe una cuenta con ese N° SNS.', **datos)
+            return render_template('registro.html', error='Ya existe una cuenta con ese RUT.', **datos)
 
-        db.usuario_crear(key, sns, nombre, rol='asesor',
-                         pass_hash=generate_password_hash(clave) if clave else None)
-        session['rut'] = key            # identificador interno = N° SNS normalizado
+        db.usuario_crear(key, rut_raw, sns, nombre, rol='asesor',
+                         pass_hash=generate_password_hash(clave))
+        session['rut'] = key
         session['sns'] = sns
         session['nombre'] = nombre
         session['rol'] = 'asesor'
-        # Tras crear la cuenta: ofrecer gestionar documentos (datos de empresa)
-        return redirect(url_for('gestion_documentos'))
-    return render_template('registro.html')
-
-
-@app.route('/gestion-documentos', methods=['GET', 'POST'])
-@login_required
-def gestion_documentos():
-    if request.method == 'POST':
-        # "Omitir" / "No" → directo al panel
-        if request.form.get('accion') == 'omitir':
-            return redirect(url_for('dashboard'))
-        f = request.form
-        empresa = {
-            'nombre': (f.get('empresa', '')).strip(),
-            'rut': (f.get('rut_empresa', '')).strip(),
-            'rubro': (f.get('rubro', '')).strip(),
-            'mandante': (f.get('mandante', '')).strip(),
-            'faena': (f.get('faena', '')).strip(),
-        }
-        if not empresa['nombre']:
-            return render_template('gestion_documentos.html',
-                                   error='Indica al menos el nombre de la empresa.', **empresa)
-        db.usuario_set_empresa(session.get('rut'), json.dumps(empresa, ensure_ascii=False))
-        session['empresa'] = empresa['nombre']
         return redirect(url_for('dashboard'))
-    return render_template('gestion_documentos.html')
+    return render_template('registro.html')
 
 
 @app.route('/prueba')
@@ -360,9 +341,14 @@ def api_contrato_crear():
         return jsonify({'error': 'Empresa y N° de contrato son obligatorios.'}), 400
     datos = f.get('datos') or {}
     datos_json = json.dumps(datos, ensure_ascii=False) if datos else None
-    db.crear_contrato(session['rut'], empresa, (f.get('faena') or '').strip(),
-                      numero, (f.get('mandante') or '').strip(), datos_json)
-    return jsonify(_consolidar(session['rut']))
+    # Derivación por rubro: SÍ presta servicios como contratista minera → flujo
+    # Carpeta/RESSO (con mandante). NO → empresa general (flujo educativo DS 44/FUF).
+    es_minera = 1 if str(f.get('es_contratista_minera') or '').lower() in ('1', 'si', 'sí', 'true') else 0
+    mandante = (f.get('mandante') or '').strip() if es_minera else ''
+    cid = db.crear_contrato(session['rut'], empresa, (f.get('faena') or '').strip(),
+                            numero, mandante, datos_json, es_contratista_minera=es_minera)
+    return jsonify({'contratos': _consolidar(session['rut']), 'id': cid,
+                    'es_contratista_minera': es_minera})
 
 
 @app.route('/api/contratos/eliminar', methods=['POST'])
@@ -371,6 +357,68 @@ def api_contrato_eliminar():
     f = request.get_json(silent=True) or request.form
     db.eliminar_contrato(session['rut'], int(f.get('id')))
     return jsonify(_consolidar(session['rut']))
+
+
+# Mandantes mineros parametrizados (selector de derivación / Módulo Puente).
+MANDANTES_MINEROS = ['Codelco División RT', 'Minera Spence (BHP)', 'Minera El Abra',
+                     'Minera Centinela', 'Otra minería']
+FUF_TOTAL = 60          # ítems del FUF DS 44 (base legal Ley 16.744, común a todo empleador)
+CARPETA_TOTAL = 29      # ítems de la Carpeta de Arranque (estándar minero)
+
+
+def _gap_analysis(rut, cid):
+    """Compara la base DS 44 (FUF del asesor, ya cumplida) contra el estándar minero
+    pendiente (Carpeta de Arranque + RESSO). Devuelve el % de base ya lograda y qué
+    falta para alcanzar el estándar minero. El FUF 'suma', no se re-hace."""
+    fuf = db.estados_fuf(rut)
+    fuf_ok = sum(1 for r in fuf.values() if r.get('estado') in ('si', 'na'))
+    fuf_pct = round(100 * fuf_ok / FUF_TOTAL) if FUF_TOTAL else 0
+    car = _carpeta(cid)
+    cumple = sum(1 for i in car['items'] if i['estado'] == 'cumple')
+    na = sum(1 for i in car['items'] if i['estado'] == 'na')
+    pendientes = len(car['items']) - cumple - na
+    return {
+        'base_ds44': {'pct': fuf_pct, 'cumplidos': fuf_ok, 'total': FUF_TOTAL,
+                      'titulo': 'Base legal DS 44 / FUF (Ley 16.744)'},
+        'estandar_minero': {
+            'carpeta_pct': car['cumplimiento_pct'], 'carpeta_cumple': cumple,
+            'carpeta_na': na, 'carpeta_pendientes': pendientes,
+            'carpeta_total': len(car['items']),
+            'resso_estado': (db.contrato_de(rut, cid) or {}).get('resso_estado') or 'bloqueado'},
+        'mensaje': (f'Ya tienes el {fuf_pct}% de la base legal (DS 44) lista. '
+                    f'Para el estándar minero faltan {pendientes} ítem(es) de la '
+                    f'Carpeta de Arranque y aprobar el RESSO.')
+    }
+
+
+@app.route('/api/contratos/<int:cid>/upgrade', methods=['POST'])
+@login_required
+def api_contrato_upgrade(cid):
+    """Módulo Puente: convierte una empresa general en contratista minera SIN
+    re-ingresar datos ni perder avance. Reutiliza el contrato + el FUF del asesor;
+    solo fija el mandante y habilita el flujo Carpeta/RESSO. Deriva a la Carpeta."""
+    rut = session['rut']
+    if not db.contrato_de(rut, cid):
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    f = request.get_json(silent=True) or request.form
+    mandante = (f.get('mandante') or '').strip()
+    if not mandante:
+        return jsonify({'error': 'Selecciona el mandante (minería).'}), 400
+    actualizado = db.upgrade_a_contratista_minera(rut, cid, mandante)
+    if not actualizado:
+        return jsonify({'error': 'No se pudo convertir el contrato.'}), 400
+    return jsonify({'contratos': _consolidar(rut), 'id': cid,
+                    'gap': _gap_analysis(rut, cid),
+                    'es_codelco': resso.es_codelco(mandante)})
+
+
+@app.route('/api/contratos/<int:cid>/gap', methods=['GET'])
+@login_required
+def api_contrato_gap(cid):
+    rut = session['rut']
+    if not db.contrato_de(rut, cid):
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    return jsonify(_gap_analysis(rut, cid))
 
 
 @app.route('/api/contratos/<int:cid>/matriz', methods=['POST'])
@@ -492,6 +540,47 @@ def api_auditoria(cid):
     return jsonify({'resso_estado': c.get('resso_estado') or 'bloqueado',
                     'arranque_aprobado': bool(c.get('arranque_aprobado')),
                     **_auditoria(cid)})
+
+
+# ─────────────── Motor lingüístico: vocabulario técnico + corrección ───────
+@app.route('/api/vocabulario', methods=['GET'])
+@login_required
+def api_vocabulario_listar():
+    return jsonify(db.vocabulario_listar(solo_activos=False))
+
+
+@app.route('/api/vocabulario', methods=['POST'])
+@login_required
+def api_vocabulario_crear():
+    f = request.get_json(silent=True) or {}
+    termino = (f.get('termino') or '').strip()
+    if not termino:
+        return jsonify({'error': 'Indica el término o sigla.'}), 400
+    db.vocabulario_crear(termino, (f.get('tipo') or 'termino').strip(),
+                         (f.get('significado') or '').strip())
+    return jsonify(db.vocabulario_listar(solo_activos=False))
+
+
+@app.route('/api/vocabulario/<int:vid>/eliminar', methods=['POST'])
+@login_required
+def api_vocabulario_eliminar(vid):
+    db.vocabulario_eliminar(vid)
+    return jsonify(db.vocabulario_listar(solo_activos=False))
+
+
+@app.route('/api/corregir', methods=['POST'])
+@login_required
+def api_corregir():
+    """Corrige ortografía/gramática priorizando el vocabulario técnico. Best-effort:
+    nunca lanza 500; ante cualquier fallo devuelve el texto original con un flag."""
+    f = request.get_json(silent=True) or {}
+    texto = f.get('texto') or ''
+    try:
+        vocab = db.vocabulario_listar(solo_activos=True)
+        return jsonify(correccion.corregir_texto(texto, vocab))
+    except Exception:                            # noqa: BLE001 — estabilidad ante todo
+        return jsonify({'ok': False, 'original': texto, 'corregido': texto,
+                        'cambios': [], 'error': 'No se pudo corregir el texto.'})
 
 
 @app.route('/api/contratos/<int:cid>/documento', methods=['POST'])

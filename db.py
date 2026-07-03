@@ -6,9 +6,11 @@ firmas de función) para que `app.py` no cambie. Las funciones devuelven `dict`
 """
 from datetime import date, timedelta
 
+from sqlalchemy import inspect, text
+
 from models import (sqla, Contrato, Documento, ControlEstado, CarpetaEstado,
                     FufEstado, MappingReq, Trabajador, AuditoriaEstado,
-                    Aplicabilidad, DocumentoGenerado, Usuario)
+                    Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario)
 
 
 def _hoy():
@@ -23,7 +25,43 @@ def _commit():
 def init_db():
     """Crea las tablas (auto-migración al desplegar) y siembra el mapping."""
     sqla.create_all()
+    _migrar_columnas()
     seed_mapping()
+
+
+# Columnas añadidas después del primer despliegue. create_all() NO altera tablas
+# existentes, así que en Postgres de producción hay que agregarlas con ALTER.
+# (tabla, columna, DDL de tipo). Idempotente y best-effort.
+_COLUMNAS_NUEVAS = [
+    ('contrato', 'es_contratista_minera', 'INTEGER DEFAULT 0'),  # Ronda 11 (Módulo Puente)
+    ('usuario', 'rut', 'TEXT'),                                  # Ronda 11 (login por RUT)
+    ('usuario', 'rut_raw', 'TEXT'),                              # Ronda 11
+]
+
+
+def _migrar_columnas():
+    """Agrega columnas faltantes en tablas ya existentes (Postgres/SQLite).
+    Best-effort: si la tabla no existe todavía (la crea create_all) o el motor
+    rechaza el ALTER, no interrumpe el arranque."""
+    insp = inspect(sqla.engine)
+    try:
+        tablas = set(insp.get_table_names())
+    except Exception:
+        return
+    for tabla, col, ddl in _COLUMNAS_NUEVAS:
+        if tabla not in tablas:
+            continue
+        try:
+            existentes = {c['name'] for c in insp.get_columns(tabla)}
+        except Exception:
+            continue
+        if col in existentes:
+            continue
+        try:
+            with sqla.engine.begin() as conn:
+                conn.execute(text(f'ALTER TABLE {tabla} ADD COLUMN {col} {ddl}'))
+        except Exception:
+            pass  # otra instancia pudo haberla agregado; se ignora
 
 
 def seed_mapping():
@@ -37,6 +75,67 @@ def seed_mapping():
         row.arranque_item_n = m.get('carpeta')
         row.reso_codigo = m.get('reso')
     _commit()
+    seed_vocabulario()
+
+
+# ── Vocabulario técnico (siglas mineras / términos de faena) ──
+_VOCAB_SEED = [
+    ('ECF', 'sigla', 'Estándar de Control de Fatalidades'),
+    ('RESSO', 'sigla', 'Reglamento Especial para Empresas Contratistas y Subcontratistas (Codelco)'),
+    ('IPER', 'sigla', 'Identificación de Peligros y Evaluación de Riesgos'),
+    ('MIPER', 'sigla', 'Matriz de Identificación de Peligros y Evaluación de Riesgos'),
+    ('EPP', 'sigla', 'Elementos de Protección Personal'),
+    ('DRT', 'sigla', 'División Radomiro Tomic (Codelco)'),
+    ('CPHS', 'sigla', 'Comité Paritario de Higiene y Seguridad'),
+    ('PREXOR', 'sigla', 'Protocolo de Vigilancia de Riesgos por Exposición a Ruido'),
+    ('SERNAGEOMIN', 'sigla', 'Servicio Nacional de Geología y Minería'),
+    ('LOD', 'sigla', 'Lista de Obreros y Dotación'),
+    ('ODI', 'sigla', 'Obligación de Informar los riesgos laborales'),
+    ('RIOHS', 'sigla', 'Reglamento Interno de Orden, Higiene y Seguridad'),
+    ('ART', 'sigla', 'Análisis de Riesgo del Trabajo'),
+    ('IRL', 'sigla', 'Identificación de Requisitos Legales'),
+    ('RC', 'sigla', 'Riesgo Crítico'),
+    ('EST', 'sigla', 'Estándar'),
+    ('EECC', 'sigla', 'Empresa Contratista'),
+]
+
+
+def seed_vocabulario():
+    if Vocabulario.query.first():
+        return
+    for termino, tipo, significado in _VOCAB_SEED:
+        sqla.session.add(Vocabulario(termino=termino, tipo=tipo, significado=significado,
+                                     activo=1, creado=_hoy()))
+    _commit()
+
+
+def vocabulario_listar(solo_activos=True):
+    q = Vocabulario.query
+    if solo_activos:
+        q = q.filter_by(activo=1)
+    return [v.to_dict() for v in q.order_by(Vocabulario.termino).all()]
+
+
+def vocabulario_crear(termino, tipo='termino', significado=''):
+    termino = (termino or '').strip()
+    if not termino:
+        return None
+    existente = Vocabulario.query.filter(sqla.func.lower(Vocabulario.termino) == termino.lower()).first()
+    if existente:
+        existente.tipo = tipo
+        existente.significado = significado
+        existente.activo = 1
+        _commit()
+        return existente.id
+    v = Vocabulario(termino=termino, tipo=tipo, significado=significado, activo=1, creado=_hoy())
+    sqla.session.add(v)
+    _commit()
+    return v.id
+
+
+def vocabulario_eliminar(vid):
+    Vocabulario.query.filter_by(id=vid).delete()
+    _commit()
 
 
 # ───────────────────────────── Contratos ──────────────────────────────────
@@ -45,13 +144,32 @@ def listar_contratos(rut):
             Contrato.query.filter_by(rut_asesor=rut).order_by(Contrato.id).all()]
 
 
-def crear_contrato(rut, empresa, faena, numero, mandante, datos_json=None):
+def crear_contrato(rut, empresa, faena, numero, mandante, datos_json=None,
+                   es_contratista_minera=0):
     c = Contrato(rut_asesor=rut, empresa=empresa, faena=faena, numero=numero,
                  mandante=mandante, creado=_hoy(), datos_json=datos_json,
-                 arranque_aprobado=0)
+                 arranque_aprobado=0,
+                 es_contratista_minera=1 if es_contratista_minera else 0)
     sqla.session.add(c)
     _commit()
     return c.id
+
+
+def upgrade_a_contratista_minera(rut, contrato_id, mandante):
+    """Módulo Puente: eleva una empresa general (0) a contratista minera (1)
+    SIN borrar nada. Reutiliza el mismo registro `contrato` (razón social, RUT,
+    rubro, N° trabajadores) y conserva evidencias, carpeta, auditoría y el avance
+    FUF (que es del asesor). Solo fija el flag + mandante y deja el RESSO bloqueado
+    hasta aprobar la Carpeta de Arranque. Devuelve el contrato actualizado o None."""
+    c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
+    if not c:
+        return None
+    c.es_contratista_minera = 1
+    c.mandante = mandante
+    if not c.resso_estado:
+        c.resso_estado = 'bloqueado'
+    _commit()
+    return c.to_dict()
 
 
 def actualizar_datos(contrato_id, datos_json):
@@ -334,20 +452,14 @@ def estados_de_contrato(contrato_id):
 
 
 # ─────────────────────────────── Usuarios (Postgres) ──────────────────────
-def usuario_get(sns_key):
-    u = Usuario.query.filter_by(sns=sns_key).first()
+def usuario_get(rut_key):
+    """Devuelve el usuario cuya llave (RUT normalizado) coincide, o None."""
+    u = Usuario.query.filter_by(rut=rut_key).first()
     return u.to_dict() if u else None
 
 
-def usuario_crear(sns_key, sns_raw, nombre, rol='asesor', pass_hash=None):
-    u = Usuario(sns=sns_key, sns_raw=sns_raw, nombre=nombre, rol=rol, pass_hash=pass_hash)
+def usuario_crear(rut_key, rut_raw, sns, nombre, rol='asesor', pass_hash=None):
+    u = Usuario(rut=rut_key, rut_raw=rut_raw, sns=sns, nombre=nombre, rol=rol, pass_hash=pass_hash)
     sqla.session.add(u)
     _commit()
     return u.id
-
-
-def usuario_set_empresa(sns_key, empresa_json):
-    u = Usuario.query.filter_by(sns=sns_key).first()
-    if u:
-        u.empresa_json = empresa_json
-        _commit()

@@ -45,6 +45,10 @@ class Contrato(_DictMixin, sqla.Model):
     datos_json = sqla.Column(sqla.Text)
     arranque_aprobado = sqla.Column(sqla.Integer, default=0)
     resso_estado = sqla.Column(sqla.Text)
+    # 1 = presta servicios como contratista a una minería (flujo Carpeta/RESSO);
+    # 0 = empresa general (flujo educativo DS 44 / FUF). Un contrato evoluciona 0→1
+    # sin perder evidencias (Módulo Puente).
+    es_contratista_minera = sqla.Column(sqla.Integer, default=0)
 
 
 class Documento(_DictMixin, sqla.Model):
@@ -150,12 +154,23 @@ class Aplicabilidad(_DictMixin, sqla.Model):
 class Usuario(_DictMixin, sqla.Model):
     __tablename__ = 'usuario'
     id = sqla.Column(sqla.Integer, primary_key=True)
-    sns = sqla.Column(sqla.Text, nullable=False, unique=True)   # clave normalizada (ID interno)
-    sns_raw = sqla.Column(sqla.Text)                            # como lo tecleó el usuario
+    rut = sqla.Column(sqla.Text, nullable=False, unique=True)   # llave de acceso (RUT normalizado)
+    rut_raw = sqla.Column(sqla.Text)                            # RUT como lo tecleó el usuario
+    sns = sqla.Column(sqla.Text)                                # N° SNS: ID profesional visible
     nombre = sqla.Column(sqla.Text)
     rol = sqla.Column(sqla.Text, default='asesor')
     pass_hash = sqla.Column(sqla.Text)
     empresa_json = sqla.Column(sqla.Text)
+
+
+class Vocabulario(_DictMixin, sqla.Model):
+    __tablename__ = 'vocabulario'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    termino = sqla.Column(sqla.Text, nullable=False, unique=True)
+    tipo = sqla.Column(sqla.Text, default='termino')          # 'termino' | 'sigla'
+    significado = sqla.Column(sqla.Text)
+    activo = sqla.Column(sqla.Integer, default=1)
+    creado = sqla.Column(sqla.Text)
 
 
 class DocumentoGenerado(_DictMixin, sqla.Model):

@@ -33,10 +33,15 @@
 
         <form method="POST" action="/login" class="space-y-4">
             <label class="block">
-                <span class="text-sm font-semibold text-gray-700">N° SNS</span>
-                <input type="text" name="sns" value="{{ sns or '' }}" required autofocus placeholder="Ej: 12.345.678-K"
+                <span class="text-sm font-semibold text-gray-700">RUT</span>
+                <input type="text" name="rut" value="{{ rut or '' }}" required autofocus placeholder="Ej: 12.345.678-K"
                        class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
-                <span class="text-xs text-gray-400">Tu identificador es el N° SNS entregado por la SEREMI.</span>
+                <span class="text-xs text-gray-400">Tu RUT es la llave de acceso a tu cuenta.</span>
+            </label>
+            <label class="block">
+                <span class="text-sm font-semibold text-gray-700">Clave</span>
+                <input type="password" name="clave" required placeholder="Clave alfanumérica"
+                       class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
             </label>
             <button type="submit" class="w-full bg-primary hover:bg-[#005580] text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
                 <i data-lucide="log-in" class="w-5 h-5"></i> Ingresar

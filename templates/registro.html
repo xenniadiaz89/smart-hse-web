@@ -38,10 +38,21 @@
                        class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
             </label>
             <label class="block">
-                <span class="text-sm font-semibold text-gray-700">N° SNS (ID de usuario)</span>
-                <input type="text" name="sns" value="{{ sns or '' }}" required placeholder="Ej: 12.345.678-K"
+                <span class="text-sm font-semibold text-gray-700">RUT (llave de acceso)</span>
+                <input type="text" name="rut" value="{{ rut or '' }}" required placeholder="Ej: 12.345.678-K"
                        class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
-                <span class="text-xs text-gray-400">Número entregado por la SEREMI de Salud al registrarte como prevencionista. Es tu identificador de acceso.</span>
+                <span class="text-xs text-gray-400">Con tu RUT y clave ingresarás a la consola. Es el titular de tus contratos.</span>
+            </label>
+            <label class="block">
+                <span class="text-sm font-semibold text-gray-700">Clave</span>
+                <input type="password" name="clave" required placeholder="Alfanumérica, mín. 6 (letras y números)"
+                       class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+            </label>
+            <label class="block">
+                <span class="text-sm font-semibold text-gray-700">N° SNS (ID profesional)</span>
+                <input type="text" name="sns" value="{{ sns or '' }}" required placeholder="N° SNS SEREMI de Salud"
+                       class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+                <span class="text-xs text-gray-400">Número entregado por la SEREMI de Salud. Se muestra como tu ID profesional en la consola (no es la clave de acceso).</span>
             </label>
             <button type="submit" class="w-full bg-secondary hover:bg-[#6a9e32] text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
                 <i data-lucide="user-plus" class="w-5 h-5"></i> Crear cuenta
