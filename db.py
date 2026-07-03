@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import inspect, text
 
-from models import (sqla, Contrato, Documento, ControlEstado, CarpetaEstado,
+from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEstado,
                     FufEstado, MappingReq, Trabajador, AuditoriaEstado,
                     Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario)
 
@@ -24,6 +24,7 @@ def _commit():
 # ─────────────────────────────── Inicialización ───────────────────────────
 def init_db():
     """Crea las tablas (auto-migración al desplegar) y siembra el mapping."""
+    _reset_tablas_legacy()      # reestructuración destructiva (solo datos demo) antes de crear
     sqla.create_all()
     _migrar_columnas()
     seed_mapping()
@@ -36,7 +37,28 @@ _COLUMNAS_NUEVAS = [
     ('contrato', 'es_contratista_minera', 'INTEGER DEFAULT 0'),  # Ronda 11 (Módulo Puente)
     ('usuario', 'rut', 'TEXT'),                                  # Ronda 11 (login por RUT)
     ('usuario', 'rut_raw', 'TEXT'),                              # Ronda 11
+    ('contrato', 'empresa_id', 'INTEGER'),                       # Ronda 12 (contrato → empresa)
+    ('documento', 'base_legal', 'TEXT'),                        # Ronda 12 (motor cumplimiento)
+    ('documento', 'estado_cumplimiento', 'TEXT'),              # Ronda 12
 ]
+
+
+def _reset_tablas_legacy():
+    """Ronda 12: `fuf_estado` cambió su llave de (rut_asesor,item_n) a (empresa_id,item_n).
+    create_all() no puede reescribir la restricción única de una tabla existente, así que si
+    la tabla legada NO tiene `empresa_id`, se elimina para recrearla con el nuevo esquema.
+    Es seguro: el avance FUF es dato demo que se re-responde por empresa (los datos se
+    reinician, según lo acordado). Best-effort: nunca interrumpe el arranque."""
+    try:
+        insp = inspect(sqla.engine)
+        if 'fuf_estado' not in set(insp.get_table_names()):
+            return
+        cols = {c['name'] for c in insp.get_columns('fuf_estado')}
+        if 'empresa_id' not in cols:
+            with sqla.engine.begin() as conn:
+                conn.execute(text('DROP TABLE fuf_estado'))
+    except Exception:
+        pass
 
 
 def _migrar_columnas():
@@ -139,15 +161,45 @@ def vocabulario_eliminar(vid):
 
 
 # ───────────────────────────── Contratos ──────────────────────────────────
-def listar_contratos(rut):
-    return [c.to_dict() for c in
-            Contrato.query.filter_by(rut_asesor=rut).order_by(Contrato.id).all()]
+# ─────────────────────────────── Empresas (Ronda 12) ──────────────────────
+def crear_empresa(rut, razon_social, rut_empresa=None, mutual=None,
+                  n_adherente=None, rubro=None, datos_json=None):
+    e = Empresa(rut_asesor=rut, razon_social=razon_social, rut_empresa=rut_empresa,
+                mutual=mutual, n_adherente=n_adherente, rubro=rubro,
+                creado=_hoy(), datos_json=datos_json)
+    sqla.session.add(e)
+    _commit()
+    return e.id
+
+
+def empresas_de(rut):
+    return [e.to_dict() for e in
+            Empresa.query.filter_by(rut_asesor=rut).order_by(Empresa.id).all()]
+
+
+def empresa_de(rut, empresa_id):
+    e = Empresa.query.filter_by(id=empresa_id, rut_asesor=rut).first()
+    return e.to_dict() if e else None
+
+
+def set_empresa_datos(rut, empresa_id, datos_json):
+    e = Empresa.query.filter_by(id=empresa_id, rut_asesor=rut).first()
+    if e:
+        e.datos_json = datos_json
+        _commit()
+
+
+def listar_contratos(rut, empresa_id=None):
+    q = Contrato.query.filter_by(rut_asesor=rut)
+    if empresa_id is not None:
+        q = q.filter_by(empresa_id=empresa_id)
+    return [c.to_dict() for c in q.order_by(Contrato.id).all()]
 
 
 def crear_contrato(rut, empresa, faena, numero, mandante, datos_json=None,
-                   es_contratista_minera=0):
-    c = Contrato(rut_asesor=rut, empresa=empresa, faena=faena, numero=numero,
-                 mandante=mandante, creado=_hoy(), datos_json=datos_json,
+                   es_contratista_minera=0, empresa_id=None):
+    c = Contrato(rut_asesor=rut, empresa_id=empresa_id, empresa=empresa, faena=faena,
+                 numero=numero, mandante=mandante, creado=_hoy(), datos_json=datos_json,
                  arranque_aprobado=0,
                  es_contratista_minera=1 if es_contratista_minera else 0)
     sqla.session.add(c)
@@ -381,12 +433,14 @@ def set_carpeta_compromiso(contrato_id, item_n, fecha_compromiso):
         _commit()
 
 
-# ──────────────────────────── Estado FUF (DS 44) ──────────────────────────
-def set_fuf_estado(rut, item_n, estado, observacion='', fecha_compromiso=None):
-    row = FufEstado.query.filter_by(rut_asesor=rut, item_n=item_n).first()
+# ──────────────────── Estado FUF (DS 44) — base por empresa (Ronda 12) ─────
+def set_fuf_estado(empresa_id, item_n, estado, observacion='', fecha_compromiso=None, rut=None):
+    row = FufEstado.query.filter_by(empresa_id=empresa_id, item_n=item_n).first()
     if not row:
-        row = FufEstado(rut_asesor=rut, item_n=item_n)
+        row = FufEstado(empresa_id=empresa_id, item_n=item_n, rut_asesor=rut or '')
         sqla.session.add(row)
+    if rut:
+        row.rut_asesor = rut
     row.estado = estado
     row.observacion = observacion
     row.fecha_compromiso = fecha_compromiso
@@ -394,36 +448,39 @@ def set_fuf_estado(rut, item_n, estado, observacion='', fecha_compromiso=None):
     _commit()
 
 
-def estados_fuf(rut):
+def estados_fuf(empresa_id):
     return {r.item_n: r.to_dict()
-            for r in FufEstado.query.filter_by(rut_asesor=rut).all()}
+            for r in FufEstado.query.filter_by(empresa_id=empresa_id).all()}
 
 
-def set_fuf_compromiso(rut, item_n, fecha_compromiso):
-    row = FufEstado.query.filter_by(rut_asesor=rut, item_n=item_n).first()
+def set_fuf_compromiso(empresa_id, item_n, fecha_compromiso):
+    row = FufEstado.query.filter_by(empresa_id=empresa_id, item_n=item_n).first()
     if row:
         row.fecha_compromiso = fecha_compromiso
         _commit()
 
 
 # ──────────────────────────── Brechas (Carpeta + FUF) ─────────────────────
-def brechas_carpeta(rut):
-    """Ítems de Carpeta en estado 'pendiente' de todos los contratos del asesor."""
-    rows = (sqla.session.query(CarpetaEstado, Contrato)
-            .join(Contrato, Contrato.id == CarpetaEstado.contrato_id)
-            .filter(Contrato.rut_asesor == rut, CarpetaEstado.estado == 'pendiente')
-            .order_by(Contrato.id, CarpetaEstado.item_n).all())
+def brechas_carpeta(rut, empresa_id=None):
+    """Ítems de Carpeta en estado 'pendiente' de los contratos del asesor
+    (opcionalmente acotado a una empresa)."""
+    q = (sqla.session.query(CarpetaEstado, Contrato)
+         .join(Contrato, Contrato.id == CarpetaEstado.contrato_id)
+         .filter(Contrato.rut_asesor == rut, CarpetaEstado.estado == 'pendiente'))
+    if empresa_id is not None:
+        q = q.filter(Contrato.empresa_id == empresa_id)
+    rows = q.order_by(Contrato.id, CarpetaEstado.item_n).all()
     return [{'item_n': ce.item_n, 'observacion': ce.observacion,
              'fecha_compromiso': ce.fecha_compromiso, 'contrato_id': ct.id,
              'numero': ct.numero, 'empresa': ct.empresa, 'faena': ct.faena}
             for ce, ct in rows]
 
 
-def brechas_fuf(rut):
-    """Ítems del FUF en estado 'no' (No Cumple) del asesor."""
+def brechas_fuf(empresa_id):
+    """Ítems del FUF en estado 'no' (No Cumple) de la empresa."""
     return [{'item_n': r.item_n, 'observacion': r.observacion,
              'fecha_compromiso': r.fecha_compromiso}
-            for r in FufEstado.query.filter_by(rut_asesor=rut, estado='no')
+            for r in FufEstado.query.filter_by(empresa_id=empresa_id, estado='no')
             .order_by(FufEstado.item_n).all()]
 
 

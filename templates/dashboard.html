@@ -38,7 +38,13 @@
     <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
         <div class="flex items-center gap-4">
             <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-9 w-auto">
-            <span class="hidden md:inline-block text-sm font-semibold text-gray-400 border-l pl-4">Consola de Trabajo</span>
+            <div class="hidden md:flex flex-col border-l pl-4 leading-tight">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Consola de Gestión Operativa</span>
+                <a href="/empresas" class="text-sm font-extrabold text-primary hover:underline inline-flex items-center gap-1" title="Cambiar de empresa">
+                    <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                    <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-gray-400"></i>
+                </a>
+            </div>
         </div>
         <div class="flex items-center gap-5">
             <!-- Notificaciones -->
@@ -203,12 +209,12 @@
                 </div>
                 <p class="text-gray-600 mb-4 text-sm">Marque cada ítem: <span class="font-semibold text-secondary">Cumple</span> → cargar evidencia · <span class="font-semibold text-amber-600">No Cumple</span> → plan de trabajo · <span class="font-semibold text-primary">No Aplica</span> → generar carta de fundamento.</p>
 
-                <!-- ── Mensaje-puente (nudge de escalabilidad general → minería) ── -->
-                <div class="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
-                    <i data-lucide="trending-up" class="w-5 h-5 text-primary shrink-0 mt-0.5"></i>
+                <!-- ── Base legal operativa (gestión real, no educativa) ── -->
+                <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
+                    <i data-lucide="scale" class="w-5 h-5 text-primary shrink-0 mt-0.5"></i>
                     <div class="text-sm text-gray-700">
-                        <p class="font-bold text-gray-900">¿Tu empresa comenzará operaciones en minería?</p>
-                        <p>Con Smart HSE, el DS 44 (FUF) es tu <b>base legal común</b>: ya tienes gran parte del cumplimiento listo. Cuando prestes servicios a una minería, conviertes tu empresa en <b>Contratista Minera</b> desde <b>Mis Contratos</b> <span class="text-gray-500">— tu avance se conserva, solo falta el estándar minero.</span></p>
+                        <p class="font-bold text-gray-900">Cimiento Legal de tu empresa</p>
+                        <p>El <b>FUF DS 44/2024</b> es la base obligatoria de tu sistema de gestión (<b>Ley 16.744</b> · <b>DS 594</b>). Este cumplimiento <b>nutre automáticamente</b> las exigencias de cada contrato con mandante minero (RESSO/ECF) por transitividad legal.</p>
                     </div>
                 </div>
 
@@ -384,28 +390,31 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
                 <div class="flex items-center gap-2">
                     <i data-lucide="briefcase" class="w-5 h-5 text-primary"></i>
-                    <h2 class="text-xl font-extrabold text-gray-900">Mis Contratos Asesorados</h2>
+                    <h2 class="text-xl font-extrabold text-gray-900">Contratos de la empresa</h2>
                 </div>
                 <button type="button" onclick="toggleFormContrato()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm shrink-0">
-                    <i data-lucide="plus" class="w-4 h-4"></i> Agregar empresa / contrato
+                    <i data-lucide="file-plus-2" class="w-4 h-4"></i> Ingresar contrato
                 </button>
             </div>
 
-            <!-- Formulario alta de contrato (RESSO Anexo 2 - Información General) -->
+            <!-- Formulario "Ingresar contrato": selector de escenarios A/B -->
             <div id="formContrato" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-                <!-- ── Pregunta de derivación por rubro ── -->
+                <!-- ── Selector de escenario ── -->
                 <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-5">
-                    <p class="text-sm font-bold text-gray-800 mb-2">¿La empresa presta servicios como empresa contratista a una minería?</p>
-                    <div class="flex flex-wrap gap-4">
-                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                            <input type="radio" name="ct_es_minera" value="si" onchange="onDerivacion()" class="accent-primary"> Sí, es contratista minera
+                    <p class="text-sm font-bold text-gray-800 mb-2">¿Qué tipo de contrato vas a gestionar?</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer border border-gray-200 rounded-lg p-3 hover:border-primary">
+                            <input type="radio" name="ct_es_minera" value="si" onchange="onDerivacion()" class="accent-primary mt-0.5">
+                            <span><b>Escenario A — Contratista Minero</b><br><span class="text-xs text-gray-500">Presta servicios a una minería. Carga el Dialecto de Prevención (RESSO/ECF) sobre tu base DS 44.</span></span>
                         </label>
-                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                            <input type="radio" name="ct_es_minera" value="no" onchange="onDerivacion()" class="accent-primary"> No, empresa general (DS 44)
+                        <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer border border-gray-200 rounded-lg p-3 hover:border-primary">
+                            <input type="radio" name="ct_es_minera" value="no" onchange="onDerivacion()" class="accent-primary mt-0.5">
+                            <span><b>Escenario B — Empresa General / Servicios</b><br><span class="text-xs text-gray-500">Mantiene su gestión en la base FUF/DS 44 (ya activa). No requiere contrato de mandante.</span></span>
                         </label>
                     </div>
                     <p id="derivacionHint" class="text-xs text-gray-500 mt-2"></p>
                 </div>
+                <div id="ctDetalle" class="hidden">
                 <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Identificación del contrato</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Empresa Contratista (Razón Social)</span>
@@ -451,6 +460,7 @@
                     <label class="block"><span class="text-xs font-semibold text-gray-600">N° Empresas Subcontratistas</span>
                         <input id="ct_n_subcontratistas" type="text" class="iet-in" placeholder="Ej: 0"></label>
                 </div>
+                </div><!-- /#ctDetalle -->
                 <div class="flex justify-end gap-2 mt-4">
                     <button type="button" onclick="toggleFormContrato()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
                     <button type="button" onclick="agregarContrato()" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-4 py-2 rounded-xl font-bold text-sm">
@@ -1449,43 +1459,56 @@ Firma Asesor en Prevención`;
             'experto_eecc', 'admin_codelco', 'experto_codelco', 'fecha_inicio', 'fecha_termino',
             'n_trabajadores', 'n_riesgos_criticos', 'organismo_seguro', 'n_subcontratistas'];
 
-        // Muestra/oculta el selector de mandante según la derivación por rubro.
+        // Selector de escenario: A (minero) muestra el detalle del contrato + mandante;
+        // B (general) no crea contrato (la base FUF/DS 44 ya está activa).
         function onDerivacion() {
             const sel = document.querySelector('input[name="ct_es_minera"]:checked');
             const esMinera = sel && sel.value === 'si';
             document.getElementById('ct_mandante_wrap').classList.toggle('hidden', !esMinera);
+            const detalle = document.getElementById('ctDetalle');
+            if (detalle) detalle.classList.toggle('hidden', !sel || !esMinera);
             document.getElementById('derivacionHint').textContent = esMinera
-                ? 'Se habilitará la Carpeta de Arranque y el RESSO según el mandante minero.'
-                : (sel ? 'Se registrará como empresa general. Trabajarás el cumplimiento legal DS 44 / FUF (Ley 16.744).' : '');
+                ? 'Escenario A: se creará el contrato y se cargará el Dialecto de Prevención (Carpeta/RESSO) sobre tu base DS 44.'
+                : (sel ? 'Escenario B: tu empresa mantiene su gestión en la base FUF/DS 44 (ya activa). No se crea contrato.' : '');
         }
 
         async function agregarContrato() {
             const val = id => (document.getElementById('ct_' + id)?.value || '').trim();
             const derivSel = document.querySelector('input[name="ct_es_minera"]:checked');
-            if (!derivSel) { alert('Indica si la empresa presta servicios como contratista a una minería.'); return; }
+            if (!derivSel) { alert('Elige el escenario del contrato (A minero / B general).'); return; }
             const esMinera = derivSel.value === 'si';
+            // Escenario B: no crea contrato; la base ya está operativa.
+            if (!esMinera) {
+                cerrarFormContrato();
+                alert('Tu empresa mantiene su gestión en la base FUF / DS 44 (Ley 16.744 · DS 594), que ya está activa. No requiere un contrato de mandante.');
+                mostrarVista('ds44');
+                return;
+            }
             const datos = {};
             CT_DATOS.forEach(k => { if (val(k)) datos[k] = val(k); });
             const body = {
                 empresa: val('empresa'), faena: val('faena'), numero: val('numero'),
-                mandante: esMinera ? document.getElementById('ct_mandante').value : '',
-                es_contratista_minera: esMinera ? 1 : 0,
-                datos,
+                mandante: document.getElementById('ct_mandante').value,
+                es_contratista_minera: 1, datos,
             };
-            if (!body.empresa || !body.numero) { alert('Indica al menos Empresa y N° de contrato.'); return; }
-            if (esMinera && !body.mandante) { alert('Selecciona el mandante (minería).'); return; }
+            if (!body.numero) { alert('Indica el N° de contrato.'); return; }
+            if (!body.mandante) { alert('Selecciona el mandante (minería).'); return; }
             const r = await fetch('/api/contratos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!r.ok) { alert('No se pudo guardar el contrato.'); return; }
             const resp = await r.json();
-            ['empresa', 'faena', 'numero', ...CT_DATOS].forEach(id => { const el = document.getElementById('ct_' + id); if (el) el.value = ''; });
+            cerrarFormContrato();
+            renderContratos(resp.contratos || resp);
+        }
+
+        function cerrarFormContrato() {
+            const val = id => document.getElementById('ct_' + id);
+            ['empresa', 'faena', 'numero', ...CT_DATOS].forEach(id => { const el = val(id); if (el) el.value = ''; });
             document.getElementById('ct_mandante').value = '';
             const rd = document.querySelector('input[name="ct_es_minera"]:checked'); if (rd) rd.checked = false;
             document.getElementById('ct_mandante_wrap').classList.add('hidden');
+            const detalle = document.getElementById('ctDetalle'); if (detalle) detalle.classList.add('hidden');
             document.getElementById('derivacionHint').textContent = '';
             document.getElementById('formContrato').classList.add('hidden');
-            renderContratos(resp.contratos || resp);
-            // Derivación: empresa general → vista educativa DS 44; minera → queda en contratos (Carpeta/RESSO).
-            if (!resp.es_contratista_minera) mostrarVista('ds44');
         }
 
         // ── Módulo Puente: convertir empresa general → contratista minera ──
@@ -1654,7 +1677,7 @@ Firma Asesor en Prevención`;
             if (!lista.length) {
                 cont.innerHTML = `<div class="col-span-full text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200 p-10">
                     <i data-lucide="folder-plus" class="w-8 h-8 mx-auto mb-2"></i>
-                    <p class="text-sm">Aún no agregas contratos. Usa <b>“Agregar empresa / contrato”</b>.</p></div>`;
+                    <p class="text-sm">Aún no hay contratos de mandante. Usa <b>“Ingresar contrato”</b> (Escenario A) cuando prestes servicios a una minería.</p></div>`;
                 if (window.lucide) lucide.createIcons();
                 return;
             }

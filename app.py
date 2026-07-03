@@ -80,6 +80,27 @@ def login_required(f):
     return wrapper
 
 
+def _empresa_id():
+    """Empresa en foco (Ronda 12). None si el asesor aún no seleccionó una."""
+    return session.get('empresa_id')
+
+
+def empresa_required(f):
+    """Exige empresa activa. Para /api → 409 JSON; para vistas → redirige a Mis Empresas."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get('rut'):
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Sesión expirada. Reingresa a la consola.'}), 401
+            return redirect(url_for('login'))
+        if not session.get('empresa_id'):
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Selecciona o registra una empresa primero.'}), 409
+            return redirect(url_for('empresas'))
+        return f(*args, **kwargs)
+    return wrapper
+
+
 # ─────────────────────────────── Rutas ─────────────────────────────────────
 @app.route('/')
 def index():
@@ -133,20 +154,27 @@ def registro():
         session['sns'] = sns
         session['nombre'] = nombre
         session['rol'] = 'asesor'
-        return redirect(url_for('dashboard'))
+        session.pop('empresa_id', None)
+        # Tras crear la cuenta → registrar la primera empresa (base estructural).
+        return redirect(url_for('empresas'))
     return render_template('registro.html')
 
 
 @app.route('/prueba')
 def prueba():
-    """Acceso de PRUEBA momentáneo al panel de trabajo (sin pago).
-    Usa una identidad de demo FIJA ('DEMO') para que el workspace sea estable ante
-    reinicios del servicio y cookies perdidas (evita el 404 'Contrato no encontrado').
-    TEMPORAL: cuando se active el cobro, este acceso se reemplaza por el flujo de pago."""
+    """Acceso de PRUEBA momentáneo (sin pago). Identidad demo FIJA ('DEMO') y una
+    empresa demo estable para que el workspace sobreviva reinicios/cookies perdidas.
+    TEMPORAL: cuando se active el cobro, se reemplaza por el flujo de pago."""
     session['rut'] = 'DEMO'
     session['sns'] = 'DEMO'
     session['nombre'] = 'Usuario de Prueba'
     session['rol'] = 'asesor'
+    emps = db.empresas_de('DEMO')
+    if emps:
+        session['empresa_id'] = emps[0]['id']
+    else:
+        session['empresa_id'] = db.crear_empresa('DEMO', 'Empresa Demo SPA',
+                                                 mutual='Mutual demo', rubro='Servicios')
     return redirect(url_for('dashboard'))
 
 
@@ -156,11 +184,54 @@ def logout():
     return redirect(url_for('index'))
 
 
+# ─────────────────── Empresas (base estructural — Ronda 12) ────────────────
+@app.route('/empresas', methods=['GET', 'POST'])
+@login_required
+def empresas():
+    """Registrar empresa (base) o listar/seleccionar. Al crear → Consola Operativa."""
+    if request.method == 'POST':
+        f = request.form
+        razon = (f.get('razon_social', '')).strip()
+        if not razon:
+            return render_template('empresas.html', error='Indica la Razón Social.',
+                                   empresas=db.empresas_de(session['rut']), **_form_empresa(f))
+        eid = db.crear_empresa(
+            session['rut'], razon,
+            rut_empresa=(f.get('rut_empresa', '')).strip() or None,
+            mutual=(f.get('mutual', '')).strip() or None,
+            n_adherente=(f.get('n_adherente', '')).strip() or None,
+            rubro=(f.get('rubro', '')).strip() or None)
+        session['empresa_id'] = eid
+        return redirect(url_for('dashboard'))
+    return render_template('empresas.html', empresas=db.empresas_de(session['rut']))
+
+
+def _form_empresa(f):
+    return {k: (f.get(k, '')).strip() for k in
+            ('razon_social', 'rut_empresa', 'mutual', 'n_adherente', 'rubro')}
+
+
+@app.route('/empresas/<int:eid>/seleccionar')
+@login_required
+def empresa_seleccionar(eid):
+    if db.empresa_de(session['rut'], eid):
+        session['empresa_id'] = eid
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # La Consola de Gestión Operativa vive sobre una empresa activa.
+    if not session.get('empresa_id'):
+        return redirect(url_for('empresas'))
+    emp = db.empresa_de(session['rut'], session['empresa_id'])
+    if not emp:                                   # empresa borrada / sesión vieja
+        session.pop('empresa_id', None)
+        return redirect(url_for('empresas'))
     return render_template('dashboard.html', nombre=session.get('nombre'),
-                           sns=session.get('sns'), rol=session.get('rol'))
+                           sns=session.get('sns'), rol=session.get('rol'),
+                           empresa=emp)
 
 
 @app.route('/contratistas')
@@ -174,9 +245,9 @@ def legislacion():
 
 
 # ─────────────────── Motor de cumplimiento: contratos / matrices ────────────
-def _consolidar(rut):
-    """Devuelve los contratos del asesor con su estado de controles consolidado."""
-    contratos = db.listar_contratos(rut)
+def _consolidar(rut, empresa_id=None):
+    """Contratos de la empresa activa del asesor, con su estado consolidado."""
+    contratos = db.listar_contratos(rut, empresa_id if empresa_id is not None else _empresa_id())
     por_num = {c['id']: c['numero'] for c in contratos}
     salida = []
     for c in contratos:
@@ -315,9 +386,13 @@ def generar_carta_na(rut, cid, contrato, n, fundamento):
                            contenido=html.encode('utf-8'), mimetype='text/html')
 
 
+def _replicar_lista(rut):
+    return db.listar_contratos(rut, _empresa_id())
+
+
 def replicar_controles(rut, control_key, origen_contrato_id):
-    """Hereda como 'acreditado' un control aprobado a los demás contratos del asesor."""
-    for c in db.listar_contratos(rut):
+    """Hereda como 'acreditado' un control aprobado a los demás contratos de la empresa."""
+    for c in _replicar_lista(rut):
         if c['id'] == origen_contrato_id:
             continue
         if db.estado_control(c['id'], control_key) == 'aprobado':
@@ -326,33 +401,35 @@ def replicar_controles(rut, control_key, origen_contrato_id):
 
 
 @app.route('/api/contratos', methods=['GET'])
-@login_required
+@empresa_required
 def api_contratos():
     return jsonify(_consolidar(session['rut']))
 
 
 @app.route('/api/contratos', methods=['POST'])
-@login_required
+@empresa_required
 def api_contrato_crear():
+    """'Ingresar contrato' — Escenario A (Contratista Minero). El contrato cuelga de la
+    empresa activa y hereda su razón social si no se envía otra."""
     f = request.get_json(silent=True) or request.form
-    empresa = (f.get('empresa') or '').strip()
+    emp = db.empresa_de(session['rut'], _empresa_id()) or {}
+    empresa = (f.get('empresa') or '').strip() or emp.get('razon_social') or ''
     numero = (f.get('numero') or '').strip()
     if not empresa or not numero:
         return jsonify({'error': 'Empresa y N° de contrato son obligatorios.'}), 400
     datos = f.get('datos') or {}
     datos_json = json.dumps(datos, ensure_ascii=False) if datos else None
-    # Derivación por rubro: SÍ presta servicios como contratista minera → flujo
-    # Carpeta/RESSO (con mandante). NO → empresa general (flujo educativo DS 44/FUF).
     es_minera = 1 if str(f.get('es_contratista_minera') or '').lower() in ('1', 'si', 'sí', 'true') else 0
     mandante = (f.get('mandante') or '').strip() if es_minera else ''
     cid = db.crear_contrato(session['rut'], empresa, (f.get('faena') or '').strip(),
-                            numero, mandante, datos_json, es_contratista_minera=es_minera)
+                            numero, mandante, datos_json, es_contratista_minera=es_minera,
+                            empresa_id=_empresa_id())
     return jsonify({'contratos': _consolidar(session['rut']), 'id': cid,
                     'es_contratista_minera': es_minera})
 
 
 @app.route('/api/contratos/eliminar', methods=['POST'])
-@login_required
+@empresa_required
 def api_contrato_eliminar():
     f = request.get_json(silent=True) or request.form
     db.eliminar_contrato(session['rut'], int(f.get('id')))
@@ -370,7 +447,8 @@ def _gap_analysis(rut, cid):
     """Compara la base DS 44 (FUF del asesor, ya cumplida) contra el estándar minero
     pendiente (Carpeta de Arranque + RESSO). Devuelve el % de base ya lograda y qué
     falta para alcanzar el estándar minero. El FUF 'suma', no se re-hace."""
-    fuf = db.estados_fuf(rut)
+    _ce = db.contrato_de(rut, cid) or {}
+    fuf = db.estados_fuf(_ce.get('empresa_id') or _empresa_id())
     fuf_ok = sum(1 for r in fuf.values() if r.get('estado') in ('si', 'na'))
     fuf_pct = round(100 * fuf_ok / FUF_TOTAL) if FUF_TOTAL else 0
     car = _carpeta(cid)
@@ -646,18 +724,19 @@ def api_carpeta_estado(cid, n):
 
 # ─────────────────────────── FUF DS 44 (persistencia) ──────────────────────
 @app.route('/api/fuf', methods=['GET'])
-@login_required
+@empresa_required
 def api_fuf_get():
-    return jsonify(db.estados_fuf(session['rut']))
+    return jsonify(db.estados_fuf(_empresa_id()))
 
 
 @app.route('/api/fuf', methods=['POST'])
-@login_required
+@empresa_required
 def api_fuf_guardar():
-    """Guarda en bloque los ítems del FUF enviados. Exige observación si es 'No Cumple'."""
+    """Guarda en bloque los ítems del FUF de la empresa. Exige observación si es 'No Cumple'."""
     f = request.get_json(silent=True) or {}
     items = f.get('items') or []
     rut = session['rut']
+    eid = _empresa_id()
     for it in items:
         try:
             n = int(it.get('item_n'))
@@ -670,8 +749,8 @@ def api_fuf_guardar():
         if estado == 'no' and not obs:
             return jsonify({'error': f'La observación es obligatoria en el ítem {n} (No Cumple).'}), 400
         fecha_comp = (it.get('fecha_compromiso') or '').strip() or None
-        db.set_fuf_estado(rut, n, estado, obs, fecha_comp)
-    return jsonify(db.estados_fuf(rut))
+        db.set_fuf_estado(eid, n, estado, obs, fecha_comp, rut=rut)
+    return jsonify(db.estados_fuf(eid))
 
 
 # ─────────────────────────── Panel de Brechas (unificado) ──────────────────
@@ -686,11 +765,12 @@ def _dias_restantes(fecha_iso):
 
 
 @app.route('/api/brechas', methods=['GET'])
-@login_required
+@empresa_required
 def api_brechas():
     rut = session['rut']
+    eid = _empresa_id()
     brechas = []
-    for b in db.brechas_carpeta(rut):
+    for b in db.brechas_carpeta(rut, eid):
         item = resso.CARPETA_DICT.get(b['item_n'], {})
         brechas.append({
             'fuente': 'carpeta',
@@ -703,7 +783,7 @@ def api_brechas():
             'fecha_compromiso': b['fecha_compromiso'] or '',
             'dias_restantes': _dias_restantes(b['fecha_compromiso']),
         })
-    for b in db.brechas_fuf(rut):
+    for b in db.brechas_fuf(eid):
         brechas.append({
             'fuente': 'fuf',
             'item_n': b['item_n'],
@@ -729,7 +809,7 @@ def api_brecha_compromiso():
         return jsonify({'error': 'item_n inválido.'}), 400
     fecha = (f.get('fecha_compromiso') or '').strip() or None
     if fuente == 'fuf':
-        db.set_fuf_compromiso(session['rut'], n, fecha)
+        db.set_fuf_compromiso(_empresa_id(), n, fecha)
     elif fuente == 'carpeta':
         cid = f.get('contrato_id')
         if not db.contrato_de(session['rut'], cid):

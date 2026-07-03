@@ -33,10 +33,27 @@ class _DictMixin:
                 for c in self.__table__.columns if c.name != 'contenido'}
 
 
+class Empresa(_DictMixin, sqla.Model):
+    """Base estructural (Ronda 12): unidad que posee la Consola de Gestión
+    Operativa (FUF DS 44 / Ley 16.744 / DS 594). Un asesor gestiona varias
+    empresas; los contratos y el FUF cuelgan de la empresa."""
+    __tablename__ = 'empresa'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    rut_asesor = sqla.Column(sqla.Text, nullable=False, index=True)
+    rut_empresa = sqla.Column(sqla.Text)
+    razon_social = sqla.Column(sqla.Text, nullable=False)
+    mutual = sqla.Column(sqla.Text)
+    n_adherente = sqla.Column(sqla.Text)
+    rubro = sqla.Column(sqla.Text)
+    creado = sqla.Column(sqla.Text)
+    datos_json = sqla.Column(sqla.Text)
+
+
 class Contrato(_DictMixin, sqla.Model):
     __tablename__ = 'contrato'
     id = sqla.Column(sqla.Integer, primary_key=True)
     rut_asesor = sqla.Column(sqla.Text, nullable=False, index=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True)   # Ronda 12: contrato cuelga de una Empresa
     empresa = sqla.Column(sqla.Text, nullable=False)
     faena = sqla.Column(sqla.Text)
     numero = sqla.Column(sqla.Text, nullable=False)
@@ -101,12 +118,13 @@ class FufEstado(_DictMixin, sqla.Model):
     __tablename__ = 'fuf_estado'
     id = sqla.Column(sqla.Integer, primary_key=True)
     rut_asesor = sqla.Column(sqla.Text, nullable=False, index=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True)   # Ronda 12: FUF base por empresa
     item_n = sqla.Column(sqla.Integer, nullable=False)
     estado = sqla.Column(sqla.Text, nullable=False, default='pendiente')
     observacion = sqla.Column(sqla.Text)
     fecha_compromiso = sqla.Column(sqla.Text)
     fecha = sqla.Column(sqla.Text)
-    __table_args__ = (sqla.UniqueConstraint('rut_asesor', 'item_n'),)
+    __table_args__ = (sqla.UniqueConstraint('empresa_id', 'item_n'),)
 
 
 class MappingReq(_DictMixin, sqla.Model):

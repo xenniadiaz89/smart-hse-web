@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Mis Empresas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038' } } } };
+    </script>
+    <style>
+        .hero-photo {
+            background-image: linear-gradient(rgba(0,30,55,0.6), rgba(0,30,55,0.7)),
+                url("{{ url_for('static', filename='fondo_hero.jpg') }}");
+            background-size: cover; background-position: center;
+        }
+        .in { margin-top:.25rem; width:100%; padding:.6rem .75rem; border:1px solid #d1d5db; border-radius:.6rem; outline:none; }
+        .in:focus { border-color:#006a9b; box-shadow:0 0 0 2px rgba(0,106,155,.25); }
+    </style>
+</head>
+<body class="hero-photo min-h-screen flex items-center justify-center p-4 font-sans">
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-8 my-6">
+        <div class="flex items-center justify-between mb-6">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="SMART HSE" class="h-14 w-auto">
+            <a href="/logout" class="text-sm text-gray-400 hover:text-red-500 font-bold">Salir</a>
+        </div>
+        <h1 class="text-2xl font-extrabold text-gray-900 mb-1">Mis Empresas</h1>
+        <p class="text-sm text-gray-500 mb-6">Cada empresa tiene su propia Consola de Gestión Operativa (FUF DS 44 · Ley 16.744 · DS 594). Selecciona una o registra una nueva.</p>
+
+        {% if error %}
+        <div class="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i> <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if empresas %}
+        <div class="space-y-2 mb-8">
+            {% for e in empresas %}
+            <a href="/empresas/{{ e.id }}/seleccionar" class="flex items-center justify-between gap-3 border border-gray-200 rounded-xl px-4 py-3 hover:border-primary hover:bg-primary/5 transition">
+                <div class="min-w-0">
+                    <p class="font-bold text-gray-900 truncate">{{ e.razon_social }}</p>
+                    <p class="text-xs text-gray-500">{{ e.rut_empresa or 'RUT —' }}{% if e.mutual %} · {{ e.mutual }}{% endif %}{% if e.rubro %} · {{ e.rubro }}{% endif %}</p>
+                </div>
+                <span class="inline-flex items-center gap-1 text-primary text-sm font-bold shrink-0"><i data-lucide="arrow-right-circle" class="w-4 h-4"></i> Entrar</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Registrar empresa</p>
+        <form method="POST" action="/empresas" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="block md:col-span-2"><span class="text-xs font-semibold text-gray-600">Razón Social</span>
+                <input name="razon_social" value="{{ razon_social or '' }}" required placeholder="Ej: OMEGA SERVICIOS SPA" class="in"></label>
+            <label class="block"><span class="text-xs font-semibold text-gray-600">RUT Empresa</span>
+                <input name="rut_empresa" value="{{ rut_empresa or '' }}" placeholder="Ej: 76.123.456-7" class="in"></label>
+            <label class="block"><span class="text-xs font-semibold text-gray-600">Rubro</span>
+                <input name="rubro" value="{{ rubro or '' }}" placeholder="Ej: Servicios / Minería" class="in"></label>
+            <label class="block"><span class="text-xs font-semibold text-gray-600">Mutual (Organismo Administrador)</span>
+                <input name="mutual" value="{{ mutual or '' }}" placeholder="Ej: Mutual de Seguridad / ACHS / IST" class="in"></label>
+            <label class="block"><span class="text-xs font-semibold text-gray-600">N° Adherente</span>
+                <input name="n_adherente" value="{{ n_adherente or '' }}" placeholder="Ej: 123456" class="in"></label>
+            <div class="md:col-span-2 flex justify-end mt-1">
+                <button type="submit" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-5 py-2.5 rounded-xl font-bold text-sm">
+                    <i data-lucide="building-2" class="w-4 h-4"></i> Registrar y entrar a la Consola
+                </button>
+            </div>
+        </form>
+    </div>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
