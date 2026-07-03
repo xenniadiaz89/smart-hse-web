@@ -27,24 +27,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 sqla.init_app(app)
 
-USERS_FILE = os.path.join(os.path.dirname(__file__), 'usuarios.json')
-
 with app.app_context():
     db.init_db()                                # crea tablas (auto-migración) + siembra mapping
-
-
-# ─────────────────────────── Almacén de usuarios ───────────────────────────
-def cargar_usuarios():
-    try:
-        with open(USERS_FILE, encoding='utf-8') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def guardar_usuarios(data):
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 # ─────────────────────────── Utilidades RUT / clave ────────────────────────
@@ -88,6 +72,8 @@ def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not session.get('rut'):
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Sesión expirada. Reingresa a la consola.'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapper
@@ -104,13 +90,12 @@ def login():
     if request.method == 'POST':
         sns_raw = request.form.get('sns', '')
         key = normalizar_id(sns_raw)
-        usuarios = cargar_usuarios()
-        u = usuarios.get(key)
+        u = db.usuario_get(key)
         # Simulación: se ingresa solo con el N° SNS (sin exigir clave).
         # En producción, validar aquí: check_password_hash(u['pass_hash'], request.form.get('clave',''))
         if u:
             session['rut'] = key            # identificador interno = N° SNS normalizado
-            session['sns'] = u['sns']
+            session['sns'] = u.get('sns_raw') or u['sns']
             session['nombre'] = u['nombre']
             session['rol'] = u.get('rol', '')
             return redirect(url_for('dashboard'))
@@ -133,16 +118,11 @@ def registro():
             return render_template('registro.html', error='Completa nombre y N° SNS.', **datos)
 
         key = normalizar_id(sns)
-        usuarios = cargar_usuarios()
-        if key in usuarios:
+        if db.usuario_get(key):
             return render_template('registro.html', error='Ya existe una cuenta con ese N° SNS.', **datos)
 
-        usuarios[key] = {
-            'nombre': nombre, 'sns': sns, 'rol': 'asesor',
-            'pass_hash': generate_password_hash(clave) if clave else None,
-            'empresa': None,
-        }
-        guardar_usuarios(usuarios)
+        db.usuario_crear(key, sns, nombre, rol='asesor',
+                         pass_hash=generate_password_hash(clave) if clave else None)
         session['rut'] = key            # identificador interno = N° SNS normalizado
         session['sns'] = sns
         session['nombre'] = nombre
@@ -170,10 +150,7 @@ def gestion_documentos():
         if not empresa['nombre']:
             return render_template('gestion_documentos.html',
                                    error='Indica al menos el nombre de la empresa.', **empresa)
-        usuarios = cargar_usuarios()
-        if session.get('rut') in usuarios:
-            usuarios[session['rut']]['empresa'] = empresa
-            guardar_usuarios(usuarios)
+        db.usuario_set_empresa(session.get('rut'), json.dumps(empresa, ensure_ascii=False))
         session['empresa'] = empresa['nombre']
         return redirect(url_for('dashboard'))
     return render_template('gestion_documentos.html')
@@ -182,13 +159,13 @@ def gestion_documentos():
 @app.route('/prueba')
 def prueba():
     """Acceso de PRUEBA momentáneo al panel de trabajo (sin pago).
+    Usa una identidad de demo FIJA ('DEMO') para que el workspace sea estable ante
+    reinicios del servicio y cookies perdidas (evita el 404 'Contrato no encontrado').
     TEMPORAL: cuando se active el cobro, este acceso se reemplaza por el flujo de pago."""
-    import secrets
-    if not session.get('rut'):
-        session['rut'] = 'PRUEBA-' + secrets.token_hex(4)
-        session['sns'] = 'PRUEBA'
-        session['nombre'] = 'Usuario de Prueba'
-        session['rol'] = 'asesor'
+    session['rut'] = 'DEMO'
+    session['sns'] = 'DEMO'
+    session['nombre'] = 'Usuario de Prueba'
+    session['rol'] = 'asesor'
     return redirect(url_for('dashboard'))
 
 

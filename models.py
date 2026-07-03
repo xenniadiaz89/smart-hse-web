@@ -147,6 +147,17 @@ class Aplicabilidad(_DictMixin, sqla.Model):
     __table_args__ = (sqla.UniqueConstraint('contrato_id', 'tipo', 'codigo'),)
 
 
+class Usuario(_DictMixin, sqla.Model):
+    __tablename__ = 'usuario'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    sns = sqla.Column(sqla.Text, nullable=False, unique=True)   # clave normalizada (ID interno)
+    sns_raw = sqla.Column(sqla.Text)                            # como lo tecleó el usuario
+    nombre = sqla.Column(sqla.Text)
+    rol = sqla.Column(sqla.Text, default='asesor')
+    pass_hash = sqla.Column(sqla.Text)
+    empresa_json = sqla.Column(sqla.Text)
+
+
 class DocumentoGenerado(_DictMixin, sqla.Model):
     __tablename__ = 'documento_generado'
     id = sqla.Column(sqla.Integer, primary_key=True)

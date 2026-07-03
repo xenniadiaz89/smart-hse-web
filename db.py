@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from models import (sqla, Contrato, Documento, ControlEstado, CarpetaEstado,
                     FufEstado, MappingReq, Trabajador, AuditoriaEstado,
-                    Aplicabilidad, DocumentoGenerado)
+                    Aplicabilidad, DocumentoGenerado, Usuario)
 
 
 def _hoy():
@@ -331,3 +331,23 @@ def estado_control(contrato_id, control_key):
 def estados_de_contrato(contrato_id):
     return {r.control_key: r.to_dict()
             for r in ControlEstado.query.filter_by(contrato_id=contrato_id).all()}
+
+
+# ─────────────────────────────── Usuarios (Postgres) ──────────────────────
+def usuario_get(sns_key):
+    u = Usuario.query.filter_by(sns=sns_key).first()
+    return u.to_dict() if u else None
+
+
+def usuario_crear(sns_key, sns_raw, nombre, rol='asesor', pass_hash=None):
+    u = Usuario(sns=sns_key, sns_raw=sns_raw, nombre=nombre, rol=rol, pass_hash=pass_hash)
+    sqla.session.add(u)
+    _commit()
+    return u.id
+
+
+def usuario_set_empresa(sns_key, empresa_json):
+    u = Usuario.query.filter_by(sns=sns_key).first()
+    if u:
+        u.empresa_json = empresa_json
+        _commit()
