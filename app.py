@@ -15,6 +15,8 @@ import normativa
 import resso
 import ia
 import correccion
+import cumplimiento
+import alertas
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -246,8 +248,10 @@ def legislacion():
 
 # ─────────────────── Motor de cumplimiento: contratos / matrices ────────────
 def _consolidar(rut, empresa_id=None):
-    """Contratos de la empresa activa del asesor, con su estado consolidado."""
-    contratos = db.listar_contratos(rut, empresa_id if empresa_id is not None else _empresa_id())
+    """Contratos de la empresa activa del asesor, con su estado consolidado.
+    Excluye el 'contrato base' (BASE-*), contenedor interno de docs de la Capa Legal."""
+    contratos = [c for c in db.listar_contratos(rut, empresa_id if empresa_id is not None else _empresa_id())
+                 if not str(c.get('numero', '')).startswith('BASE-')]
     por_num = {c['id']: c['numero'] for c in contratos}
     salida = []
     for c in contratos:
@@ -818,6 +822,115 @@ def api_brecha_compromiso():
     else:
         return jsonify({'error': 'fuente inválida.'}), 400
     return jsonify({'ok': True})
+
+
+# ══════════════ Motor de Cumplimiento: pendientes / matriz / reglas ═════════
+@app.route('/api/pendientes', methods=['GET'])
+@empresa_required
+def api_pendientes():
+    """Panel de Actividades Pendientes unificado (legal + contractual + operativa)."""
+    return jsonify(alertas.actividades_pendientes(db, _empresa_id()))
+
+
+@app.route('/api/pendientes/<categoria>/subir', methods=['POST'])
+@empresa_required
+def api_pendiente_subir(categoria):
+    """Sube la nueva versión de un documento de la Capa Legal, aplica su regla (vencimiento),
+    dispara la CASCADA a los contratos mineros y marca el ítem FUF. Doble cobertura."""
+    if categoria not in cumplimiento.REGLAS_CUMPLIMIENTO:
+        return jsonify({'error': 'Categoría no reconocida.'}), 400
+    rut, eid = session['rut'], _empresa_id()
+    emp = db.empresa_de(rut, eid) or {}
+    fecha_aprob = (request.form.get('fecha_aprobacion') or '').strip()
+    if not fecha_aprob:
+        return jsonify({'error': 'Indica la fecha de aprobación/emisión del documento.'}), 400
+    archivo = request.files.get('archivo')
+    contenido = archivo.read() if archivo and archivo.filename else None
+    nombre = (archivo.filename if archivo and archivo.filename else
+              f"{cumplimiento.REGLAS_CUMPLIMIENTO[categoria]['titulo']} {fecha_aprob[:4]}")
+    base_cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    doc_id = db.registrar_documento_legal(
+        base_cid, categoria, nombre, fecha_aprob,
+        contenido=contenido, mimetype=(archivo.mimetype if archivo else None))
+    # Cascada Capa Core → Capa Mandante (referencias a contratos mineros)
+    afectados = db.cascada_a_contratos(eid, categoria, doc_id)
+    # Nutre el FUF (marca el ítem como cumplido) si la regla lo mapea
+    fuf_item = cumplimiento.REGLAS_CUMPLIMIENTO[categoria].get('fuf_item')
+    if fuf_item:
+        db.set_fuf_estado(eid, fuf_item, 'si', rut=rut)
+    mand = ', '.join(sorted({a['mandante'] for a in afectados if a['mandante']})) or 'tus contratos'
+    mensaje = (f"Documento actualizado. Cubres tu obligación legal (DS 44) y tu exigencia "
+               f"contractual con {mand} simultáneamente"
+               + (f"; ítem FUF N°{fuf_item} marcado como cumplido." if fuf_item else "."))
+    return jsonify({'ok': True, 'doc_id': doc_id, 'afectados': afectados,
+                    'mensaje': mensaje, 'pendientes': alertas.actividades_pendientes(db, eid)})
+
+
+@app.route('/api/matriz-legal', methods=['GET'])
+@empresa_required
+def api_matriz_get():
+    return jsonify(db.matriz_legal(_empresa_id()))
+
+
+@app.route('/api/matriz-legal', methods=['POST'])
+@empresa_required
+def api_matriz_guardar():
+    data = request.get_json(silent=True) or {}
+    return jsonify(db.requisito_guardar(_empresa_id(), data))
+
+
+@app.route('/api/matriz-legal/importar', methods=['POST'])
+@empresa_required
+def api_matriz_importar():
+    """Importa la Matriz Legal desde un Excel normalizado (columnas ID_Requisito, Origen,
+    Cuerpo_Normativo, Requisito_Legal, Riesgo_Asociado, Control_Operativo, Frecuencia,
+    Estado_Avance). Reusa openpyxl."""
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'No se recibió archivo.'}), 400
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(archivo.read()), data_only=True)
+        ws = wb.active
+        filas = list(ws.iter_rows(values_only=True))
+    except Exception as e:      # noqa: BLE001
+        return jsonify({'error': f'No se pudo leer el Excel: {type(e).__name__}.'}), 400
+    if not filas:
+        return jsonify({'error': 'El archivo está vacío.'}), 400
+    encabezados = [str(h or '').strip().lower().replace(' ', '_') for h in filas[0]]
+    campo = {'id_requisito': 'id_requisito', 'origen': 'origen', 'cuerpo_normativo': 'cuerpo_normativo',
+             'requisito_legal': 'requisito_legal', 'riesgo_asociado': 'riesgo_asociado',
+             'control_operativo': 'control_operativo', 'frecuencia': 'frecuencia',
+             'estado_avance': 'estado_avance', 'responsable': 'responsable', 'capa': 'capa',
+             'categoria': 'categoria'}
+    n = 0
+    for fila in filas[1:]:
+        data = {}
+        for i, h in enumerate(encabezados):
+            if h in campo and i < len(fila) and fila[i] is not None:
+                data[campo[h]] = str(fila[i]).strip()
+        if not data:
+            continue
+        db.requisito_guardar(_empresa_id(), data)
+        n += 1
+    return jsonify({'ok': True, 'importados': n, 'matriz': db.matriz_legal(_empresa_id())})
+
+
+@app.route('/api/reglas', methods=['GET'])
+@login_required
+def api_reglas_get():
+    return jsonify(db.reglas_listar())
+
+
+@app.route('/api/reglas/<int:rid>', methods=['POST'])
+@login_required
+def api_regla_editar(rid):
+    f = request.get_json(silent=True) or {}
+    r = db.regla_actualizar(rid, periodicidad_meses=f.get('periodicidad_meses'),
+                            es_critico=f.get('es_critico'))
+    if not r:
+        return jsonify({'error': 'Regla no encontrada.'}), 404
+    return jsonify(r)
 
 
 @app.route('/api/contratos/<int:cid>/carpeta/<int:n>/documento', methods=['POST'])

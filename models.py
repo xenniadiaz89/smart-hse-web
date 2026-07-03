@@ -88,6 +88,8 @@ class Documento(_DictMixin, sqla.Model):
     # Archivo persistido en la BD (no en disco efímero)
     contenido = sqla.Column(sqla.LargeBinary)
     mimetype = sqla.Column(sqla.Text)
+    base_legal = sqla.Column(sqla.Text)             # Ronda 12: cimiento legal (snapshot de la regla)
+    estado_cumplimiento = sqla.Column(sqla.Text)    # 'vigente'|'por_vencer'|'pendiente_actualizacion'
 
 
 class ControlEstado(_DictMixin, sqla.Model):
@@ -189,6 +191,52 @@ class Vocabulario(_DictMixin, sqla.Model):
     significado = sqla.Column(sqla.Text)
     activo = sqla.Column(sqla.Integer, default=1)
     creado = sqla.Column(sqla.Text)
+
+
+class ReglaCumplimiento(_DictMixin, sqla.Model):
+    """Regla de actualización + base legal por categoría documental (Ronda 12)."""
+    __tablename__ = 'regla_cumplimiento'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    categoria = sqla.Column(sqla.Text, nullable=False, unique=True)
+    titulo = sqla.Column(sqla.Text)
+    base_legal = sqla.Column(sqla.Text)             # 'DS 44/2024 · Ley 16.744'
+    periodicidad_meses = sqla.Column(sqla.Integer, default=12)
+    es_critico = sqla.Column(sqla.Integer, default=0)
+    fuf_item = sqla.Column(sqla.Integer)            # ítem del FUF que satisface (alerta cruzada)
+    activo = sqla.Column(sqla.Integer, default=1)
+
+
+class DialectoMandante(_DictMixin, sqla.Model):
+    """Traducción legal→faena: estándar del mandante por categoría (Ronda 12)."""
+    __tablename__ = 'dialecto_mandante'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    mandante_key = sqla.Column(sqla.Text, nullable=False)   # 'codelco' | 'bhp_spence'
+    categoria = sqla.Column(sqla.Text, nullable=False)
+    estandar = sqla.Column(sqla.Text)               # 'Formalización Bow Tie / ECF (SIGO-P006)'
+    metodologia = sqla.Column(sqla.Text)            # 'Bow Tie' | 'IEC 31010 · Riesgos Materiales'
+    __table_args__ = (sqla.UniqueConstraint('mandante_key', 'categoria'),)
+
+
+class RequisitoLegal(_DictMixin, sqla.Model):
+    """Matriz Legal por capas (Ronda 12): Core Legal (DS 44) + Capa Mandante (RT/Spence)
+    + Capa Operativa (PTS/Tareas). Normaliza la matriz aportada por el usuario."""
+    __tablename__ = 'requisito_legal'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    id_requisito = sqla.Column(sqla.Text)
+    capa = sqla.Column(sqla.Text, default='core')          # 'core'|'mandante'|'operativa'
+    origen = sqla.Column(sqla.Text)
+    cuerpo_normativo = sqla.Column(sqla.Text)               # = base legal
+    requisito_legal = sqla.Column(sqla.Text)
+    riesgo_asociado = sqla.Column(sqla.Text)
+    control_operativo = sqla.Column(sqla.Text)             # '1.\nAcción.\n2.\nResponsable.'
+    responsable = sqla.Column(sqla.Text)
+    frecuencia = sqla.Column(sqla.Text)
+    estado_avance = sqla.Column(sqla.Text, default='pendiente')  # 'auditado'|'pendiente'
+    evidencia_doc_id = sqla.Column(sqla.Integer)
+    categoria = sqla.Column(sqla.Text)                     # enlaza con EQUIVALENCIAS/reglas
+    fecha = sqla.Column(sqla.Text)
+    __table_args__ = (sqla.UniqueConstraint('empresa_id', 'id_requisito'),)
 
 
 class DocumentoGenerado(_DictMixin, sqla.Model):

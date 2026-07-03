@@ -97,6 +97,11 @@
                    <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist</span></button>
                <button type="button" data-nav="ds44" onclick="mostrarVista('ds44')" class="nav-item">
                    <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
+               <button type="button" data-nav="pendientes" onclick="mostrarVista('pendientes'); cargarPendientes()" class="nav-item">
+                   <i data-lucide="calendar-clock" class="w-5 h-5"></i> <span>Actividades Pendientes</span>
+                   <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span></button>
+               <button type="button" data-nav="matriz" onclick="mostrarVista('matriz'); cargarMatriz()" class="nav-item">
+                   <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz Legal</span></button>
                <button type="button" data-nav="iet" onclick="mostrarVista('iet')" class="nav-item">
                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Inspección en Terreno</span></button>
                <button type="button" data-nav="vocab" onclick="mostrarVista('vocab'); cargarVocab()" class="nav-item">
@@ -340,6 +345,32 @@
                 </div>
             </div>
             <div id="vocabLista" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+
+        <!-- VISTA: Actividades Pendientes (motor de cumplimiento) -->
+        <section id="vista-pendientes" class="hidden">
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="calendar-clock" class="w-5 h-5 text-primary"></i>
+                <h2 class="text-xl font-extrabold text-gray-900">Panel de Actividades Pendientes</h2>
+            </div>
+            <p class="text-gray-600 text-sm mb-5">Alertas <b>unificadas</b>: legales (anualidad DS 44), contractuales (Carpeta/RESSO) y operativas (Matriz Legal). Actualiza un documento aquí y cubres tu obligación legal <b>y</b> la exigencia del mandante simultáneamente (cascada).</p>
+            <div id="pendientesLista" class="space-y-3"></div>
+        </section>
+
+        <!-- VISTA: Matriz Legal por capas -->
+        <section id="vista-matriz" class="hidden">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="table-2" class="w-5 h-5 text-primary"></i>
+                    <h2 class="text-xl font-extrabold text-gray-900">Matriz Legal por capas</h2>
+                </div>
+                <label class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-4 py-2 rounded-xl font-bold text-sm cursor-pointer shrink-0">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Importar Excel
+                    <input type="file" accept=".xlsx,.xlsm" class="hidden" onchange="importarMatriz(this)">
+                </label>
+            </div>
+            <p class="text-gray-600 text-sm mb-5"><b>Core Legal</b> (DS 44/Nacional) + <b>Capa Mandante</b> (RT/Spence) + <b>Capa Operativa</b> (PTS/Tareas). Las filas con <b>Estado Avance = Pendiente</b> disparan alerta al responsable del Control Operativo.</p>
+            <div id="matrizLista" class="space-y-4"></div>
         </section>
 
         <!-- VISTA: Checklist -->
@@ -987,7 +1018,7 @@ Firma Asesor en Prevención`;
         // ─────────────────────────────────────────────────────────────
         // NAVEGACIÓN DE VISTAS (menú lateral)
         // ─────────────────────────────────────────────────────────────
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'matriz'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -1976,6 +2007,117 @@ Firma Asesor en Prevención`;
         }
 
         // ── Vocabulario técnico ──
+        // ── Motor de Cumplimiento: Actividades Pendientes ──
+        const EST_PEND = {
+            pendiente_actualizacion: ['🔴 Vencido — actualizar', 'bg-red-100 text-red-700'],
+            por_vencer: ['🟠 Por vencer', 'bg-amber-100 text-amber-700'],
+            sin_documento: ['⚪ Sin documento', 'bg-gray-100 text-gray-600'],
+            pendiente: ['🟠 Pendiente', 'bg-amber-100 text-amber-700'],
+        };
+        function dialectoChips(contratos) {
+            return (contratos || []).filter(c => c.estandar).map(c =>
+                `<span class="inline-flex items-center gap-1 text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full" title="${c.mandante || ''}">
+                    <i data-lucide="git-branch" class="w-3 h-3"></i> ${c.mandante || c.dialecto_key}: ${c.estandar}</span>`).join(' ');
+        }
+        async function cargarPendientes() {
+            let data = [];
+            try { const r = await fetch('/api/pendientes'); if (r.ok) data = await r.json(); } catch (e) { }
+            const cont = document.getElementById('pendientesLista');
+            const badge = document.getElementById('pendBadge');
+            const criticos = data.filter(x => x.estado === 'pendiente_actualizacion' || x.estado === 'por_vencer' || (x.tipo !== 'legal')).length;
+            if (badge) { badge.textContent = data.length; badge.classList.toggle('hidden', data.length === 0); badge.classList.toggle('flex', data.length > 0); }
+            if (!data.length) { cont.innerHTML = '<div class="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">Sin actividades pendientes. Todo tu cumplimiento está vigente. ✅</div>'; if (window.lucide) lucide.createIcons(); return; }
+            cont.innerHTML = data.map(x => {
+                const est = EST_PEND[x.estado] || ['Pendiente', 'bg-gray-100 text-gray-600'];
+                const tipoTag = { legal: ['Legal', 'bg-primary/10 text-primary'], contractual: ['Contractual', 'bg-amber-100 text-amber-700'], operativa: ['Operativa', 'bg-secondary/10 text-secondary'] }[x.tipo] || ['—', 'bg-gray-100'];
+                if (x.tipo === 'legal') {
+                    return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                        <div class="flex items-start justify-between gap-3 mb-1">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tipoTag[1]}">${tipoTag[0]}</span>
+                                    <h3 class="font-extrabold text-gray-900">${x.titulo}</h3>
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${est[1]}">${est[0]}</span>
+                                </div>
+                                <p class="text-[11px] text-gray-500 mt-0.5"><i data-lucide="scale" class="w-3 h-3 inline"></i> ${x.base_legal || ''}${x.fecha_vencimiento ? ' · vence ' + x.fecha_vencimiento : ''}${x.fuf_item ? ' · FUF N°' + x.fuf_item : ''}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1 my-2">${dialectoChips(x.contratos)}</div>
+                        <p class="text-xs text-gray-600 mb-3">${x.mensaje || ''}</p>
+                        <div class="flex flex-wrap items-end gap-2 border-t border-gray-50 pt-3">
+                            <label class="text-[11px] text-gray-500">Fecha emisión
+                                <input type="date" id="pf_${x.categoria}" class="block mt-0.5 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-primary"></label>
+                            <label class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded cursor-pointer hover:brightness-95">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i> Subir versión nueva
+                                <input type="file" class="hidden" onchange="subirPendiente('${x.categoria}', this)"></label>
+                        </div>
+                    </div>`;
+                }
+                // contractual / operativa
+                return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tipoTag[1]}">${tipoTag[0]}</span>
+                        <h3 class="font-bold text-gray-900">${x.titulo}</h3>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${est[1]}">${est[0]}</span>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-1">${x.detalle || x.control_operativo || ''}</p>
+                    ${x.responsable ? `<p class="text-[11px] text-gray-500 mt-1"><i data-lucide="user" class="w-3 h-3 inline"></i> Responsable: <b>${x.responsable}</b>${x.cuerpo_normativo ? ' · ' + x.cuerpo_normativo : ''}</p>` : ''}
+                    ${x.contrato ? `<p class="text-[11px] text-gray-400 mt-1">${x.contrato}</p>` : ''}
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        async function subirPendiente(categoria, input) {
+            const fecha = (document.getElementById('pf_' + categoria) || {}).value || '';
+            if (!fecha) { alert('Indica la fecha de emisión/aprobación del documento.'); input.value = ''; return; }
+            const fd = new FormData();
+            fd.append('fecha_aprobacion', fecha);
+            if (input.files.length) fd.append('archivo', input.files[0]);
+            const r = await fetch(`/api/pendientes/${categoria}/subir`, { method: 'POST', body: fd });
+            input.value = '';
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo subir el documento.'); return; }
+            alert('✅ ' + (d.mensaje || 'Documento actualizado.'));
+            cargarPendientes();
+        }
+
+        // ── Matriz Legal ──
+        const CAPA_LABEL = { core: ['Core Legal (DS 44)', 'bg-primary/10 text-primary'], mandante: ['Capa Mandante', 'bg-amber-100 text-amber-700'], operativa: ['Capa Operativa', 'bg-secondary/10 text-secondary'] };
+        async function cargarMatriz() {
+            let data = [];
+            try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
+            const cont = document.getElementById('matrizLista');
+            if (!data.length) { cont.innerHTML = '<div class="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">Aún no hay requisitos. Importa tu Matriz Legal (Excel) para comenzar.</div>'; return; }
+            const capas = { core: [], mandante: [], operativa: [] };
+            data.forEach(r => (capas[r.capa] || (capas[r.capa] = [])).push(r));
+            cont.innerHTML = Object.keys(capas).filter(k => capas[k] && capas[k].length).map(k => {
+                const lbl = CAPA_LABEL[k] || [k, 'bg-gray-100'];
+                const rows = capas[k].map(r => {
+                    const pend = (r.estado_avance || '').toLowerCase() === 'pendiente';
+                    return `<tr class="border-b border-gray-50">
+                        <td class="py-2 pr-2 text-[11px] text-gray-400 align-top">${r.id_requisito || ''}</td>
+                        <td class="py-2 pr-2 align-top"><p class="text-xs text-gray-800">${r.requisito_legal || ''}</p><p class="text-[10px] text-gray-400">${r.cuerpo_normativo || ''}</p></td>
+                        <td class="py-2 pr-2 text-[11px] text-gray-600 align-top">${r.responsable || '—'}</td>
+                        <td class="py-2 align-top"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${pend ? 'bg-amber-100 text-amber-700' : 'bg-secondary/10 text-secondary'}">${pend ? 'Pendiente' : 'Auditado'}</span></td>
+                    </tr>`;
+                }).join('');
+                return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                    <div class="flex items-center gap-2 mb-2"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${lbl[1]}">${lbl[0]}</span><span class="text-xs text-gray-400">${capas[k].length} requisito(s)</span></div>
+                    <div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="text-[10px] uppercase text-gray-400"><th class="pb-1 pr-2">ID</th><th class="pb-1 pr-2">Requisito · Cuerpo normativo</th><th class="pb-1 pr-2">Responsable</th><th class="pb-1">Estado</th></tr></thead><tbody>${rows}</tbody></table></div>
+                </div>`;
+            }).join('');
+        }
+        async function importarMatriz(input) {
+            if (!input.files.length) return;
+            const fd = new FormData(); fd.append('archivo', input.files[0]);
+            const r = await fetch('/api/matriz-legal/importar', { method: 'POST', body: fd });
+            input.value = '';
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo importar.'); return; }
+            alert(`✅ Importados ${d.importados} requisitos.`);
+            cargarMatriz();
+        }
+
         async function cargarVocab() {
             let data = [];
             try { const r = await fetch('/api/vocabulario'); if (r.ok) data = await r.json(); } catch (e) { }
