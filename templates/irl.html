@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>IRL — {{ trabajador.nombre or trabajador.rut }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; margin: 0; padding: 32px; font-size: 12px; }
+        .hdr { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #006a9b; padding-bottom: 12px; margin-bottom: 6px; }
+        .hdr .logo img { max-height: 74px; max-width: 220px; }
+        .hdr .logo .fallback { font-weight: 800; color: #006a9b; font-size: 18px; }
+        .hdr .title { text-align: right; }
+        .hdr .title h1 { margin: 0; font-size: 18px; color: #006a9b; }
+        .hdr .title p { margin: 2px 0 0; color: #6b7280; font-size: 11px; }
+        .ficha { width: 100%; border-collapse: collapse; margin: 14px 0 20px; }
+        .ficha td { border: 1px solid #d1d5db; padding: 6px 8px; }
+        .ficha .k { background: #f3f4f6; font-weight: 700; width: 18%; color: #374151; }
+        h2.tarea { background: #006a9b; color: #fff; padding: 7px 10px; margin: 18px 0 0; font-size: 13px; border-radius: 5px 5px 0 0; }
+        .tsub { color: #6b7280; font-size: 10.5px; margin: 3px 0 8px; }
+        table.riesgos { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+        table.riesgos th { background: #eef2f5; color: #374151; text-align: left; font-size: 10.5px; padding: 6px; border: 1px solid #d1d5db; }
+        table.riesgos td { border: 1px solid #d1d5db; padding: 6px; vertical-align: top; }
+        .nivel { font-weight: 700; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+        .nivel.alto, .nivel.critico, .nivel.crítico { background: #fee2e2; color: #b91c1c; }
+        .nivel.medio { background: #fef3c7; color: #b45309; }
+        .nivel.bajo { background: #dcfce7; color: #15803d; }
+        .chips span { display: inline-block; background: #eef2f5; border: 1px solid #d7dee3; border-radius: 10px; padding: 1px 7px; margin: 1px 2px; font-size: 10px; }
+        .epp span { background: #e0f2fe; border-color: #bae6fd; color: #075985; }
+        .pts span { background: #ecfdf5; border-color: #bbf7d0; color: #166534; }
+        .firma { display: flex; justify-content: space-between; margin-top: 44px; gap: 40px; }
+        .firma div { flex: 1; border-top: 1px solid #9ca3af; padding-top: 5px; text-align: center; color: #6b7280; font-size: 11px; }
+        .audit { margin-top: 26px; border-top: 1px dashed #cbd5e1; padding-top: 8px; color: #6b7280; font-size: 10px; }
+        .audit b { color: #374151; }
+        .vacio { color: #9ca3af; font-style: italic; padding: 10px 0; }
+        @media print { body { padding: 12px; } .noprint { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="hdr">
+        <div class="logo">
+            {% if logo %}<img src="{{ logo }}" alt="Logo">{% else %}<div class="fallback">{{ empresa.razon_social or 'Empresa' }}</div>{% endif %}
+        </div>
+        <div class="title">
+            <h1>Identificación de Riesgos Laborales (IRL)</h1>
+            <p>DS 44/2024 · Ley 16.744 · {{ empresa.razon_social or '' }}</p>
+        </div>
+    </div>
+
+    <table class="ficha">
+        <tr><td class="k">Trabajador</td><td>{{ trabajador.nombre or '—' }}</td>
+            <td class="k">RUT</td><td>{{ trabajador.rut or '—' }}</td></tr>
+        <tr><td class="k">Cargo</td><td>{{ trabajador.cargo or trabajador.rol or '—' }}</td>
+            <td class="k">Fecha de emisión</td><td>{{ fecha }}</td></tr>
+        <tr><td class="k">Empresa</td><td>{{ empresa.razon_social or '—' }}</td>
+            <td class="k">Versión matriz IPER</td><td>V{{ matriz_version }}</td></tr>
+    </table>
+
+    {% if not tareas %}
+        <p class="vacio">Este trabajador no tiene Tareas asignadas en la Matriz IPER. Asigna tareas para generar su IRL.</p>
+    {% endif %}
+
+    {% for bloque in tareas %}
+    <h2 class="tarea">Tarea: {{ bloque.tarea.nombre }}</h2>
+    <p class="tsub">
+        {% if bloque.tarea.proceso %}Proceso: {{ bloque.tarea.proceso }} · {% endif %}
+        {{ 'Rutinaria' if bloque.tarea.rutinaria == 'rutinaria' else ('No rutinaria' if bloque.tarea.rutinaria else '') }}
+        {% if bloque.tarea.responsable %} · Responsable: {{ bloque.tarea.responsable }}{% endif %}
+    </p>
+    <table class="riesgos">
+        <thead><tr>
+            <th style="width:22%">Peligro</th><th style="width:22%">Riesgo</th>
+            <th style="width:10%">Nivel</th><th style="width:46%">Medida de Control</th>
+        </tr></thead>
+        <tbody>
+        {% for r in bloque.riesgos %}
+            <tr>
+                <td>{{ r.peligro or '—' }}</td>
+                <td>{{ r.riesgo or '—' }}</td>
+                <td>{% if r.nivel_riesgo %}<span class="nivel {{ (r.nivel_riesgo|string|lower) }}">{{ r.nivel_riesgo }}</span>{% else %}—{% endif %}</td>
+                <td>{{ r.medida_control or '—' }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" class="vacio">Sin riesgos registrados para esta tarea.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="chips epp"><b style="font-size:10.5px;color:#374151">EPP requeridos:</b>
+        {% for e in bloque.epp %}<span>{{ e.nombre }}{% if e.norma %} ({{ e.norma }}){% endif %}</span>{% else %}<span style="background:#f3f4f6">Sin EPP asociados</span>{% endfor %}
+    </div>
+    <div class="chips pts"><b style="font-size:10.5px;color:#374151">PTS aplicables:</b>
+        {% for p in bloque.pts %}<span>{{ p.codigo or '' }} {{ p.nombre }}{% if p.version %} v{{ p.version }}{% endif %}</span>{% else %}<span style="background:#f3f4f6">Sin PTS asociados</span>{% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="firma">
+        <div>Firma Trabajador</div>
+        <div>Firma Experto en Prevención</div>
+    </div>
+
+    <div class="audit">
+        <b>ID de Auditoría:</b> {{ audit_id }} &nbsp;·&nbsp;
+        <b>Generado por:</b> {{ generado_por or '—' }} &nbsp;·&nbsp;
+        <b>Fecha:</b> {{ fecha }} &nbsp;·&nbsp;
+        <b>Versión Matriz:</b> V{{ matriz_version }} &nbsp;·&nbsp;
+        <b>Trabajador ID:</b> {{ trabajador.id }}
+        <br>Documento generado automáticamente desde la Matriz IPER vigente — Smart HSE. Refleja la normativa vigente al momento de la emisión.
+    </div>
+</body>
+</html>

@@ -17,6 +17,7 @@ import ia
 import correccion
 import cumplimiento
 import alertas
+import docgen
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -931,6 +932,191 @@ def api_regla_editar(rid):
     if not r:
         return jsonify({'error': 'Regla no encontrada.'}), 404
     return jsonify(r)
+
+
+# ══════════════ Ronda 15 — Motor Documental: Trabajadores / Tareas / EPP / PTS / IRL ═════════
+def _logo_empresa(rut, empresa_id):
+    """Logo de la empresa: busca en cualquiera de sus contratos el logo cargado, o None."""
+    for c in db.listar_contratos(rut, empresa_id):
+        uri = _logo_data_uri(rut, c['id'])
+        if uri:
+            return uri
+    return None
+
+
+# ── Trabajadores ──
+@app.route('/api/trabajadores', methods=['GET'])
+@empresa_required
+def api_trabajadores():
+    out = []
+    for t in db.trabajadores_de(_empresa_id()):
+        t['tareas'] = [x['id'] for x in db.tareas_de_trabajador(t['id'])]
+        t['irls'] = db.irls_de_trabajador(t['id'])
+        out.append(t)
+    return jsonify(out)
+
+
+@app.route('/api/trabajadores', methods=['POST'])
+@empresa_required
+def api_trabajador_crear():
+    f = request.get_json(silent=True) or request.form
+    rut = (f.get('rut') or '').strip()
+    nombre = (f.get('nombre') or '').strip()
+    if not (rut and nombre):
+        return jsonify({'error': 'Indica RUT y nombre del trabajador.'}), 400
+    if not rut_valido(rut):
+        return jsonify({'error': 'El RUT del trabajador no es válido.'}), 400
+    db.trabajador_crear(_empresa_id(), normalizar_rut(rut), nombre,
+                        cargo=(f.get('cargo') or '').strip() or None,
+                        rol=(f.get('rol') or '').strip() or None)
+    return jsonify(db.trabajadores_de(_empresa_id()))
+
+
+@app.route('/api/trabajadores/<int:tid>/eliminar', methods=['POST'])
+@empresa_required
+def api_trabajador_eliminar(tid):
+    db.trabajador_eliminar(_empresa_id(), tid)
+    return jsonify(db.trabajadores_de(_empresa_id()))
+
+
+@app.route('/api/trabajadores/<int:tid>/tareas', methods=['POST'])
+@empresa_required
+def api_trabajador_tareas(tid):
+    if not db.trabajador_de(_empresa_id(), tid):
+        return jsonify({'error': 'Trabajador no encontrado.'}), 404
+    f = request.get_json(silent=True) or {}
+    db.trabajador_set_tareas(tid, f.get('tarea_ids') or [])
+    return jsonify({'ok': True, 'tareas': [x['id'] for x in db.tareas_de_trabajador(tid)]})
+
+
+# ── Tareas / EPP / PTS de la Matriz IPER ──
+@app.route('/api/iper/tareas', methods=['GET'])
+@empresa_required
+def api_tareas_get():
+    tareas = db.tareas_de_empresa(_empresa_id())
+    for t in tareas:
+        t['riesgos'] = db.riesgos_de_tarea(t['id'])
+        t['epp'] = db.epp_de_tarea(t['id'])
+        t['pts'] = db.pts_de_tarea(t['id'])
+    return jsonify(tareas)
+
+
+@app.route('/api/iper/tareas', methods=['POST'])
+@empresa_required
+def api_tarea_crear():
+    f = request.get_json(silent=True) or request.form
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre de la Tarea.'}), 400
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
+    tid = db.tarea_crear(m['id'], nombre, proceso=(f.get('proceso') or '').strip() or None,
+                         rutinaria=(f.get('rutinaria') or '').strip() or None,
+                         responsable=(f.get('responsable') or '').strip() or None)
+    # riesgos opcionales en el alta → se amarran a la tarea recién creada
+    from models import RiesgoItem
+    for r in (f.get('riesgos') or []):
+        rid = db.riesgo_agregar(m['id'], r.get('peligro'), r.get('riesgo'), r.get('medida_control'),
+                                nivel_riesgo=r.get('nivel_riesgo'), es_critico=r.get('es_critico', 0))
+        it = RiesgoItem.query.get(rid)
+        if it:
+            it.tarea_id = tid
+    sqla.session.commit()
+    return jsonify({'ok': True, 'tarea_id': tid})
+
+
+@app.route('/api/iper/tareas/<int:tid>/riesgo', methods=['POST'])
+@empresa_required
+def api_tarea_riesgo(tid):
+    f = request.get_json(silent=True) or {}
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid)
+    if not m:
+        return jsonify({'error': 'No hay matriz vigente.'}), 400
+    rid = db.riesgo_agregar(m['id'], f.get('peligro'), f.get('riesgo'), f.get('medida_control'),
+                            nivel_riesgo=f.get('nivel_riesgo'), es_critico=f.get('es_critico', 0))
+    # amarrar el riesgo a la tarea
+    from models import RiesgoItem
+    it = RiesgoItem.query.get(rid)
+    if it:
+        it.tarea_id = tid
+        sqla.session.commit()
+    return jsonify({'ok': True, 'riesgo_id': rid})
+
+
+@app.route('/api/epp', methods=['GET'])
+@empresa_required
+def api_epp_get():
+    return jsonify(db.epp_listar(_empresa_id()))
+
+
+@app.route('/api/epp', methods=['POST'])
+@empresa_required
+def api_epp_crear():
+    f = request.get_json(silent=True) or request.form
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre del EPP.'}), 400
+    db.epp_crear(_empresa_id(), nombre, codigo=(f.get('codigo') or '').strip() or None,
+                 norma=(f.get('norma') or '').strip() or None)
+    return jsonify(db.epp_listar(_empresa_id()))
+
+
+@app.route('/api/pts', methods=['GET'])
+@empresa_required
+def api_pts_get():
+    return jsonify(db.pts_listar(_empresa_id()))
+
+
+@app.route('/api/pts', methods=['POST'])
+@empresa_required
+def api_pts_crear():
+    f = request.get_json(silent=True) or request.form
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre del PTS.'}), 400
+    db.pts_crear(_empresa_id(), nombre, codigo=(f.get('codigo') or '').strip() or None,
+                 version=(f.get('version') or '').strip() or None)
+    return jsonify(db.pts_listar(_empresa_id()))
+
+
+@app.route('/api/iper/tareas/<int:tid>/epp', methods=['POST'])
+@empresa_required
+def api_tarea_link_epp(tid):
+    f = request.get_json(silent=True) or {}
+    db.tarea_link_epp(tid, int(f.get('epp_id')))
+    return jsonify({'ok': True, 'epp': db.epp_de_tarea(tid)})
+
+
+@app.route('/api/iper/tareas/<int:tid>/pts', methods=['POST'])
+@empresa_required
+def api_tarea_link_pts(tid):
+    f = request.get_json(silent=True) or {}
+    db.tarea_link_pts(tid, int(f.get('pts_id')))
+    return jsonify({'ok': True, 'pts': db.pts_de_tarea(tid)})
+
+
+# ── IRL: generar / actualizar / listar ──
+@app.route('/api/irl/generar', methods=['POST'])
+@empresa_required
+def api_irl_generar():
+    f = request.get_json(silent=True) or request.form
+    rut, eid = session['rut'], _empresa_id()
+    trab = db.trabajador_de(eid, int(f.get('trabajador_id')))
+    if not trab:
+        return jsonify({'error': 'Trabajador no encontrado.'}), 404
+    empresa = db.empresa_de(rut, eid)
+    logo = _logo_empresa(rut, eid)
+    res = docgen.generar_irl(db, empresa, trab, session.get('nombre') or rut, logo_data_uri=logo)
+    return jsonify({'ok': True, 'doc_id': res['doc_id'], 'audit_id': res['audit_id'],
+                    'matriz_version': res['matriz_version'],
+                    'preview_url': f"/api/doc/{res['doc_id']}"})
+
+
+@app.route('/api/trabajadores/<int:tid>/irl', methods=['GET'])
+@empresa_required
+def api_trabajador_irls(tid):
+    return jsonify(db.irls_de_trabajador(tid))
 
 
 @app.route('/api/contratos/<int:cid>/carpeta/<int:n>/documento', methods=['POST'])

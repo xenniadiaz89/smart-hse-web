@@ -13,7 +13,8 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     FufEstado, MappingReq, Trabajador, AuditoriaEstado,
                     Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario,
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
-                    FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem)
+                    FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
+                    TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado)
 
 
 def _hoy():
@@ -51,6 +52,10 @@ _COLUMNAS_NUEVAS = [
     ('requisito_legal', 'fecha_actualizacion', 'TEXT'),
     ('requisito_legal', 'validado_por', 'TEXT'),
     ('requisito_legal', 'validado_en', 'TEXT'),
+    # Ronda 15 — Motor documental IRL
+    ('riesgo_item', 'tarea_id', 'INTEGER'),
+    ('trabajador', 'empresa_id', 'INTEGER'),
+    ('trabajador', 'cargo', 'TEXT'),
 ]
 
 
@@ -907,3 +912,132 @@ def registrar_requerimiento(afecta, empresa_id, datos, creado_por=None):
             mandante_key=r.get('mandante_key'), es_critico=r.get('es_critico', 0),
             requisito_legal_id=req_id, evidencia_doc_id=r.get('evidencia_doc_id'))
     return out
+
+
+# ══════════════ Ronda 15 — Motor Documental: Tareas / EPP / PTS / Trabajadores / IRL ══════════
+# ── Tareas de la Matriz IPER (agrupan riesgos) ──
+def tarea_crear(matriz_id, nombre, proceso=None, rutinaria=None, responsable=None,
+                fecha_evaluacion=None, estado_avance='Pendiente'):
+    t = TareaIPER(matriz_id=matriz_id, nombre=nombre, proceso=proceso, rutinaria=rutinaria,
+                  responsable=responsable, fecha_evaluacion=fecha_evaluacion,
+                  estado_avance=estado_avance)
+    sqla.session.add(t)
+    _commit()
+    return t.id
+
+
+def tareas_de_matriz(matriz_id):
+    return [t.to_dict() for t in
+            TareaIPER.query.filter_by(matriz_id=matriz_id).order_by(TareaIPER.id).all()]
+
+
+def tareas_de_empresa(empresa_id):
+    """Tareas de la matriz de riesgos vigente de la empresa."""
+    m = matriz_riesgo_vigente(empresa_id)
+    return tareas_de_matriz(m['id']) if m else []
+
+
+def riesgos_de_tarea(tarea_id):
+    return [i.to_dict() for i in
+            RiesgoItem.query.filter_by(tarea_id=tarea_id).order_by(RiesgoItem.id).all()]
+
+
+# ── Catálogos EPP / PTS y su vínculo N-a-N con la Tarea ──
+def epp_crear(empresa_id, nombre, codigo=None, norma=None):
+    e = EPP(empresa_id=empresa_id, nombre=nombre, codigo=codigo, norma=norma)
+    sqla.session.add(e)
+    _commit()
+    return e.id
+
+
+def epp_listar(empresa_id):
+    return [e.to_dict() for e in EPP.query.filter_by(empresa_id=empresa_id).order_by(EPP.nombre).all()]
+
+
+def pts_crear(empresa_id, nombre, codigo=None, version=None, doc_id=None):
+    p = PTS(empresa_id=empresa_id, nombre=nombre, codigo=codigo, version=version, doc_id=doc_id)
+    sqla.session.add(p)
+    _commit()
+    return p.id
+
+
+def pts_listar(empresa_id):
+    return [p.to_dict() for p in PTS.query.filter_by(empresa_id=empresa_id).order_by(PTS.nombre).all()]
+
+
+def tarea_link_epp(tarea_id, epp_id):
+    if not TareaEPP.query.filter_by(tarea_id=tarea_id, epp_id=epp_id).first():
+        sqla.session.add(TareaEPP(tarea_id=tarea_id, epp_id=epp_id))
+        _commit()
+
+
+def tarea_link_pts(tarea_id, pts_id):
+    if not TareaPTS.query.filter_by(tarea_id=tarea_id, pts_id=pts_id).first():
+        sqla.session.add(TareaPTS(tarea_id=tarea_id, pts_id=pts_id))
+        _commit()
+
+
+def epp_de_tarea(tarea_id):
+    rows = (sqla.session.query(EPP).join(TareaEPP, TareaEPP.epp_id == EPP.id)
+            .filter(TareaEPP.tarea_id == tarea_id).all())
+    return [e.to_dict() for e in rows]
+
+
+def pts_de_tarea(tarea_id):
+    rows = (sqla.session.query(PTS).join(TareaPTS, TareaPTS.pts_id == PTS.id)
+            .filter(TareaPTS.tarea_id == tarea_id).all())
+    return [p.to_dict() for p in rows]
+
+
+# ── Trabajadores y sus Tareas asignadas ──
+def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=None):
+    t = Trabajador(empresa_id=empresa_id, contrato_id=contrato_id or 0, rut=rut, nombre=nombre,
+                   cargo=cargo, rol=rol, fecha_ingreso=_hoy())
+    sqla.session.add(t)
+    _commit()
+    return t.id
+
+
+def trabajadores_de(empresa_id):
+    return [t.to_dict() for t in
+            Trabajador.query.filter_by(empresa_id=empresa_id).order_by(Trabajador.nombre).all()]
+
+
+def trabajador_de(empresa_id, trabajador_id):
+    t = Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).first()
+    return t.to_dict() if t else None
+
+
+def trabajador_eliminar(empresa_id, trabajador_id):
+    TrabajadorTarea.query.filter_by(trabajador_id=trabajador_id).delete()
+    Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).delete()
+    _commit()
+
+
+def trabajador_set_tareas(trabajador_id, tarea_ids):
+    TrabajadorTarea.query.filter_by(trabajador_id=trabajador_id).delete()
+    for tid in tarea_ids or []:
+        sqla.session.add(TrabajadorTarea(trabajador_id=trabajador_id, tarea_id=int(tid)))
+    _commit()
+
+
+def tareas_de_trabajador(trabajador_id):
+    rows = (sqla.session.query(TareaIPER).join(TrabajadorTarea, TrabajadorTarea.tarea_id == TareaIPER.id)
+            .filter(TrabajadorTarea.trabajador_id == trabajador_id).all())
+    return [t.to_dict() for t in rows]
+
+
+# ── Registro de auditoría de IRLs generados ──
+def irl_registrar(trabajador_id, empresa_id, matriz_version, doc_id, audit_id, generado_por):
+    r = IRLGenerado(trabajador_id=trabajador_id, empresa_id=empresa_id, matriz_version=matriz_version,
+                    doc_id=doc_id, audit_id=audit_id, generado_por=generado_por,
+                    generado_en=_dt.now().isoformat(timespec='seconds'), estado='Generado')
+    sqla.session.add(r)
+    _commit()
+    return r.id
+
+
+def irls_de_trabajador(trabajador_id):
+    return [r.to_dict() for r in
+            IRLGenerado.query.filter_by(trabajador_id=trabajador_id)
+            .order_by(IRLGenerado.id.desc()).all()]

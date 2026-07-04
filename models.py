@@ -141,9 +141,11 @@ class Trabajador(_DictMixin, sqla.Model):
     __tablename__ = 'trabajador'
     id = sqla.Column(sqla.Integer, primary_key=True)
     contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)   # Ronda 15: trabajador por empresa
     rut = sqla.Column(sqla.Text, nullable=False)
     nombre = sqla.Column(sqla.Text)
     rol = sqla.Column(sqla.Text)
+    cargo = sqla.Column(sqla.Text)                        # Ronda 15: cargo (ej. Analista Geofísico)
     fecha_ingreso = sqla.Column(sqla.Text)
 
 
@@ -294,6 +296,7 @@ class RiesgoItem(_DictMixin, sqla.Model):
     id = sqla.Column(sqla.Integer, primary_key=True)
     matriz_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'),
                             index=True, nullable=False)
+    tarea_id = sqla.Column(sqla.Integer, sqla.ForeignKey('tarea_iper.id'), index=True)  # Ronda 15
     peligro = sqla.Column(sqla.Text)
     riesgo = sqla.Column(sqla.Text)
     probabilidad = sqla.Column(sqla.Integer)
@@ -319,3 +322,77 @@ class DocumentoGenerado(_DictMixin, sqla.Model):
     estado = sqla.Column(sqla.Text, nullable=False, default='Creado')
     historial_json = sqla.Column(sqla.Text)
     fecha = sqla.Column(sqla.Text)
+
+
+# ══════════ Ronda 15 — Motor de Generación Documental (IRL) ══════════
+class TareaIPER(_DictMixin, sqla.Model):
+    """Tarea/actividad que agrupa riesgos dentro de una Matriz de Riesgos (IPER)."""
+    __tablename__ = 'tarea_iper'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    matriz_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'), index=True, nullable=False)
+    proceso = sqla.Column(sqla.Text)
+    nombre = sqla.Column(sqla.Text, nullable=False)         # la Tarea (ej. 'Análisis de leyes en ripios')
+    rutinaria = sqla.Column(sqla.Text)                      # 'rutinaria'|'no_rutinaria'
+    responsable = sqla.Column(sqla.Text)
+    fecha_evaluacion = sqla.Column(sqla.Text)
+    estado_avance = sqla.Column(sqla.Text, default='Pendiente')
+
+
+class EPP(_DictMixin, sqla.Model):
+    """Catálogo de Elementos de Protección Personal por empresa."""
+    __tablename__ = 'epp'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    codigo = sqla.Column(sqla.Text)
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    norma = sqla.Column(sqla.Text)                          # certificación / norma ISP
+
+
+class PTS(_DictMixin, sqla.Model):
+    """Catálogo de Procedimientos de Trabajo Seguro por empresa."""
+    __tablename__ = 'pts'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    codigo = sqla.Column(sqla.Text)
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    version = sqla.Column(sqla.Text)
+    doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))   # archivo del PTS (opcional)
+
+
+class TareaEPP(_DictMixin, sqla.Model):
+    __tablename__ = 'tarea_epp'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    tarea_id = sqla.Column(sqla.Integer, sqla.ForeignKey('tarea_iper.id'), index=True, nullable=False)
+    epp_id = sqla.Column(sqla.Integer, sqla.ForeignKey('epp.id'), nullable=False)
+    __table_args__ = (sqla.UniqueConstraint('tarea_id', 'epp_id'),)
+
+
+class TareaPTS(_DictMixin, sqla.Model):
+    __tablename__ = 'tarea_pts'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    tarea_id = sqla.Column(sqla.Integer, sqla.ForeignKey('tarea_iper.id'), index=True, nullable=False)
+    pts_id = sqla.Column(sqla.Integer, sqla.ForeignKey('pts.id'), nullable=False)
+    __table_args__ = (sqla.UniqueConstraint('tarea_id', 'pts_id'),)
+
+
+class TrabajadorTarea(_DictMixin, sqla.Model):
+    """Qué Tareas aplican a un trabajador (definen su IRL)."""
+    __tablename__ = 'trabajador_tarea'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    trabajador_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'), index=True, nullable=False)
+    tarea_id = sqla.Column(sqla.Integer, sqla.ForeignKey('tarea_iper.id'), nullable=False)
+    __table_args__ = (sqla.UniqueConstraint('trabajador_id', 'tarea_id'),)
+
+
+class IRLGenerado(_DictMixin, sqla.Model):
+    """Registro de auditoría de cada IRL generado (Fecha, Usuario, Versión matriz, Trabajador)."""
+    __tablename__ = 'irl_generado'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    trabajador_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'), index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    matriz_version = sqla.Column(sqla.Integer)
+    doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))   # blob HTML del IRL
+    audit_id = sqla.Column(sqla.Text)
+    generado_por = sqla.Column(sqla.Text)
+    generado_en = sqla.Column(sqla.Text)
+    estado = sqla.Column(sqla.Text, default='Generado')
