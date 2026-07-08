@@ -56,7 +56,7 @@
         <div class="relative z-10 max-w-5xl mx-auto">
             <!-- Logo grande y centrado (sin marco, directo sobre la foto) -->
             <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE"
-                 class="h-56 md:h-72 w-auto mx-auto mb-10 drop-shadow-2xl">
+                 class="h-64 md:h-80 w-auto mx-auto mb-10 drop-shadow-2xl">
             <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight text-white drop-shadow-lg">
                 Automatización Inteligente para tu <span class="text-secondary">Gestión HSE en Chile</span>
             </h1>
@@ -100,6 +100,35 @@
             </a>
         </div>
     </section>
+
+    <!-- ── Footer institucional ── -->
+    <footer class="bg-[#0b2231] text-gray-300 mt-8">
+        <div class="max-w-6xl mx-auto px-6 md:px-12 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div class="md:col-span-1">
+                <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="SMART HSE" class="h-16 w-auto mb-4">
+                <p class="text-sm text-gray-400">Automatización inteligente de la gestión HSE en Chile, basada estrictamente en la normativa vigente (DS 44/2024, Ley 16.744, DS 594).</p>
+            </div>
+            <div>
+                <h4 class="text-white font-extrabold mb-3">Quiénes somos</h4>
+                <p class="text-sm text-gray-400">Un equipo de especialistas en prevención de riesgos y tecnología que transforma el cumplimiento legal en gestión activa: matrices vivas, documentación automática y trazabilidad auditable.</p>
+            </div>
+            <div>
+                <h4 class="text-white font-extrabold mb-3">Nuestra visión</h4>
+                <p class="text-sm text-gray-400">Ser la plataforma que hace del cumplimiento HSE algo simple, confiable y en tiempo real para cada empresa de Chile — del asesor independiente a la gran contratista minera.</p>
+                <h4 class="text-white font-extrabold mt-4 mb-1">A dónde vamos</h4>
+                <p class="text-sm text-gray-400">Inteligencia normativa que anticipa cambios de ley y actualiza tu gestión automáticamente.</p>
+            </div>
+            <div>
+                <h4 class="text-white font-extrabold mb-3">Contacto</h4>
+                <a href="https://wa.me/56936413965" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm text-gray-300 hover:text-secondary mb-2"><i data-lucide="phone" class="w-4 h-4"></i> +56 9 3641 3965</a>
+                <a href="mailto:contacto@smarthse.cl" class="flex items-center gap-2 text-sm text-gray-300 hover:text-secondary mb-4"><i data-lucide="mail" class="w-4 h-4"></i> contacto@smarthse.cl</a>
+                <a href="https://wa.me/56936413965" target="_blank" rel="noopener" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-4 py-2.5 rounded-xl font-bold text-sm"><i data-lucide="message-circle" class="w-4 h-4"></i> Contáctanos</a>
+            </div>
+        </div>
+        <div class="border-t border-white/10 py-5 text-center text-xs text-gray-500">
+            © 2026 Smart HSE Chile · Todos los derechos reservados · Gestión basada en normativa vigente
+        </div>
+    </footer>
 
     <div id="demoModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">

@@ -47,6 +47,7 @@ class Empresa(_DictMixin, sqla.Model):
     rubro = sqla.Column(sqla.Text)
     creado = sqla.Column(sqla.Text)
     datos_json = sqla.Column(sqla.Text)
+    logo_doc_id = sqla.Column(sqla.Integer)               # Ronda 16: logo corporativo (blob en documento)
 
 
 class Contrato(_DictMixin, sqla.Model):

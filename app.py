@@ -969,12 +969,49 @@ def api_regla_editar(rid):
 
 # ══════════════ Ronda 15 — Motor Documental: Trabajadores / Tareas / EPP / PTS / IRL ═════════
 def _logo_empresa(rut, empresa_id):
-    """Logo de la empresa: busca en cualquiera de sus contratos el logo cargado, o None."""
+    """Logo de la empresa: primero el logo corporativo (empresa.logo_doc_id); si no, el de
+    cualquiera de sus contratos. Devuelve un data URI, o None."""
+    emp = db.empresa_de(rut, empresa_id) or {}
+    if emp.get('logo_doc_id'):
+        blob = db.documento_contenido(rut, emp['logo_doc_id'])
+        if blob:
+            import base64
+            contenido, mimetype, _ = blob
+            return f"data:{mimetype or 'image/png'};base64,{base64.b64encode(contenido).decode()}"
     for c in db.listar_contratos(rut, empresa_id):
         uri = _logo_data_uri(rut, c['id'])
         if uri:
             return uri
     return None
+
+
+@app.route('/api/empresa/logo', methods=['POST'])
+@empresa_required
+def api_empresa_logo():
+    """Carga/reemplaza el logo corporativo de la empresa activa (blob en la BD)."""
+    rut, eid = session['rut'], _empresa_id()
+    emp = db.empresa_de(rut, eid)
+    if not emp:
+        return jsonify({'error': 'Empresa no encontrada.'}), 404
+    archivo = request.files.get('logo')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'No se recibió imagen.'}), 400
+    ext = os.path.splitext(archivo.filename)[1].lower() or '.png'
+    base_cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    db.eliminar_doc_tipo(base_cid, None, 'logo_empresa')      # reemplazar anterior
+    doc_id = db.registrar_documento(base_cid, 'logo_empresa' + ext, '', 'logo_empresa',
+                                    contenido=archivo.read(), mimetype=archivo.mimetype or 'image/png')
+    db.empresa_set_logo(eid, doc_id)
+    return jsonify({'ok': True, 'logo_doc_id': doc_id, 'url': f'/api/doc/{doc_id}'})
+
+
+@app.route('/api/empresa/logo', methods=['GET'])
+@empresa_required
+def api_empresa_logo_get():
+    emp = db.empresa_de(session['rut'], _empresa_id()) or {}
+    return jsonify({'logo_doc_id': emp.get('logo_doc_id'),
+                    'url': f"/api/doc/{emp['logo_doc_id']}" if emp.get('logo_doc_id') else None,
+                    'razon_social': emp.get('razon_social')})
 
 
 # ── Trabajadores ──

@@ -56,11 +56,19 @@ _COLUMNAS_NUEVAS = [
     ('riesgo_item', 'tarea_id', 'INTEGER'),
     ('trabajador', 'empresa_id', 'INTEGER'),
     ('trabajador', 'cargo', 'TEXT'),
-    # Ronda 16 — Matriz Legal doble capa
+    # Ronda 16 — Matriz Legal doble capa + logo por empresa
     ('requisito_legal', 'is_mandatory', 'INTEGER DEFAULT 0'),
     ('requisito_legal', 'evidencia_notas', 'TEXT'),
     ('requisito_legal', 'fecha_vencimiento', 'TEXT'),
+    ('empresa', 'logo_doc_id', 'INTEGER'),
 ]
+
+
+def empresa_set_logo(empresa_id, doc_id):
+    e = Empresa.query.get(empresa_id)
+    if e:
+        e.logo_doc_id = doc_id
+        _commit()
 
 
 def _reset_tablas_legacy():

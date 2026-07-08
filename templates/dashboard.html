@@ -37,13 +37,24 @@
     <!-- ── Header ── -->
     <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
         <div class="flex items-center gap-4">
-            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-9 w-auto">
-            <div class="hidden md:flex flex-col border-l pl-4 leading-tight">
-                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Consola de Gestión Operativa</span>
-                <a href="/empresas" class="text-sm font-extrabold text-primary hover:underline inline-flex items-center gap-1" title="Cambiar de empresa">
-                    <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
-                    <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-gray-400"></i>
-                </a>
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+            <div class="hidden md:flex items-center gap-3 border-l pl-4">
+                <!-- Logo de la empresa cargada (o botón para añadirlo) -->
+                {% if empresa and empresa.logo_doc_id %}
+                <img id="navLogoEmpresa" src="/api/doc/{{ empresa.logo_doc_id }}" alt="Logo empresa" class="h-11 w-auto rounded border border-gray-200 bg-white p-0.5">
+                {% else %}
+                <label id="navAddLogo" class="h-11 px-3 flex items-center gap-1.5 border border-dashed border-primary/40 text-primary text-xs font-bold rounded cursor-pointer hover:bg-primary/5" title="Añadir logo de la empresa">
+                    <i data-lucide="image-plus" class="w-4 h-4"></i> Añadir logo
+                    <input type="file" accept="image/*" class="hidden" onchange="subirLogoEmpresa(this)">
+                </label>
+                {% endif %}
+                <div class="flex flex-col leading-tight">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Consola de Gestión Operativa</span>
+                    <a href="/empresas" class="text-sm font-extrabold text-primary hover:underline inline-flex items-center gap-1" title="Cambiar de empresa">
+                        <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-gray-400"></i>
+                    </a>
+                </div>
             </div>
         </div>
         <div class="flex items-center gap-5">
@@ -722,6 +733,15 @@
 
     <script>
         window.EMPRESA_NOMBRE = {{ (empresa.razon_social if empresa else '')|tojson }};
+        // Logo corporativo de la empresa (navbar): carga/reemplazo
+        async function subirLogoEmpresa(input) {
+            if (!input.files.length) return;
+            const fd = new FormData(); fd.append('logo', input.files[0]);
+            const r = await fetch('/api/empresa/logo', { method: 'POST', body: fd });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo cargar el logo.'); return; }
+            location.reload();
+        }
         // ── Contador de días de prueba gratuita ──
         // Días restantes a partir de una fecha de inicio de prueba (demo: hace 25 días, plan de 30).
         const PRUEBA_DIAS_TOTAL = 30;
