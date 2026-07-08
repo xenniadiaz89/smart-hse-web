@@ -266,6 +266,38 @@ def set_empresa_datos(rut, empresa_id, datos_json):
         _commit()
 
 
+def _empresa_datos_dict(empresa_id):
+    import json as _json
+    e = Empresa.query.get(empresa_id)
+    if not e:
+        return None, {}
+    try:
+        d = _json.loads(e.datos_json) if e.datos_json else {}
+    except (TypeError, ValueError):
+        d = {}
+    return e, d
+
+
+def seguimiento_get(empresa_id):
+    """Dict {categoria: {comentario, fecha_compromiso}} de seguimiento de docs anuales."""
+    _e, d = _empresa_datos_dict(empresa_id)
+    return d.get('seguimiento', {}) if d else {}
+
+
+def seguimiento_set(empresa_id, categoria, comentario=None, fecha_compromiso=None):
+    import json as _json
+    e, d = _empresa_datos_dict(empresa_id)
+    if not e:
+        return None
+    seg = d.get('seguimiento', {})
+    seg[categoria] = {'comentario': comentario or '', 'fecha_compromiso': fecha_compromiso or '',
+                      'fecha': _hoy()}
+    d['seguimiento'] = seg
+    e.datos_json = _json.dumps(d, ensure_ascii=False)
+    _commit()
+    return seg[categoria]
+
+
 def listar_contratos(rut, empresa_id=None):
     q = Contrato.query.filter_by(rut_asesor=rut)
     if empresa_id is not None:

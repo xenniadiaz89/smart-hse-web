@@ -357,7 +357,7 @@ def carta_na_html(rut, contrato, datos, item, fundamento):
  .firma{{margin-top:48px;border-top:1px solid #333;width:320px;padding-top:6px;font-size:13px}}
  .pie{{margin-top:24px;font-size:11px;color:#999}}
 </style></head><body>
- <div class="head">{logo_html}<div class="titulo"><h1>CARTA DE NO APLICABILIDAD (N/A)</h1><div class="sub">Carpeta de Arranque · RESSO Anexo 2</div></div></div>
+ <div class="head">{logo_html}<div class="titulo"><h1>CARTA DE NO APLICABILIDAD (N/A)</h1><div class="sub">DS 44/2024 · Gestión Preventiva de Riesgos Laborales</div></div></div>
  <table>
   <tr><td class="k">Fecha</td><td>{esc(hoy)}</td></tr>
   <tr><td class="k">Empresa Contratista</td><td>{esc(empresa)}</td></tr>
@@ -370,7 +370,7 @@ def carta_na_html(rut, contrato, datos, item, fundamento):
   Por medio de la presente, la Empresa Contratista declara que el requisito individualizado
   <b>NO APLICA</b> al presente contrato, por el siguiente fundamento:</div>
  <div class="fund">Fundamento: {esc(fund)}</div>
- <p>Esta declaración se incorpora a la Carpeta de Arranque para efectos de acreditación y auditoría.</p>
+ <p>Esta declaración se incorpora al sistema de gestión preventiva de la empresa (DS 44/2024) para efectos de acreditación y auditoría.</p>
  <div class="firma">{esc(datos.get('experto_eecc') or 'Experto en Prevención de Riesgos EE.CC.')}<br>
   <span class="sub">Experto en Prevención de Riesgos — Empresa Contratista</span></div>
  <div class="pie">Smart HSE Chile · Documento generado automáticamente</div>
@@ -829,8 +829,26 @@ def api_brecha_compromiso():
 @app.route('/api/pendientes', methods=['GET'])
 @empresa_required
 def api_pendientes():
-    """Panel de Actividades Pendientes unificado (legal + contractual + operativa)."""
-    return jsonify(alertas.actividades_pendientes(db, _empresa_id()))
+    """Panel de Actividades Pendientes unificado (legal + contractual + operativa),
+    con el seguimiento de actualización anual adjunto a cada ítem legal."""
+    eid = _empresa_id()
+    items = alertas.actividades_pendientes(db, eid)
+    seg = db.seguimiento_get(eid)
+    for it in items:
+        if it.get('tipo') == 'legal' and it.get('categoria') in seg:
+            it['seguimiento'] = seg[it['categoria']]
+    return jsonify(items)
+
+
+@app.route('/api/pendientes/<categoria>/seguimiento', methods=['POST'])
+@empresa_required
+def api_pendiente_seguimiento(categoria):
+    """Guarda el comentario y la fecha de compromiso de seguimiento de un documento anual."""
+    f = request.get_json(silent=True) or {}
+    res = db.seguimiento_set(_empresa_id(), categoria,
+                             comentario=(f.get('comentario') or '').strip(),
+                             fecha_compromiso=(f.get('fecha_compromiso') or '').strip() or None)
+    return jsonify({'ok': True, 'seguimiento': res})
 
 
 @app.route('/api/pendientes/<categoria>/subir', methods=['POST'])

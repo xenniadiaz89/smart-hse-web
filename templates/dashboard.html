@@ -120,17 +120,19 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cumplimiento</span>
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cumplimiento FUF 44</span>
                     <i data-lucide="shield-check" class="w-5 h-5 text-secondary"></i>
                 </div>
                 <p class="text-3xl font-extrabold text-gray-900" id="kpiCumplimiento">0%</p>
+                <p class="text-[11px] text-gray-400 mt-1"><span id="kpiConformes">0</span> / 60 ítems cumplidos</p>
             </div>
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ítems Cumple</span>
-                    <i data-lucide="check-circle-2" class="w-5 h-5 text-secondary"></i>
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trazabilidad Matriz Legal</span>
+                    <i data-lucide="table-2" class="w-5 h-5 text-primary"></i>
                 </div>
-                <p class="text-3xl font-extrabold text-gray-900"><span id="kpiConformes">0</span> / 60</p>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiTrazabilidad">0%</p>
+                <p class="text-[11px] text-gray-400 mt-1"><span id="kpiTrazAud">0</span> / <span id="kpiTrazTot">0</span> requisitos gestionados</p>
             </div>
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
@@ -141,10 +143,11 @@
             </div>
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">No Aplica (N/A)</span>
-                    <i data-lucide="file-text" class="w-5 h-5 text-primary"></i>
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Actualización Anual</span>
+                    <i data-lucide="calendar-clock" class="w-5 h-5 text-red-500"></i>
                 </div>
-                <p class="text-3xl font-extrabold text-gray-900" id="kpiNA">0</p>
+                <p class="text-3xl font-extrabold text-gray-900" id="kpiAnual">0</p>
+                <p class="text-[11px] text-gray-400 mt-1">documentos por vencer / vencidos</p>
             </div>
         </div><!-- /KPIs -->
 
@@ -173,14 +176,27 @@
                 </div>
                 <div id="avanceModulos" class="space-y-5"></div>
             </div>
-            <!-- Actividades recurrentes -->
+            <!-- Brechas Pendientes (tareas abiertas · responsable · fecha límite) -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div class="flex items-center gap-2 mb-5">
-                    <i data-lucide="calendar-check" class="w-5 h-5 text-secondary"></i>
-                    <h2 class="font-extrabold text-gray-900">Actividades</h2>
+                <div class="flex items-center justify-between gap-2 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="list-todo" class="w-5 h-5 text-secondary"></i>
+                        <h2 class="font-extrabold text-gray-900">Brechas Pendientes</h2>
+                    </div>
+                    <button type="button" onclick="cargarPendientesPanel()" class="text-gray-400 hover:text-primary" title="Actualizar"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
                 </div>
-                <ul id="avanceActividades" class="space-y-3"></ul>
+                <div id="brechasPendientes" class="space-y-2"></div>
             </div>
+        </div>
+
+        <!-- ── Actualización de Documentación Anual (alerta + seguimiento) ── -->
+        <div class="bg-white rounded-2xl shadow-sm border border-red-200 p-6 mt-6">
+            <div class="flex items-center gap-2 mb-4">
+                <i data-lucide="calendar-clock" class="w-5 h-5 text-red-500"></i>
+                <h2 class="font-extrabold text-gray-900">Actualización de Documentación Anual</h2>
+                <span id="anualCount" class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-0.5 rounded-full">0</span>
+            </div>
+            <div id="panelAnual" class="space-y-3"></div>
         </div>
 
         <!-- ── Avance por contrato ── -->
@@ -705,6 +721,7 @@
     <canvas id="camCanvas" class="hidden"></canvas>
 
     <script>
+        window.EMPRESA_NOMBRE = {{ (empresa.razon_social if empresa else '')|tojson }};
         // ── Contador de días de prueba gratuita ──
         // Días restantes a partir de una fecha de inicio de prueba (demo: hace 25 días, plan de 30).
         const PRUEBA_DIAS_TOTAL = 30;
@@ -922,39 +939,51 @@
                     <button type="button" onclick="corregirCampo(this)" class="bg-white border border-primary/40 text-primary px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
                         <i data-lucide="spell-check" class="w-4 h-4"></i> Corregir ortografía/gramática</button>
                     <button type="button" onclick="generarCarta(${n}, this)" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                        <i data-lucide="download" class="w-4 h-4"></i> Descargar carta (.txt)</button>
+                        <i data-lucide="file-check-2" class="w-4 h-4"></i> Generar carta</button>
                 </div>`;
             }
             return '';
         }
 
+        // Formato ESTÁNDAR de Carta N/A (HTML imprimible → PDF). Sin jerga RESSO; encuadre DS 44.
+        function cartaNAHtml({ titulo, empresa, fecha, refs, requisito, fundamento }) {
+            const e = s => (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const filas = refs.map(([k, v]) => `<tr><td class="k">${e(k)}</td><td>${e(v)}</td></tr>`).join('');
+            return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${e(titulo)}</title><style>
+ body{font-family:Arial,Helvetica,sans-serif;color:#1a2b3c;max-width:820px;margin:24px auto;padding:0 24px;line-height:1.5}
+ .head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #006a9b;padding-bottom:14px;margin-bottom:20px}
+ .titulo{text-align:right} h1{font-size:18px;margin:0;color:#006a9b} .sub{font-size:12px;color:#666}
+ table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px} td{padding:6px 8px;border-bottom:1px solid #eee} td.k{color:#666;width:230px;font-weight:600}
+ .item{background:#f4f7f6;border-radius:8px;padding:12px 14px;margin:14px 0} .decl{margin:18px 0}
+ .fund{background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:12px 14px;font-weight:600}
+ .firma{margin-top:48px;border-top:1px solid #333;width:320px;padding-top:6px;font-size:13px} .pie{margin-top:24px;font-size:11px;color:#999}
+ @media print{.noprint{display:none}}</style></head><body>
+ <div class="head"><div style="font-weight:800;color:#006a9b;font-size:20px">${e(empresa || 'Empresa')}</div>
+ <div class="titulo"><h1>CARTA DE NO APLICABILIDAD (N/A)</h1><div class="sub">DS 44/2024 · Gestión Preventiva de Riesgos Laborales</div></div></div>
+ <table><tr><td class="k">Fecha</td><td>${e(fecha)}</td></tr><tr><td class="k">Empresa</td><td>${e(empresa)}</td></tr>${filas}</table>
+ <div class="item"><b>${e(requisito.titulo)}</b><br><span class="sub">${e(requisito.detalle || '')}</span></div>
+ <div class="decl"><b>DECLARACIÓN DE NO APLICABILIDAD</b><br>Por medio de la presente, la empresa declara que el requisito individualizado <b>NO APLICA</b>, por el siguiente fundamento:</div>
+ <div class="fund">Fundamento: ${e(fundamento || '[Pendiente de fundamentar]')}</div>
+ <p>Esta declaración se incorpora al sistema de gestión preventiva de la empresa (DS 44/2024) para efectos de acreditación y auditoría.</p>
+ <div class="firma">Experto en Prevención de Riesgos<br><span class="sub">Empresa</span></div>
+ <div class="pie">Smart HSE Chile · Documento generado automáticamente · <button class="noprint" onclick="window.print()">Imprimir / Guardar PDF</button></div>
+</body></html>`;
+        }
+
         function generarCarta(n, btn) {
             const info = ITEM_INDEX[n];
             const texto = btn.closest('.accion').querySelector('textarea').value;
-            const fecha = new Date().toLocaleDateString('es-CL');
-            const contenido =
-`SMART HSE — CARTA DE FUNDAMENTO "NO APLICA" (FUF DS N°44/2024)
-==============================================================
-Fecha: ${fecha}
-Asesor (ID SNS): 12.345.678-K
-Ítem FUF N° ${n} — ${info.organismo}
-Norma: ${info.item.art}
-
-Requisito evaluado:
-${info.item.t}
-
-DECLARACIÓN DE NO APLICABILIDAD
--------------------------------
-${texto}
-
-Esta declaración se emite en el marco del Decreto Supremo N°44/2024 sobre gestión
-preventiva de los riesgos laborales, dejando constancia del fundamento técnico-legal
-por el cual el requisito no resulta aplicable a la faena/contrato evaluado.
-
-_____________________________
-Firma Asesor en Prevención`;
-
-            descargar(`Carta_NA_FUF_item_${n}.txt`, contenido, 'text/plain;charset=utf-8');
+            const html = cartaNAHtml({
+                titulo: `Carta N/A · FUF ítem ${n}`,
+                empresa: window.EMPRESA_NOMBRE || 'Empresa',
+                fecha: new Date().toLocaleDateString('es-CL'),
+                refs: [['Ítem FUF N°', n], ['Organismo', info.organismo], ['Norma', info.item.art]],
+                requisito: { titulo: `Ítem FUF N° ${n}`, detalle: info.item.t },
+                fundamento: texto,
+            });
+            const w = window.open('', '_blank');
+            if (w) { w.document.write(html); w.document.close(); }
+            else { descargar(`Carta_NA_FUF_item_${n}.html`, html, 'text/html;charset=utf-8'); }
         }
 
         function actualizarKPIs() {
@@ -966,7 +995,6 @@ Firma Asesor en Prevención`;
             const cumpl = evaluables > 0 ? Math.round((conformes / evaluables) * 100) : 0;
             document.getElementById('kpiConformes').textContent = conformes;
             // kpiBrechas lo controla el Panel de Brechas unificado (cargarBrechas)
-            document.getElementById('kpiNA').textContent = na;
             document.getElementById('kpiCumplimiento').textContent = cumpl + '%';
             if (typeof actualizarAvance === 'function') actualizarAvance();
         }
@@ -1119,15 +1147,6 @@ Firma Asesor en Prevención`;
         }
 
         // ── Tablero de avance (trabajos y actividades) ──
-        const ACTIVIDADES = [
-            { t: 'Registro FYS / ECF21 diario', cli: 'Codelco DRT', frec: 'Diaria', hecho: true },
-            { t: 'Actualización ECF21 Terreno', cli: 'Minera Spence', frec: 'Diaria', hecho: true },
-            { t: 'Registro All Scan', cli: 'Centinela', frec: 'Diaria', hecho: false },
-            { t: 'Revisión LOD semanal', cli: 'Codelco DRT', frec: 'Semanal', hecho: false },
-            { t: 'Acreditación de Equipos', cli: 'Minera Spence', frec: 'Semanal', hecho: false },
-            { t: 'Reunión CPHS', cli: 'Minera El Abra', frec: 'Mensual', hecho: false },
-        ];
-
         function actualizarAvance() {
             // progreso de módulos
             const vals = Object.values(estado);
@@ -1150,16 +1169,70 @@ Firma Asesor en Prevención`;
                         <div class="h-full ${b.col} rounded-full transition-all" style="width:${b.pct}%"></div>
                     </div>
                 </div>`).join('');
-            // actividades
-            document.getElementById('avanceActividades').innerHTML = ACTIVIDADES.map(a => `
-                <li class="flex items-start gap-3">
-                    <span class="mt-0.5 ${a.hecho ? 'text-secondary' : 'text-amber-500'}"><i data-lucide="${a.hecho ? 'check-circle-2' : 'clock'}" class="w-4 h-4"></i></span>
-                    <span class="min-w-0">
-                        <span class="block text-sm font-semibold text-gray-800 leading-tight">${a.t}</span>
-                        <span class="block text-xs text-gray-500">${a.cli} · ${a.frec} · ${a.hecho ? 'Realizada' : 'Pendiente'}</span>
-                    </span>
-                </li>`).join('');
             if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Dashboard de cumplimiento: Trazabilidad Matriz Legal + Brechas Pendientes + Actualización Anual ──
+        async function cargarTrazabilidad() {
+            let data = [];
+            try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
+            const gestionados = data.filter(r => ['auditado', 'no_aplica'].includes((r.estado_avance || '').toLowerCase())).length;
+            const pct = data.length ? Math.round((gestionados / data.length) * 100) : 0;
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            set('kpiTrazabilidad', pct + '%'); set('kpiTrazAud', gestionados); set('kpiTrazTot', data.length);
+        }
+        async function cargarPendientesPanel() {
+            let data = [];
+            try { const r = await fetch('/api/pendientes'); if (r.ok) data = await r.json(); } catch (e) { }
+            // Brechas Pendientes: actividad · responsable · fecha límite
+            const cont = document.getElementById('brechasPendientes');
+            if (cont) {
+                if (!data.length) cont.innerHTML = '<p class="text-sm text-gray-400">Sin brechas pendientes. ✅</p>';
+                else cont.innerHTML = data.map(x => {
+                    const fecha = x.fecha_vencimiento || x.fecha_compromiso || '';
+                    const resp = x.responsable || (x.contratos && x.contratos[0] && x.contratos[0].mandante) || '—';
+                    return `<div class="flex items-start justify-between gap-3 border border-gray-100 rounded-xl p-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800 leading-tight">${x.titulo || 'Actividad'}</p>
+                            <p class="text-[11px] text-gray-500 mt-0.5"><i data-lucide="user" class="w-3 h-3 inline"></i> ${resp}</p>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${x.tipo === 'legal' ? 'bg-primary/10 text-primary' : x.tipo === 'contractual' ? 'bg-amber-100 text-amber-700' : 'bg-secondary/10 text-secondary'}">${x.tipo}</span>
+                            <p class="text-[11px] text-gray-500 mt-1">${fecha ? 'Límite: ' + fecha : 'Sin fecha'}</p>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+            // Actualización Anual: solo docs legales por vencer/vencidos, con seguimiento
+            const anual = data.filter(x => x.tipo === 'legal' && ['por_vencer', 'pendiente_actualizacion', 'sin_documento'].includes(x.estado));
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            set('kpiAnual', anual.length); set('anualCount', anual.length);
+            const pa = document.getElementById('panelAnual');
+            if (pa) {
+                if (!anual.length) pa.innerHTML = '<p class="text-sm text-gray-400">Sin documentación anual por vencer. ✅</p>';
+                else pa.innerHTML = anual.map(x => {
+                    const seg = x.seguimiento || {};
+                    return `<div class="border border-gray-100 rounded-xl p-3">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <p class="text-sm font-bold text-gray-800">${x.titulo}</p>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${x.estado === 'pendiente_actualizacion' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${x.estado === 'pendiente_actualizacion' ? 'Vencido' : (x.estado === 'sin_documento' ? 'Sin documento' : 'Por vencer')}</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">${x.base_legal || ''}${x.fecha_vencimiento ? ' · vence ' + x.fecha_vencimiento : ''}</p>
+                        <div class="flex flex-wrap items-end gap-2 mt-2">
+                            <input id="seg_${x.categoria}" value="${(seg.comentario || '').replace(/"/g, '&quot;')}" placeholder="Comentario de seguimiento…" class="flex-1 min-w-[10rem] text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-primary">
+                            <input id="segf_${x.categoria}" type="date" value="${seg.fecha_compromiso || ''}" title="Fecha de compromiso" class="text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-primary">
+                            <button type="button" onclick="guardarSeguimiento('${x.categoria}')" class="text-[11px] font-bold bg-secondary text-white px-3 py-1.5 rounded">Guardar</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+        async function guardarSeguimiento(categoria) {
+            const comentario = (document.getElementById('seg_' + categoria) || {}).value || '';
+            const fecha_compromiso = (document.getElementById('segf_' + categoria) || {}).value || '';
+            await fetch(`/api/pendientes/${categoria}/seguimiento`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comentario, fecha_compromiso }) });
+            alert('Seguimiento guardado.');
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -2001,6 +2074,12 @@ Firma Asesor en Prevención`;
                 const guardar = it._saved
                     ? `<span class="text-[11px] font-bold text-green-600 px-2">Guardado ✓</span>`
                     : `<button type="button" onclick="guardarItem(${it.n})" class="inline-flex items-center gap-1 bg-secondary hover:bg-[#6a9e32] text-white text-[11px] font-bold px-3 py-1.5 rounded"><i data-lucide="save" class="w-3.5 h-3.5"></i> Guardar</button>`;
+                const cartaDoc = (it.docs || []).find(d => d.tipo === 'carta_na');
+                const btnCarta = it.estado === 'na'
+                    ? (cartaDoc
+                        ? `<a href="/api/doc/${cartaDoc.id}" target="_blank" class="inline-flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar carta</a>`
+                        : `<button type="button" onclick="generarCartaCarpeta(${it.n})" class="inline-flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar carta</button>`)
+                    : '';
                 return `<div class="bg-white rounded-xl border ${obsFalta ? 'border-amber-300' : 'border-gray-100'} p-4">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -2021,6 +2100,7 @@ Firma Asesor en Prevención`;
                                oninput="stageObs(${it.n}, this.value)"
                                class="flex-1 min-w-[8rem] text-xs border ${obsFalta ? 'border-amber-400' : 'border-gray-200'} rounded px-2 py-1.5 outline-none focus:border-primary">
                         ${fechaField}
+                        ${btnCarta}
                         ${guardar}
                     </div>
                     ${docs}
@@ -2055,6 +2135,17 @@ Firma Asesor en Prevención`;
             pintarCarpeta();
             cargarContratos();
             if (typeof cargarBrechas === 'function') cargarBrechas();
+        }
+
+        // Genera la carta N/A del ítem de Carpeta: guarda el estado (el backend crea la carta) y la abre.
+        async function generarCartaCarpeta(n) {
+            const it = _carpItem(n);
+            if (!it || it.estado !== 'na') { alert('Marca el ítem como N/A primero.'); return; }
+            await guardarItem(n);
+            const fresh = _carpItem(n);
+            const carta = (fresh && fresh.docs || []).find(d => d.tipo === 'carta_na');
+            if (carta) window.open(`/api/doc/${carta.id}`, '_blank');
+            else alert('La carta se generó y quedó adjunta al ítem. Ábrela desde el listado del ítem.');
         }
 
         async function subirEvidencia(n, input) {
@@ -2413,6 +2504,8 @@ Firma Asesor en Prevención`;
         cargarContratos();
         cargarFUF();
         cargarBrechas();
+        cargarTrazabilidad();
+        cargarPendientesPanel();
         const _vistaInicial = (location.hash || '').replace('#', '');
         mostrarVista(['contratos', 'ds44', 'iet', 'checklist'].includes(_vistaInicial) ? _vistaInicial : 'avance');
         lucide.createIcons();
