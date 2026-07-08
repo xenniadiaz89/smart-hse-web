@@ -18,6 +18,7 @@ import correccion
 import cumplimiento
 import alertas
 import docgen
+import iper
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -1187,6 +1188,145 @@ def api_irl_generar():
 @empresa_required
 def api_trabajador_irls(tid):
     return jsonify(db.irls_de_trabajador(tid))
+
+
+# ══════════════ Ronda 17 — Consola MIPER (VEP DS 44) + biblioteca + cascada IRL ══════════
+@app.route('/api/miper', methods=['GET'])
+@empresa_required
+def api_miper():
+    """Matriz de riesgos vigente: tareas → riesgos (con VEP/magnitud/método) + contexto minero."""
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid)
+    if not m:
+        m = {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
+        m = db.matriz_riesgo_vigente(eid)
+    tareas = db.tareas_de_matriz(m['id'])
+    for t in tareas:
+        t['riesgos'] = db.riesgos_de_tarea(t['id'])
+        t['trabajadores'] = [x['id'] for x in db.trabajadores_de_tarea(t['id'])]
+    return jsonify({'matriz': m, 'tareas': tareas,
+                    'mineros': db.contratos_mineros_de(eid), 'ecf_puntos': iper.ECF_PUNTOS,
+                    'escala': {'probabilidad': iper.PROBABILIDAD, 'consecuencia': iper.CONSECUENCIA}})
+
+
+@app.route('/api/miper/tareas', methods=['POST'])
+@empresa_required
+def api_miper_tarea():
+    """Crea una tarea manual con sus riesgos. Si guardar_biblioteca=1, la persiste para reuso."""
+    f = request.get_json(silent=True) or {}
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre de la tarea.'}), 400
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
+    mid = m['id'] if isinstance(m, dict) else m
+    tid = db.tarea_crear(mid, nombre, proceso=(f.get('proceso') or '').strip() or None,
+                         responsable=(f.get('responsable') or '').strip() or None,
+                         rutinaria=(f.get('rutinaria') or '').strip() or None)
+    from models import RiesgoItem
+    for r in (f.get('riesgos') or []):
+        rid = db.riesgo_agregar(mid, r.get('peligro'), r.get('riesgo'), r.get('medida_control'),
+                                probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+                                metodo_correcto=r.get('metodo_correcto'),
+                                contrato_id=r.get('contrato_id') or None,
+                                ecf_punto=r.get('ecf_punto'), mfl=r.get('mfl'), bowtie=r.get('bowtie'))
+        it = RiesgoItem.query.get(rid)
+        if it:
+            it.tarea_id = tid
+    sqla.session.commit()
+    # auto-aprendizaje: guardar en biblioteca personalizada
+    if f.get('guardar_biblioteca'):
+        for r in (f.get('riesgos') or [{}]):
+            db.biblioteca_crear(eid, nombre, peligro=r.get('peligro'), riesgo=r.get('riesgo'),
+                                medida_control=r.get('medida_control'),
+                                metodo_correcto=r.get('metodo_correcto'),
+                                probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'))
+    return jsonify({'ok': True, 'tarea_id': tid})
+
+
+@app.route('/api/miper/riesgo', methods=['POST'])
+@empresa_required
+def api_miper_riesgo_add():
+    """Agrega un riesgo a una tarea existente."""
+    f = request.get_json(silent=True) or {}
+    tid = f.get('tarea_id')
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid)
+    if not (m and tid):
+        return jsonify({'error': 'Falta matriz o tarea.'}), 400
+    rid = db.riesgo_agregar(m['id'], f.get('peligro'), f.get('riesgo'), f.get('medida_control'),
+                            probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'),
+                            metodo_correcto=f.get('metodo_correcto'),
+                            contrato_id=f.get('contrato_id') or None)
+    from models import RiesgoItem
+    it = RiesgoItem.query.get(rid)
+    if it:
+        it.tarea_id = int(tid)
+        sqla.session.commit()
+    return jsonify({'ok': True, 'riesgo_id': rid})
+
+
+@app.route('/api/miper/riesgo/<int:rid>/campo', methods=['POST'])
+@empresa_required
+def api_miper_riesgo_campo(rid):
+    """Edita en línea un campo del riesgo (recalcula VEP). Si cambia una medida/método/peligro/riesgo,
+    dispara la cascada al IRL (Art. 15 DS 44): regenera los IRL de los trabajadores afectados con
+    aviso de que requieren nueva firma."""
+    f = request.get_json(silent=True) or {}
+    campo, valor = f.get('campo'), f.get('valor')
+    it, afecta_irl = db.riesgo_editar(rid, campo, valor)
+    if it is None:
+        return jsonify({'error': 'Campo no editable o riesgo no encontrado.'}), 400
+    resp = {'ok': True, 'riesgo': it, 'irls_actualizados': []}
+    if afecta_irl and it.get('tarea_id'):
+        rut, eid = session['rut'], _empresa_id()
+        empresa = db.empresa_de(rut, eid)
+        logo = _logo_empresa(rut, eid)
+        afectados = docgen.regenerar_irls_de_tarea(
+            db, empresa, it['tarea_id'], session.get('nombre') or rut, logo_data_uri=logo,
+            motivo=f'Cambio en “{campo}” de la Matriz IPER')
+        resp['irls_actualizados'] = afectados
+    return jsonify(resp)
+
+
+@app.route('/api/miper/riesgo/<int:rid>/eliminar', methods=['POST'])
+@empresa_required
+def api_miper_riesgo_del(rid):
+    from models import RiesgoItem
+    it = RiesgoItem.query.get(rid)
+    m = db.matriz_riesgo_vigente(_empresa_id())
+    if it and m and it.matriz_id == m['id']:
+        sqla.session.delete(it)
+        sqla.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/miper/versionar', methods=['POST'])
+@empresa_required
+def api_miper_versionar():
+    f = request.get_json(silent=True) or {}
+    motivo = (f.get('motivo') or 'Revisión periódica').strip()
+    nueva = db.bloquear_y_versionar(_empresa_id(), motivo, session.get('nombre'))
+    return jsonify({'ok': True, 'matriz': nueva})
+
+
+@app.route('/api/biblioteca', methods=['GET'])
+@empresa_required
+def api_biblioteca_get():
+    return jsonify(db.biblioteca_listar(_empresa_id()))
+
+
+@app.route('/api/biblioteca', methods=['POST'])
+@empresa_required
+def api_biblioteca_add():
+    f = request.get_json(silent=True) or {}
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre.'}), 400
+    db.biblioteca_crear(_empresa_id(), nombre, peligro=f.get('peligro'), riesgo=f.get('riesgo'),
+                        medida_control=f.get('medida_control'), metodo_correcto=f.get('metodo_correcto'),
+                        probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'))
+    return jsonify(db.biblioteca_listar(_empresa_id()))
 
 
 @app.route('/api/contratos/<int:cid>/carpeta/<int:n>/documento', methods=['POST'])

@@ -14,7 +14,9 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario,
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
-                    TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado)
+                    TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
+                    BibliotecaTarea)
+import iper
 
 
 def _hoy():
@@ -61,6 +63,15 @@ _COLUMNAS_NUEVAS = [
     ('requisito_legal', 'evidencia_notas', 'TEXT'),
     ('requisito_legal', 'fecha_vencimiento', 'TEXT'),
     ('empresa', 'logo_doc_id', 'INTEGER'),
+    # Ronda 17 — MIPER VEP + método + capa minera + re-firma IRL
+    ('riesgo_item', 'vep', 'INTEGER'),
+    ('riesgo_item', 'metodo_correcto', 'TEXT'),
+    ('riesgo_item', 'contrato_id', 'INTEGER'),
+    ('riesgo_item', 'ecf_punto', 'TEXT'),
+    ('riesgo_item', 'mfl', 'TEXT'),
+    ('riesgo_item', 'bowtie', 'TEXT'),
+    ('irl_generado', 'requiere_refirma', 'INTEGER DEFAULT 0'),
+    ('irl_generado', 'motivo_actualizacion', 'TEXT'),
 ]
 
 
@@ -896,7 +907,8 @@ def matriz_riesgo_vigente(empresa_id):
 
 
 def crear_matriz_riesgo(empresa_id, creado_por=None):
-    """Crea (o devuelve) la matriz de riesgos vigente de la empresa (versión 1)."""
+    """Crea (o devuelve) la matriz de riesgos vigente de la empresa (versión 1). Al crearla,
+    precarga el catálogo base transversal DS 44 (Ronda 17)."""
     existente = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
     if existente:
         return existente.id
@@ -904,18 +916,51 @@ def crear_matriz_riesgo(empresa_id, creado_por=None):
                      creado_por=creado_por, creado_en=_hoy())
     sqla.session.add(m)
     _commit()
+    seed_tareas_base(m.id, empresa_id)
     return m.id
+
+
+def seed_tareas_base(matriz_id, empresa_id):
+    """Precarga las tareas/riesgos transversales del catálogo base (iper.CATALOGO_TAREAS_BASE)."""
+    if TareaIPER.query.filter_by(matriz_id=matriz_id).first():
+        return                       # ya sembrada
+    for t in iper.CATALOGO_TAREAS_BASE:
+        tid = tarea_crear(matriz_id, t['tarea'], proceso=t.get('proceso'), rutinaria='rutinaria')
+        for r in t.get('riesgos', []):
+            rid = riesgo_agregar(matriz_id, r['peligro'], r['riesgo'], r['medida_control'],
+                                 probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+                                 metodo_correcto=r.get('metodo_correcto'))
+            it = RiesgoItem.query.get(rid)
+            if it:
+                it.tarea_id = tid
+    _commit()
+
+
+def _aplicar_vep(it, probabilidad, consecuencia):
+    """Calcula VEP y magnitud (Guía ISP 3, 3×3) y los asigna al ítem."""
+    if probabilidad is None or consecuencia is None:
+        return
+    ev = iper.calcular_vep(probabilidad, consecuencia)
+    it.probabilidad = ev['probabilidad']
+    it.consecuencia = ev['consecuencia']
+    it.vep = ev['vep']
+    it.nivel_riesgo = ev['magnitud']
 
 
 def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None,
                    consecuencia=None, nivel_riesgo=None, tipo_control=None, mandante_key=None,
-                   es_critico=0, requisito_legal_id=None, evidencia_doc_id=None):
+                   es_critico=0, requisito_legal_id=None, evidencia_doc_id=None,
+                   metodo_correcto=None, contrato_id=None, ecf_punto=None, mfl=None, bowtie=None):
     it = RiesgoItem(matriz_id=matriz_id, peligro=peligro, riesgo=riesgo,
-                    medida_control=medida_control, probabilidad=probabilidad,
-                    consecuencia=consecuencia, nivel_riesgo=nivel_riesgo, tipo_control=tipo_control,
-                    mandante_key=mandante_key, es_critico=1 if es_critico else 0,
-                    requisito_legal_id=requisito_legal_id, evidencia_doc_id=evidencia_doc_id,
+                    medida_control=medida_control, tipo_control=tipo_control,
+                    metodo_correcto=metodo_correcto, mandante_key=mandante_key,
+                    es_critico=1 if es_critico else 0, requisito_legal_id=requisito_legal_id,
+                    evidencia_doc_id=evidencia_doc_id, contrato_id=contrato_id,
+                    ecf_punto=ecf_punto, mfl=mfl, bowtie=bowtie,
                     estado_control='vigente', fecha=_hoy())
+    _aplicar_vep(it, probabilidad, consecuencia)
+    if nivel_riesgo and it.nivel_riesgo is None:
+        it.nivel_riesgo = nivel_riesgo
     sqla.session.add(it)
     _commit()
     return it.id
@@ -924,6 +969,77 @@ def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None
 def riesgo_items(matriz_id):
     return [i.to_dict() for i in
             RiesgoItem.query.filter_by(matriz_id=matriz_id).order_by(RiesgoItem.id).all()]
+
+
+# Campos editables en línea del ítem de riesgo (recalcula VEP si cambian P/C).
+_RIESGO_CAMPOS = ('peligro', 'riesgo', 'medida_control', 'metodo_correcto', 'tipo_control',
+                  'probabilidad', 'consecuencia', 'es_critico', 'contrato_id',
+                  'ecf_punto', 'mfl', 'bowtie')
+# Cambios en estos campos disparan la cascada al IRL (Art. 15 DS 44).
+_RIESGO_CAMPOS_IRL = ('medida_control', 'metodo_correcto', 'riesgo', 'peligro')
+
+
+def riesgo_editar(item_id, campo, valor):
+    """Edita un campo del ítem de riesgo. Devuelve (dict, afecta_irl:bool)."""
+    it = RiesgoItem.query.get(item_id)
+    if not it or campo not in _RIESGO_CAMPOS:
+        return None, False
+    if campo in ('probabilidad', 'consecuencia'):
+        try:
+            v = int(valor)
+        except (TypeError, ValueError):
+            return it.to_dict(), False
+        p = v if campo == 'probabilidad' else it.probabilidad
+        c = v if campo == 'consecuencia' else it.consecuencia
+        _aplicar_vep(it, p if p is not None else v, c if c is not None else v)
+    elif campo == 'es_critico':
+        it.es_critico = 1 if str(valor) in ('1', 'true', 'True', 'si') else 0
+    else:
+        setattr(it, campo, valor)
+    it.fecha = _hoy()
+    _commit()
+    return it.to_dict(), (campo in _RIESGO_CAMPOS_IRL)
+
+
+def trabajadores_de_tarea(tarea_id):
+    """Trabajadores asignados a una tarea (para la cascada IRL)."""
+    rows = (sqla.session.query(Trabajador)
+            .join(TrabajadorTarea, TrabajadorTarea.trabajador_id == Trabajador.id)
+            .filter(TrabajadorTarea.tarea_id == tarea_id).all())
+    return [t.to_dict() for t in rows]
+
+
+def contrato_es_minero(contrato_id):
+    if not contrato_id:
+        return False
+    c = Contrato.query.get(contrato_id)
+    return bool(c and c.es_contratista_minera)
+
+
+def contratos_mineros_de(empresa_id):
+    return [{'id': c.id, 'numero': c.numero, 'mandante': c.mandante}
+            for c in Contrato.query.filter_by(empresa_id=empresa_id, es_contratista_minera=1).all()]
+
+
+# ── Biblioteca personalizada (auto-aprendizaje) ──
+def biblioteca_crear(empresa_id, nombre, peligro=None, riesgo=None, medida_control=None,
+                     metodo_correcto=None, probabilidad=None, consecuencia=None):
+    b = BibliotecaTarea(empresa_id=empresa_id, nombre=nombre, peligro=peligro, riesgo=riesgo,
+                        medida_control=medida_control, metodo_correcto=metodo_correcto,
+                        probabilidad=probabilidad, consecuencia=consecuencia, creado=_hoy())
+    sqla.session.add(b)
+    _commit()
+    return b.id
+
+
+def biblioteca_listar(empresa_id):
+    return [b.to_dict() for b in
+            BibliotecaTarea.query.filter_by(empresa_id=empresa_id).order_by(BibliotecaTarea.nombre).all()]
+
+
+def biblioteca_eliminar(empresa_id, bid):
+    BibliotecaTarea.query.filter_by(id=bid, empresa_id=empresa_id).delete()
+    _commit()
 
 
 def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
@@ -941,11 +1057,14 @@ def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
     sqla.session.flush()          # asigna nueva.id antes de clonar
     for it in RiesgoItem.query.filter_by(matriz_id=actual.id).all():
         sqla.session.add(RiesgoItem(
-            matriz_id=nueva.id, peligro=it.peligro, riesgo=it.riesgo, probabilidad=it.probabilidad,
-            consecuencia=it.consecuencia, nivel_riesgo=it.nivel_riesgo, medida_control=it.medida_control,
-            tipo_control=it.tipo_control, mandante_key=it.mandante_key, es_critico=it.es_critico,
+            matriz_id=nueva.id, tarea_id=it.tarea_id, peligro=it.peligro, riesgo=it.riesgo,
+            probabilidad=it.probabilidad, consecuencia=it.consecuencia, vep=it.vep,
+            nivel_riesgo=it.nivel_riesgo, medida_control=it.medida_control,
+            metodo_correcto=it.metodo_correcto, tipo_control=it.tipo_control,
+            mandante_key=it.mandante_key, es_critico=it.es_critico,
             requisito_legal_id=it.requisito_legal_id, estado_control=it.estado_control,
-            evidencia_doc_id=it.evidencia_doc_id, fecha=_hoy()))
+            evidencia_doc_id=it.evidencia_doc_id, contrato_id=it.contrato_id,
+            ecf_punto=it.ecf_punto, mfl=it.mfl, bowtie=it.bowtie, fecha=_hoy()))
     _commit()
     return nueva.to_dict()
 
@@ -1110,10 +1229,13 @@ def tareas_de_trabajador(trabajador_id):
 
 
 # ── Registro de auditoría de IRLs generados ──
-def irl_registrar(trabajador_id, empresa_id, matriz_version, doc_id, audit_id, generado_por):
+def irl_registrar(trabajador_id, empresa_id, matriz_version, doc_id, audit_id, generado_por,
+                  requiere_refirma=False, motivo=None):
     r = IRLGenerado(trabajador_id=trabajador_id, empresa_id=empresa_id, matriz_version=matriz_version,
                     doc_id=doc_id, audit_id=audit_id, generado_por=generado_por,
-                    generado_en=_dt.now().isoformat(timespec='seconds'), estado='Generado')
+                    generado_en=_dt.now().isoformat(timespec='seconds'),
+                    estado='Actualizado' if requiere_refirma else 'Generado',
+                    requiere_refirma=1 if requiere_refirma else 0, motivo_actualizacion=motivo)
     sqla.session.add(r)
     _commit()
     return r.id

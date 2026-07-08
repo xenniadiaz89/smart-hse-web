@@ -55,6 +55,14 @@
             <td class="k">Versión matriz IPER</td><td>V{{ matriz_version }}</td></tr>
     </table>
 
+    {% if requiere_refirma %}
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:8px;padding:12px 14px;margin:14px 0;color:#7f1d1d;font-size:12.5px">
+        <b>⚠ Documento actualizado el {{ fecha }}.</b> Se modificaron riesgos y/o medidas preventivas en la
+        Matriz IPER de la empresa (Art. 15, DS 44/2024){% if motivo %} — {{ motivo }}{% endif %}.
+        <b>Este IRL requiere una nueva firma del trabajador</b> que acredite haber sido informado del cambio.
+    </div>
+    {% endif %}
+
     {% if not tareas %}
         <p class="vacio">Este trabajador no tiene Tareas asignadas en la Matriz IPER. Asigna tareas para generar su IRL.</p>
     {% endif %}
@@ -68,19 +76,21 @@
     </p>
     <table class="riesgos">
         <thead><tr>
-            <th style="width:22%">Peligro</th><th style="width:22%">Riesgo</th>
-            <th style="width:10%">Nivel</th><th style="width:46%">Medida de Control</th>
+            <th style="width:18%">Peligro</th><th style="width:18%">Riesgo</th>
+            <th style="width:9%">Magnitud</th><th style="width:28%">Medida Preventiva</th>
+            <th style="width:27%">Método de Trabajo Correcto</th>
         </tr></thead>
         <tbody>
         {% for r in bloque.riesgos %}
             <tr>
                 <td>{{ r.peligro or '—' }}</td>
                 <td>{{ r.riesgo or '—' }}</td>
-                <td>{% if r.nivel_riesgo %}<span class="nivel {{ (r.nivel_riesgo|string|lower) }}">{{ r.nivel_riesgo }}</span>{% else %}—{% endif %}</td>
+                <td>{% if r.nivel_riesgo %}<span class="nivel {{ (r.nivel_riesgo|string|lower) }}">{{ r.nivel_riesgo }}</span>{% if r.vep %} <span style="font-size:9px;color:#888">VEP {{ r.vep }}</span>{% endif %}{% else %}—{% endif %}</td>
                 <td>{{ r.medida_control or '—' }}</td>
+                <td>{{ r.metodo_correcto or '—' }}</td>
             </tr>
         {% else %}
-            <tr><td colspan="4" class="vacio">Sin riesgos registrados para esta tarea.</td></tr>
+            <tr><td colspan="5" class="vacio">Sin riesgos registrados para esta tarea.</td></tr>
         {% endfor %}
         </tbody>
     </table>

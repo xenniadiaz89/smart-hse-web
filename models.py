@@ -304,10 +304,12 @@ class RiesgoItem(_DictMixin, sqla.Model):
     tarea_id = sqla.Column(sqla.Integer, sqla.ForeignKey('tarea_iper.id'), index=True)  # Ronda 15
     peligro = sqla.Column(sqla.Text)
     riesgo = sqla.Column(sqla.Text)
-    probabilidad = sqla.Column(sqla.Integer)
-    consecuencia = sqla.Column(sqla.Integer)
-    nivel_riesgo = sqla.Column(sqla.Text)                  # evaluación P×C (bajo/medio/alto/crítico)
-    medida_control = sqla.Column(sqla.Text)
+    probabilidad = sqla.Column(sqla.Integer)               # 1-3 (Guía ISP 3)
+    consecuencia = sqla.Column(sqla.Integer)               # 1-3
+    vep = sqla.Column(sqla.Integer)                        # Ronda 17: VEP = P × C (1..9)
+    nivel_riesgo = sqla.Column(sqla.Text)                  # Magnitud: Trivial/Tolerable/Moderado/Importante/Intolerable
+    medida_control = sqla.Column(sqla.Text)                # medida preventiva
+    metodo_correcto = sqla.Column(sqla.Text)               # Ronda 17: método de trabajo correcto
     tipo_control = sqla.Column(sqla.Text)                  # jerarquía de control
     mandante_key = sqla.Column(sqla.Text)                  # dialecto: 'codelco'|'bhp_spence'|None
     es_critico = sqla.Column(sqla.Integer, default=0)
@@ -315,6 +317,11 @@ class RiesgoItem(_DictMixin, sqla.Model):
     requisito_legal_id = sqla.Column(sqla.Integer, sqla.ForeignKey('requisito_legal.id'))
     estado_control = sqla.Column(sqla.Text, default='vigente')  # 'vigente'|'en_revision'
     evidencia_doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))  # control en terreno
+    # Ronda 17 — capa minera condicional (por faena); null = base DS 44 pura
+    contrato_id = sqla.Column(sqla.Integer, sqla.ForeignKey('contrato.id'))  # faena minera ligada
+    ecf_punto = sqla.Column(sqla.Text)                    # subpunto ECF (22.1/22.3/22.4)
+    mfl = sqla.Column(sqla.Text)                           # Máxima Pérdida Previsible (solo minero)
+    bowtie = sqla.Column(sqla.Text)                        # análisis Bowtie (solo minero)
     fecha = sqla.Column(sqla.Text)
 
 
@@ -401,3 +408,21 @@ class IRLGenerado(_DictMixin, sqla.Model):
     generado_por = sqla.Column(sqla.Text)
     generado_en = sqla.Column(sqla.Text)
     estado = sqla.Column(sqla.Text, default='Generado')
+    requiere_refirma = sqla.Column(sqla.Integer, default=0)   # Ronda 17: cambió la IPER → re-firmar
+    motivo_actualizacion = sqla.Column(sqla.Text)
+
+
+class BibliotecaTarea(_DictMixin, sqla.Model):
+    """Auto-aprendizaje (Ronda 17): tareas/riesgos personalizados que la empresa guarda para
+    reusar en futuros contratos o evaluaciones."""
+    __tablename__ = 'biblioteca_tarea'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    nombre = sqla.Column(sqla.Text, nullable=False)          # nombre de la tarea/actividad
+    peligro = sqla.Column(sqla.Text)
+    riesgo = sqla.Column(sqla.Text)
+    medida_control = sqla.Column(sqla.Text)
+    metodo_correcto = sqla.Column(sqla.Text)
+    probabilidad = sqla.Column(sqla.Integer)
+    consecuencia = sqla.Column(sqla.Integer)
+    creado = sqla.Column(sqla.Text)

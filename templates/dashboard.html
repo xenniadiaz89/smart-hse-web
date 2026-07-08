@@ -113,6 +113,8 @@
                    <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span></button>
                <button type="button" data-nav="matriz" onclick="mostrarVista('matriz'); cargarMatriz()" class="nav-item">
                    <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz Legal</span></button>
+               <button type="button" data-nav="miper" onclick="mostrarVista('miper'); cargarMIPER()" class="nav-item">
+                   <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de Riesgos</span></button>
                <button type="button" data-nav="irl" onclick="mostrarVista('irl'); cargarIRL()" class="nav-item">
                    <i data-lucide="file-badge" class="w-5 h-5"></i> <span>Trabajadores / IRL</span></button>
                <button type="button" data-nav="iet" onclick="mostrarVista('iet')" class="nav-item">
@@ -432,6 +434,58 @@
                         <div class="flex justify-end gap-2 pt-1">
                             <button type="button" onclick="cerrarNuevoReq()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
                             <button type="button" onclick="guardarNuevoReq()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA: Matriz de Riesgos (MIPER — DS 44 / Guía ISP 3, VEP=P×C) -->
+        <section id="vista-miper" class="hidden">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shield-alert" class="w-5 h-5 text-primary"></i>
+                    <h2 class="text-xl font-extrabold text-gray-900">Matriz de Riesgos (MIPER)</h2>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" onclick="abrirNuevaTareaMiper()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="plus" class="w-4 h-4"></i> Agregar Tarea</button>
+                    <button type="button" onclick="versionarMiper()" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl font-bold text-sm" title="Bloquear y crear Revisión V2"><i data-lucide="git-branch" class="w-4 h-4"></i> Revisión V2</button>
+                </div>
+            </div>
+            <p class="text-gray-600 text-sm mb-4">Evaluación <b>DS 44 / Guía ISP 3</b>: <b>VEP = Probabilidad × Consecuencia</b> (escala 1-3). El catálogo base transversal viene precargado. Los campos mineros (ECF/MFL/Bowtie) aparecen solo en tareas ligadas a una faena minera. <span id="miperVer" class="text-gray-400"></span></p>
+            <div id="miperLista" class="space-y-5"></div>
+
+            <!-- Modal: Agregar Tarea (manual + biblioteca) -->
+            <div id="tareaMiperOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8">
+                    <div class="border-b px-6 py-4 flex items-center justify-between">
+                        <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar Tarea / Actividad</h3>
+                        <button type="button" onclick="cerrarNuevaTareaMiper()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <div id="bibliotecaBox" class="hidden bg-primary/5 border border-primary/20 rounded-lg p-2">
+                            <span class="text-[11px] font-bold text-gray-500">Usar desde biblioteca:</span>
+                            <select id="tm_biblio" onchange="usarBiblioteca()" class="iet-in !py-1 !text-xs inline-block ml-1" style="max-width:60%"><option value="">—</option></select>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <input id="tm_nombre" class="iet-in sm:col-span-2" placeholder="Nombre de la tarea (ej. Trabajo en altura)">
+                            <input id="tm_proceso" class="iet-in" placeholder="Proceso / área">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input id="tm_peligro" class="iet-in" placeholder="Peligro">
+                            <input id="tm_riesgo" class="iet-in" placeholder="Riesgo">
+                        </div>
+                        <textarea id="tm_medida" class="iet-in" rows="2" placeholder="Medida preventiva"></textarea>
+                        <textarea id="tm_metodo" class="iet-in" rows="2" placeholder="Método de trabajo correcto"></textarea>
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-600">Probabilidad <select id="tm_p" class="iet-in !py-1 !inline-block !w-auto"><option value="1">1 Baja</option><option value="2">2 Media</option><option value="3">3 Alta</option></select></label>
+                            <label class="text-xs text-gray-600">Consecuencia <select id="tm_c" class="iet-in !py-1 !inline-block !w-auto"><option value="1">1 Leve</option><option value="2">2 Dañino</option><option value="3">3 Extremo</option></select></label>
+                            <span id="tm_vep" class="text-xs font-bold text-gray-500"></span>
+                        </div>
+                        <label class="text-xs text-gray-600">Faena minera (opcional) <select id="tm_contrato" class="iet-in !py-1 !inline-block !w-auto"><option value="">— Base DS 44 —</option></select></label>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button type="button" onclick="cerrarNuevaTareaMiper()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                            <button type="button" onclick="guardarNuevaTareaMiper()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar tarea</button>
                         </div>
                     </div>
                 </div>
@@ -1156,7 +1210,7 @@
         // ─────────────────────────────────────────────────────────────
         // NAVEGACIÓN DE VISTAS (menú lateral)
         // ─────────────────────────────────────────────────────────────
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'matriz', 'irl'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'matriz', 'miper', 'irl'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -2343,6 +2397,110 @@
             cargarMatriz();
         }
 
+        // ── Consola MIPER (VEP DS 44 / Guía ISP 3) ──
+        let _miper = { tareas: [], mineros: [], ecf: [] };
+        const MAG_COLOR = { Trivial: 'bg-gray-100 text-gray-600', Tolerable: 'bg-green-100 text-green-700', Moderado: 'bg-yellow-100 text-yellow-700', Importante: 'bg-amber-100 text-amber-700', Intolerable: 'bg-red-100 text-red-700' };
+        function escM(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+        async function cargarMIPER() {
+            let d = { tareas: [], mineros: [], ecf_puntos: [] };
+            try { const r = await fetch('/api/miper'); if (r.ok) d = await r.json(); } catch (e) { }
+            _miper = { tareas: d.tareas || [], mineros: d.mineros || [], ecf: d.ecf_puntos || [] };
+            document.getElementById('miperVer').textContent = d.matriz ? `· Matriz V${d.matriz.version} (${d.matriz.estado})` : '';
+            renderMIPER();
+        }
+        function selP(id, val) { return `<select onchange="editarRiesgo(${id},'probabilidad',this.value)" class="border border-gray-200 rounded px-1 py-0.5 text-[11px]">${[1, 2, 3].map(n => `<option value="${n}" ${val == n ? 'selected' : ''}>${n}</option>`).join('')}</select>`; }
+        function selC(id, val) { return `<select onchange="editarRiesgo(${id},'consecuencia',this.value)" class="border border-gray-200 rounded px-1 py-0.5 text-[11px]">${[1, 2, 3].map(n => `<option value="${n}" ${val == n ? 'selected' : ''}>${n}</option>`).join('')}</select>`; }
+        function renderMIPER() {
+            const cont = document.getElementById('miperLista');
+            if (!_miper.tareas.length) { cont.innerHTML = '<div class="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">Sin tareas. El catálogo base se precarga al crear la empresa; usa “Agregar Tarea” para sumar más.</div>'; return; }
+            cont.innerHTML = _miper.tareas.map(t => {
+                const rows = (t.riesgos || []).map(r => {
+                    const minero = !!r.contrato_id;
+                    const mag = r.nivel_riesgo || '';
+                    return `<tr class="border-t border-gray-50">
+                        <td class="p-2 align-top text-gray-800">${escM(r.peligro)}</td>
+                        <td class="p-2 align-top text-gray-800">${escM(r.riesgo)}</td>
+                        <td class="p-2 align-top text-center">${selP(r.id, r.probabilidad)}</td>
+                        <td class="p-2 align-top text-center">${selC(r.id, r.consecuencia)}</td>
+                        <td class="p-2 align-top text-center font-bold">${r.vep || '—'}</td>
+                        <td class="p-2 align-top"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${MAG_COLOR[mag] || 'bg-gray-100'}">${mag || '—'}</span></td>
+                        <td class="p-2 align-top"><textarea onchange="editarRiesgo(${r.id},'medida_control',this.value)" rows="2" class="w-40 border border-gray-200 rounded px-1 py-1 text-[11px]">${escM(r.medida_control)}</textarea></td>
+                        <td class="p-2 align-top"><textarea onchange="editarRiesgo(${r.id},'metodo_correcto',this.value)" rows="2" class="w-40 border border-gray-200 rounded px-1 py-1 text-[11px]">${escM(r.metodo_correcto)}</textarea></td>
+                        ${minero ? `<td class="p-2 align-top"><select onchange="editarRiesgo(${r.id},'ecf_punto',this.value)" class="border border-gray-200 rounded px-1 py-0.5 text-[10px]"><option value="">ECF…</option>${_miper.ecf.map(e => `<option value="${e.codigo}" ${r.ecf_punto === e.codigo ? 'selected' : ''}>${e.codigo}</option>`).join('')}</select><input value="${escM(r.mfl)}" onchange="editarRiesgo(${r.id},'mfl',this.value)" placeholder="MFL" class="w-20 border border-gray-200 rounded px-1 py-0.5 text-[10px] mt-1"><input value="${escM(r.bowtie)}" onchange="editarRiesgo(${r.id},'bowtie',this.value)" placeholder="Bowtie" class="w-20 border border-gray-200 rounded px-1 py-0.5 text-[10px] mt-1"></td>` : '<td class="p-2 align-top text-[10px] text-gray-300">—</td>'}
+                        <td class="p-2 align-top text-right"><button onclick="eliminarRiesgo(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                    </tr>`;
+                }).join('');
+                return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <h3 class="font-bold text-gray-900">${escM(t.nombre)} <span class="text-[11px] text-gray-400">${t.proceso ? '· ' + escM(t.proceso) : ''}${(t.trabajadores || []).length ? ' · ' + t.trabajadores.length + ' trabajador(es)' : ''}</span></h3>
+                        <button onclick="agregarRiesgoMiper(${t.id})" class="text-primary text-xs font-bold">+ riesgo</button>
+                    </div>
+                    <div class="overflow-x-auto"><table class="w-full text-left text-xs min-w-[880px]"><thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500">
+                        <th class="p-2">Peligro</th><th class="p-2">Riesgo</th><th class="p-2">P</th><th class="p-2">C</th><th class="p-2">VEP</th><th class="p-2">Magnitud</th><th class="p-2">Medida preventiva</th><th class="p-2">Método correcto</th><th class="p-2">Minero (ECF/MFL/Bowtie)</th><th class="p-2"></th>
+                    </tr></thead><tbody>${rows || '<tr><td colspan="10" class="p-3 text-gray-400">Sin riesgos.</td></tr>'}</tbody></table></div>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        async function editarRiesgo(rid, campo, valor) {
+            const r = await fetch(`/api/miper/riesgo/${rid}/campo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campo, valor }) });
+            const d = await r.json().catch(() => ({}));
+            if (d.irls_actualizados && d.irls_actualizados.length)
+                alert(`✔ Cambio guardado. Se actualizaron ${d.irls_actualizados.length} IRL — requieren nueva firma del trabajador.`);
+            if (['probabilidad', 'consecuencia'].includes(campo)) cargarMIPER();  // refrescar VEP/magnitud
+        }
+        async function agregarRiesgoMiper(tid) {
+            const peligro = prompt('Peligro:'); if (peligro === null) return;
+            const riesgo = prompt('Riesgo:') || '';
+            await fetch('/api/miper/riesgo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tarea_id: tid, peligro, riesgo, probabilidad: 2, consecuencia: 2 }) });
+            cargarMIPER();
+        }
+        async function eliminarRiesgo(rid) { if (!confirm('¿Eliminar este riesgo?')) return; await fetch(`/api/miper/riesgo/${rid}/eliminar`, { method: 'POST' }); cargarMIPER(); }
+        async function versionarMiper() {
+            const motivo = prompt('Motivo de la Revisión V2 (ej. accidente, cambio de operación):'); if (!motivo) return;
+            const r = await fetch('/api/miper/versionar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
+            const d = await r.json().catch(() => ({}));
+            if (d.ok) { alert(`✔ Revisión V${d.matriz.version} creada. La versión anterior quedó bloqueada como histórico.`); cargarMIPER(); }
+        }
+        async function abrirNuevaTareaMiper() {
+            document.getElementById('tareaMiperOverlay').classList.remove('hidden');
+            // faenas mineras
+            const sel = document.getElementById('tm_contrato');
+            sel.innerHTML = '<option value="">— Base DS 44 —</option>' + _miper.mineros.map(m => `<option value="${m.id}">${escM(m.numero)} · ${escM(m.mandante)}</option>`).join('');
+            // biblioteca
+            let bib = [];
+            try { const r = await fetch('/api/biblioteca'); if (r.ok) bib = await r.json(); } catch (e) { }
+            window._bib = bib;
+            const box = document.getElementById('bibliotecaBox');
+            if (bib.length) { box.classList.remove('hidden'); document.getElementById('tm_biblio').innerHTML = '<option value="">—</option>' + bib.map((b, i) => `<option value="${i}">${escM(b.nombre)}</option>`).join(''); }
+            else box.classList.add('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+        function cerrarNuevaTareaMiper() { document.getElementById('tareaMiperOverlay').classList.add('hidden'); }
+        function usarBiblioteca() {
+            const i = document.getElementById('tm_biblio').value; if (i === '') return;
+            const b = (window._bib || [])[parseInt(i)]; if (!b) return;
+            document.getElementById('tm_nombre').value = b.nombre || '';
+            document.getElementById('tm_peligro').value = b.peligro || '';
+            document.getElementById('tm_riesgo').value = b.riesgo || '';
+            document.getElementById('tm_medida').value = b.medida_control || '';
+            document.getElementById('tm_metodo').value = b.metodo_correcto || '';
+            if (b.probabilidad) document.getElementById('tm_p').value = b.probabilidad;
+            if (b.consecuencia) document.getElementById('tm_c').value = b.consecuencia;
+        }
+        async function guardarNuevaTareaMiper() {
+            const v = id => document.getElementById(id).value;
+            const nombre = v('tm_nombre').trim();
+            if (!nombre) { alert('Indica el nombre de la tarea.'); return; }
+            const riesgo = { peligro: v('tm_peligro').trim(), riesgo: v('tm_riesgo').trim(), medida_control: v('tm_medida').trim(), metodo_correcto: v('tm_metodo').trim(), probabilidad: parseInt(v('tm_p')), consecuencia: parseInt(v('tm_c')), contrato_id: v('tm_contrato') || null };
+            const guardar = confirm('¿Desea guardar esta actividad/tarea en su biblioteca personalizada para uso en futuros contratos o evaluaciones?');
+            const r = await fetch('/api/miper/tareas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, proceso: v('tm_proceso').trim(), riesgos: [riesgo], guardar_biblioteca: guardar ? 1 : 0 }) });
+            if (!r.ok) { alert('No se pudo agregar la tarea.'); return; }
+            ['tm_nombre', 'tm_proceso', 'tm_peligro', 'tm_riesgo', 'tm_medida', 'tm_metodo'].forEach(id => document.getElementById(id).value = '');
+            cerrarNuevaTareaMiper(); cargarMIPER();
+            if (guardar) alert('✔ Tarea agregada y guardada en tu biblioteca personalizada.');
+        }
+
         // ── Motor Documental: Trabajadores / IRL ──
         let _tareas = [], _epp = [], _pts = [], _trabs = [];
         async function cargarIRL() {
@@ -2405,6 +2563,7 @@
                         <button type="button" onclick="generarIRL(${t.id})" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-badge" class="w-3.5 h-3.5"></i> Generar / Actualizar IRL</button>
                         ${(t.irls || []).length ? `<a href="/api/doc/${t.irls[0].doc_id}" target="_blank" class="text-primary text-[11px] font-bold inline-flex items-center gap-1"><i data-lucide="eye" class="w-3.5 h-3.5"></i> Previsualizar último</a>` : ''}
                         ${(t.irls || []).length ? `<span class="text-[10px] text-gray-400">Audit: ${t.irls[0].audit_id}</span>` : '<span class="text-[10px] text-gray-400">Sin IRL generado</span>'}
+                        ${(t.irls || []).length && t.irls[0].requiere_refirma ? '<span class="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1"><i data-lucide="pen-line" class="w-3 h-3"></i> Requiere nueva firma</span>' : ''}
                     </div>
                 </div>`).join('');
             if (window.lucide) lucide.createIcons();
