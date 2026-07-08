@@ -85,12 +85,47 @@ FUENTES_LEGALES = [
      'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1205298'},
     {'codigo': 'DS594', 'nombre': 'DS 594 — Condiciones sanitarias y ambientales básicas',
      'url': 'https://www.bcn.cl/leychile/navegar?idNorma=167766'},
-    {'codigo': 'DS40', 'nombre': 'DS 40 — Reglamento sobre Prevención de Riesgos Profesionales',
-     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1041130'},
     {'codigo': 'DS76', 'nombre': 'DS 76 — SST en obras/faenas subcontratadas',
      'url': 'https://www.bcn.cl/leychile/navegar?idNorma=257601'},
     {'codigo': 'DS54', 'nombre': 'DS 54 — Comités Paritarios de Higiene y Seguridad',
      'url': 'https://www.bcn.cl/leychile/navegar?idNorma=8336'},
+    {'codigo': 'L20123', 'nombre': 'Ley 20.123 — Subcontratación y servicios transitorios',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=254080'},
+    {'codigo': 'L21643', 'nombre': 'Ley 21.643 — Ley Karin (acoso y violencia laboral)',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1200096'},
+    {'codigo': 'L21015', 'nombre': 'Ley 21.015 — Inclusión laboral de personas con discapacidad',
+     'url': 'https://www.bcn.cl/leychile/navegar?idNorma=1103997'},
+]
+
+
+# ── Matriz Legal — Capa Core (requisitos transversales VIGENTES, precarga obligatoria) ──
+# Se inyectan al crear la empresa con is_mandatory=1 (bloqueados en Requisito/Cuerpo_Legal;
+# editables en Estado_Avance, Evidencia_Notas, Responsable y Fecha_Vencimiento).
+REQUISITOS_CORE = [
+    {'id_requisito': 'CORE-01', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 16.744',
+     'requisito': 'Adhesión a un Organismo Administrador del Seguro (mutualidad o ISL) y cotización vigente.',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-02', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
+     'requisito': 'Sistema de Gestión de SST implementado (política, MIPER, programa de trabajo y evaluación anual).',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-03', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
+     'requisito': 'Matriz IPER elaborada, difundida y revisada al menos anualmente o ante cambios.',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-04', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
+     'requisito': 'Obligación de Informar los riesgos laborales (ODI) entregada y registrada a cada trabajador.',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-05', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 594',
+     'requisito': 'Condiciones sanitarias y ambientales básicas (agua potable, servicios higiénicos, EPP certificado).',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-06', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 54 / Ley 16.744',
+     'requisito': 'Comité Paritario de Higiene y Seguridad constituido cuando hay más de 25 trabajadores.',
+     'frecuencia_actualizacion_meses': 24},
+    {'id_requisito': 'CORE-07', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 21.643 (Karin)',
+     'requisito': 'Protocolo de prevención del acoso sexual, laboral y violencia en el trabajo, incorporado al RIOHS.',
+     'frecuencia_actualizacion_meses': 12},
+    {'id_requisito': 'CORE-08', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 21.015 / 21.690',
+     'requisito': 'Cumplimiento de inclusión laboral: reserva del 1% de puestos en empresas de 100 o más trabajadores.',
+     'frecuencia_actualizacion_meses': 12},
 ]
 
 

@@ -56,6 +56,10 @@ _COLUMNAS_NUEVAS = [
     ('riesgo_item', 'tarea_id', 'INTEGER'),
     ('trabajador', 'empresa_id', 'INTEGER'),
     ('trabajador', 'cargo', 'TEXT'),
+    # Ronda 16 — Matriz Legal doble capa
+    ('requisito_legal', 'is_mandatory', 'INTEGER DEFAULT 0'),
+    ('requisito_legal', 'evidencia_notas', 'TEXT'),
+    ('requisito_legal', 'fecha_vencimiento', 'TEXT'),
 ]
 
 
@@ -226,7 +230,23 @@ def crear_empresa(rut, razon_social, rut_empresa=None, mutual=None,
                 creado=_hoy(), datos_json=datos_json)
     sqla.session.add(e)
     _commit()
+    seed_requisitos_core(e.id)          # Ronda 16: precarga la Capa Core (obligatoria)
     return e.id
+
+
+def seed_requisitos_core(empresa_id):
+    """Inyecta los requisitos legales transversales VIGENTES (is_mandatory=1) al crear la
+    empresa. Idempotente: no duplica si ya existen."""
+    for r in cumplimiento.REQUISITOS_CORE:
+        if RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=r['id_requisito']).first():
+            continue
+        sqla.session.add(RequisitoLegal(
+            empresa_id=empresa_id, id_requisito=r['id_requisito'], capa='core',
+            is_mandatory=1, origen=r.get('origen'), cuerpo_normativo=r.get('cuerpo_legal'),
+            requisito_legal=r.get('requisito'), estado_avance='pendiente',
+            frecuencia_actualizacion_meses=r.get('frecuencia_actualizacion_meses'),
+            fecha=_hoy()))
+    _commit()
 
 
 def empresas_de(rut):
@@ -724,24 +744,46 @@ def matriz_legal(empresa_id):
             .order_by(RequisitoLegal.capa, RequisitoLegal.id_requisito).all()]
 
 
+# Campos siempre editables (también en filas Core); el resto queda bloqueado en Core.
+_MATRIZ_CAMPOS_GESTION = ('estado_avance', 'evidencia_notas', 'responsable',
+                          'fecha_vencimiento', 'fecha_actualizacion')
+_MATRIZ_CAMPOS_DEF = ('capa', 'origen', 'cuerpo_normativo', 'requisito_legal', 'obligacion',
+                      'riesgo_asociado', 'control_operativo', 'frecuencia', 'categoria',
+                      'fuente_legal_id', 'articulo', 'frecuencia_actualizacion_meses')
+
+
 def requisito_guardar(empresa_id, data):
-    """Alta/edición de una fila de la Matriz Legal (por (empresa_id, id_requisito))."""
+    """Alta/edición de una fila de la Matriz Legal (por (empresa_id, id_requisito)).
+    En filas Core (is_mandatory=1) solo se aceptan los campos de gestión; el Requisito y el
+    Cuerpo_Legal quedan bloqueados."""
     idr = (data.get('id_requisito') or '').strip() or None
     row = None
     if idr:
         row = RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first()
-    if not row:
-        row = RequisitoLegal(empresa_id=empresa_id, id_requisito=idr)
+    nueva = row is None
+    if nueva:
+        row = RequisitoLegal(empresa_id=empresa_id, id_requisito=idr, is_mandatory=0)
         sqla.session.add(row)
-    for k in ('capa', 'origen', 'cuerpo_normativo', 'requisito_legal', 'riesgo_asociado',
-              'control_operativo', 'responsable', 'frecuencia', 'estado_avance', 'categoria',
-              'fuente_legal_id', 'articulo', 'obligacion', 'frecuencia_actualizacion_meses',
-              'fecha_actualizacion'):
+    es_core = bool(row.is_mandatory) and not nueva
+    campos = _MATRIZ_CAMPOS_GESTION if es_core else (_MATRIZ_CAMPOS_DEF + _MATRIZ_CAMPOS_GESTION)
+    for k in campos:
         if k in data and data[k] is not None:
             setattr(row, k, data[k])
     row.fecha = _hoy()
     _commit()
     return row.to_dict()
+
+
+def requisito_eliminar(empresa_id, requisito_id):
+    """Elimina una fila operativa. Las filas Core (is_mandatory=1) NO se pueden borrar."""
+    row = RequisitoLegal.query.filter_by(id=requisito_id, empresa_id=empresa_id).first()
+    if not row:
+        return {'error': 'Requisito no encontrado.'}
+    if row.is_mandatory:
+        return {'error': 'Los requisitos obligatorios (Core) no se pueden eliminar.'}
+    sqla.session.delete(row)
+    _commit()
+    return {'ok': True}
 
 
 # ══════════════ Ronda 13 — Pilares SGSST: Matriz Legal + Matriz de Riesgos ══════════════

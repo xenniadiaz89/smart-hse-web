@@ -877,7 +877,22 @@ def api_matriz_get():
 @empresa_required
 def api_matriz_guardar():
     data = request.get_json(silent=True) or {}
+    # Capa Operativa: si es fila nueva sin ID, genera uno (OP-N) automáticamente.
+    if not (data.get('id_requisito') or '').strip():
+        existentes = db.matriz_legal(_empresa_id())
+        n = 1 + sum(1 for r in existentes if str(r.get('id_requisito') or '').startswith('OP-'))
+        data['id_requisito'] = f'OP-{n:03d}'
+        data.setdefault('capa', 'operativa')
     return jsonify(db.requisito_guardar(_empresa_id(), data))
+
+
+@app.route('/api/matriz-legal/<int:rid>/eliminar', methods=['POST'])
+@empresa_required
+def api_matriz_eliminar(rid):
+    res = db.requisito_eliminar(_empresa_id(), rid)
+    if res.get('error'):
+        return jsonify(res), 400
+    return jsonify(db.matriz_legal(_empresa_id()))
 
 
 @app.route('/api/matriz-legal/importar', methods=['POST'])

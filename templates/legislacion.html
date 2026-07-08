@@ -55,37 +55,33 @@
     <script>
         const BCN = id => `https://www.bcn.cl/leychile/navegar?idNorma=${id}`;
 
+        // Orden jerárquico estricto por aplicación e importancia (solo normativa vigente).
         const BIBLIOTECA = [
-            { grupo: 'A. Legislación fundamental de SST', icon: 'shield-check', items: [
-                { tipo: 'Ley Base', nombre: 'Ley 16.744', desc: 'Seguro Social contra Accidentes del Trabajo y Enfermedades Profesionales.', url: BCN(28650) },
-                { tipo: 'Decreto', nombre: 'DS N° 594', desc: 'Condiciones sanitarias y ambientales básicas en los lugares de trabajo.', url: BCN(167766) },
-                { tipo: 'Decreto', nombre: 'DS N° 54', desc: 'Constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad.', url: BCN(8336) },
-                { tipo: 'Decreto', nombre: 'DS N° 67', desc: 'Exenciones, rebajas y recargos de la cotización adicional diferenciada.', url: BCN(159800) },
-                { tipo: 'Decreto', nombre: 'DS N° 40', desc: 'Reglamento sobre prevención de riesgos profesionales. Vigente hasta el 31 de enero de 2025.', url: BCN(1041130), badge: 'Hasta 31-ene-2025', badgeColor: 'bg-amber-100 text-amber-700' },
-                { tipo: 'Decreto', nombre: 'DS N° 44', desc: 'Nuevo reglamento sobre gestión preventiva de los riesgos laborales. Reemplaza al DS 40 desde el 1 de febrero de 2025.', url: BCN(1205298), badge: 'Vigente desde 1-feb-2025', badgeColor: 'bg-green-100 text-green-700' },
-            ]},
-            { grupo: 'B. Código del Trabajo', icon: 'book-open', items: [
-                { tipo: 'Ley Base', nombre: 'DFL N° 1', desc: 'Código del Trabajo. Norma matriz que se reglamenta a través de los decretos de cada ley específica que lo modifica.', url: BCN(207436) },
-            ]},
-            { grupo: 'C. Jornada y modalidad de trabajo', icon: 'clock', items: [
+            { grupo: 'A. Código del Trabajo', icon: 'book-open', items: [
+                { tipo: 'Ley Base', nombre: 'DFL N° 1', desc: 'Código del Trabajo. Norma matriz que ordena la relación laboral y se reglamenta a través de las leyes y decretos específicos que lo modifican.', url: BCN(207436) },
                 { tipo: 'Ley Base', nombre: 'Ley 21.561', desc: 'Ley de 40 Horas — reducción gradual de la jornada laboral.', url: BCN(1191554) },
                 { tipo: 'Ley Base', nombre: 'Ley 21.220', desc: 'Ley de Teletrabajo y Trabajo a Distancia.', url: BCN(1143741) },
-                { tipo: 'Decreto', nombre: 'DS N° 18', desc: 'Reglamento de condiciones de seguridad y salud en el trabajo a distancia y teletrabajo (Ley 21.220).', url: BCN(1147206) },
             ]},
-            { grupo: 'D. Protección y seguridad', icon: 'users', items: [
-                { tipo: 'Ley Base', nombre: 'Ley 21.643', desc: 'Ley Karin — prevención del acoso sexual, laboral y la violencia en el trabajo.', url: BCN(1200096) },
-                { tipo: 'Decreto', nombre: 'DS N° 21', desc: 'Reglamento de los procedimientos de investigación de acoso y violencia en el trabajo (Ley Karin).', url: BCN(1204689) },
-                { tipo: 'Ley Base', nombre: 'Ley 20.123', desc: 'Ley de Subcontratación y servicios transitorios.', url: BCN(254080) },
-                { tipo: 'Decreto', nombre: 'DS N° 76', desc: 'Gestión de la SST en obras, faenas o servicios subcontratados (Ley 20.123). Exige un SGSST global con más de 50 personas en el lugar de trabajo.', url: BCN(257601) },
+            { grupo: 'B. Legislación Fundamental de SST', icon: 'shield-check', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 16.744', desc: 'Pilar del sistema: Seguro Social contra Accidentes del Trabajo y Enfermedades Profesionales.', url: BCN(28650), badge: 'Vigente', badgeColor: 'bg-green-100 text-green-700' },
+                { tipo: 'Ley Base', nombre: 'Ley 20.123', desc: 'Ley de Subcontratación y servicios transitorios. Regula el régimen de empresas contratistas y subcontratistas.', url: BCN(254080) },
+                { tipo: 'Decreto', nombre: 'DS N° 76', desc: 'Gestión de la SST en obras, faenas o servicios subcontratados (Ley 20.123). SGSST global cuando concurren más de 50 personas en el lugar de trabajo.', url: BCN(257601) },
                 { tipo: 'Decreto', nombre: 'DS N° 319', desc: 'Registro, control y pago de obligaciones laborales y previsionales de empresas contratistas y subcontratistas.', url: BCN(257655) },
+                { tipo: 'Decreto', nombre: 'DS N° 44', desc: 'Reglamento vigente sobre gestión preventiva de los riesgos laborales. Reemplaza al DS 40 desde el 1 de febrero de 2025.', url: BCN(1205298), badge: 'Vigente desde 1-feb-2025', badgeColor: 'bg-green-100 text-green-700' },
+                { tipo: 'Decreto', nombre: 'DS N° 594', desc: 'Condiciones sanitarias y ambientales básicas en los lugares de trabajo.', url: BCN(167766) },
+                { tipo: 'Decreto', nombre: 'DS N° 54', desc: 'Constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad (CPHS).', url: BCN(8336) },
+                { tipo: 'Decreto', nombre: 'DS N° 67', desc: 'Exenciones, rebajas y recargos de la cotización adicional diferenciada por siniestralidad.', url: BCN(159800) },
+                { tipo: 'Circulares', nombre: 'Compendio SUSESO', desc: 'Circulares y dictámenes vigentes de la Superintendencia de Seguridad Social. Fija cómo las mutuales aplican la Ley 16.744.', url: 'https://www.suseso.cl/613/w3-propertyvalue-137350.html', externo: true },
+                { tipo: 'Dictámenes', nombre: 'Jurisprudencia Dirección del Trabajo', desc: 'Dictámenes vigentes de la DT: interpretaciones jurídicas vinculantes del Código del Trabajo y leyes anexas.', url: 'https://www.dt.gob.cl/legislacion/1624/w3-channel.html', externo: true },
             ]},
-            { grupo: 'E. Legislación ambiental', icon: 'leaf', items: [
+            { grupo: 'C. Protección y seguridad específica', icon: 'users', items: [
+                { tipo: 'Ley Base', nombre: 'Ley 21.643', desc: 'Ley Karin — prevención del acoso sexual, laboral y la violencia en el trabajo.', url: BCN(1200096), badge: 'Vigente', badgeColor: 'bg-green-100 text-green-700' },
+                { tipo: 'Decreto', nombre: 'DS N° 21', desc: 'Reglamento de los procedimientos de investigación de acoso y violencia en el trabajo (Ley Karin).', url: BCN(1204689) },
+                { tipo: 'Ley Base', nombre: 'Ley 21.015', desc: 'Inclusión laboral de personas con discapacidad (y sus modificaciones, Ley 21.275 / Ley 21.690). Reserva del 1% de puestos en empresas de 100 o más trabajadores.', url: BCN(1103997) },
+            ]},
+            { grupo: 'D. Legislación ambiental', icon: 'leaf', items: [
                 { tipo: 'Ley Base', nombre: 'Ley 19.300', desc: 'Bases Generales del Medio Ambiente. Crea el Sistema de Evaluación de Impacto Ambiental (SEIA).', url: BCN(30667) },
                 { tipo: 'Decreto', nombre: 'DS N° 40 (MMA)', desc: 'Reglamento del SEIA. Procedimiento técnico y administrativo para evaluar proyectos bajo la Ley 19.300.', url: BCN(1053563) },
-            ]},
-            { grupo: 'F. Jurisprudencia y entidades fiscalizadoras', icon: 'gavel', items: [
-                { tipo: 'Compendio', nombre: 'Compendio SUSESO', desc: 'Recopilación oficial de dictámenes de la Superintendencia de Seguridad Social. Fija cómo las mutuales aplican la Ley 16.744.', url: 'https://www.suseso.cl/613/w3-propertyvalue-137350.html', externo: true },
-                { tipo: 'Dictámenes', nombre: 'Jurisprudencia Dirección del Trabajo', desc: 'Dictámenes y normativa de la DT: interpretaciones jurídicas vinculantes del Código del Trabajo y leyes anexas.', url: 'https://www.dt.gob.cl/legislacion/1624/w3-channel.html', externo: true },
             ]},
         ];
 

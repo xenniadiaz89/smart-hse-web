@@ -246,6 +246,10 @@ class RequisitoLegal(_DictMixin, sqla.Model):
     fecha_actualizacion = sqla.Column(sqla.Text)          # última actualización del requisito
     validado_por = sqla.Column(sqla.Text)                 # snapshot de la última validación
     validado_en = sqla.Column(sqla.Text)
+    # Ronda 16 — Doble capa (Core obligatoria vs Operativa) + campos de gestión
+    is_mandatory = sqla.Column(sqla.Integer, default=0)   # 1 = fila Core (bloquea Requisito/Cuerpo_Legal)
+    evidencia_notas = sqla.Column(sqla.Text)
+    fecha_vencimiento = sqla.Column(sqla.Text)
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'id_requisito'),)
 
 
