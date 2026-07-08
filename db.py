@@ -317,6 +317,67 @@ def seguimiento_set(empresa_id, categoria, comentario=None, fecha_compromiso=Non
     return seg[categoria]
 
 
+# ── Adhesión a Mutualidad (Ley 16.744) — Ronda 18 ──
+_ADHESION_TIPOS = ('adhesion', 'siniestralidad', 'cotizaciones')
+
+
+def adhesion_estado(rut, empresa_id):
+    """Estado de la adhesión: mutual, N° adherente y los 3 certificados (doc_ids), + si CUMPLE."""
+    emp = empresa_de(rut, empresa_id) or {}
+    _e, d = _empresa_datos_dict(empresa_id)
+    docs = (d or {}).get('adhesion_docs', {})
+    completo = bool(emp.get('mutual')) and bool(emp.get('n_adherente')) and \
+        all(docs.get(t) for t in _ADHESION_TIPOS)
+    return {'mutual': emp.get('mutual'), 'n_adherente': emp.get('n_adherente'),
+            'docs': {t: docs.get(t) for t in _ADHESION_TIPOS}, 'cumple': completo}
+
+
+def adhesion_guardar(rut, empresa_id, mutual=None, n_adherente=None):
+    e = Empresa.query.filter_by(id=empresa_id, rut_asesor=rut).first()
+    if not e:
+        return None
+    if mutual is not None:
+        e.mutual = mutual
+    if n_adherente is not None:
+        e.n_adherente = n_adherente
+    _commit()
+    _core01_auto_cumple(empresa_id)
+    return adhesion_estado(rut, empresa_id)
+
+
+def adhesion_set_doc(empresa_id, tipo, doc_id):
+    import json as _json
+    e, d = _empresa_datos_dict(empresa_id)
+    if not e or tipo not in _ADHESION_TIPOS:
+        return
+    docs = d.get('adhesion_docs', {})
+    docs[tipo] = doc_id
+    d['adhesion_docs'] = docs
+    e.datos_json = _json.dumps(d, ensure_ascii=False)
+    _commit()
+    _core01_auto_cumple(empresa_id)
+
+
+def _core01_auto_cumple(empresa_id):
+    """Si la adhesión está completa (mutual + N° adherente + 3 certificados), marca el ítem
+    CORE-01 de la Matriz Legal como Cumple/Auditado con la evidencia correspondiente."""
+    e = Empresa.query.get(empresa_id)
+    if not e:
+        return
+    _e2, d = _empresa_datos_dict(empresa_id)
+    docs = (d or {}).get('adhesion_docs', {})
+    completo = bool(e.mutual) and bool(e.n_adherente) and all(docs.get(t) for t in _ADHESION_TIPOS)
+    row = RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito='CORE-01').first()
+    if not row:
+        return
+    if completo:
+        row.estado_avance = 'auditado'
+        row.evidencia_notas = (f'Adhesión a {e.mutual}, N° adherente {e.n_adherente}. '
+                               'Certificados de Adhesión, Siniestralidad y Cotizaciones cargados.')
+        row.fecha_actualizacion = _hoy()
+    _commit()
+
+
 def listar_contratos(rut, empresa_id=None):
     q = Contrato.query.filter_by(rut_asesor=rut)
     if empresa_id is not None:
@@ -1014,6 +1075,47 @@ def contrato_es_minero(contrato_id):
         return False
     c = Contrato.query.get(contrato_id)
     return bool(c and c.es_contratista_minera)
+
+
+# ── Vínculo bidireccional Legal ↔ Riesgos (Ronda 18) ──
+def requisito_por_idreq(empresa_id, id_requisito):
+    r = RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=id_requisito).first()
+    return r.to_dict() if r else None
+
+
+def asegurar_requisito_sugerido(empresa_id, sugerencia):
+    """Crea (si no existe) el requisito legal sugerido (capa operativa) y devuelve su id de fila."""
+    if not sugerencia:
+        return None
+    idr = sugerencia.get('id_requisito')
+    row = RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first()
+    if not row:
+        row = RequisitoLegal(empresa_id=empresa_id, id_requisito=idr, capa='operativa',
+                             is_mandatory=0, origen='Legal Nacional',
+                             cuerpo_normativo=sugerencia.get('cuerpo_legal'),
+                             requisito_legal=sugerencia.get('requisito'),
+                             estado_avance='pendiente', fecha=_hoy())
+        sqla.session.add(row)
+        _commit()
+    return row.id
+
+
+def vincular_riesgo_requisito(item_id, requisito_row_id):
+    it = RiesgoItem.query.get(item_id)
+    if it:
+        it.requisito_legal_id = requisito_row_id
+        _commit()
+    return it.to_dict() if it else None
+
+
+def riesgos_de_requisito(empresa_id, requisito_row_id):
+    """Ítems de riesgo (MIPER) vinculados a un requisito legal, en la empresa."""
+    rows = (sqla.session.query(RiesgoItem, TareaIPER.nombre)
+            .join(MatrizRiesgo, MatrizRiesgo.id == RiesgoItem.matriz_id)
+            .outerjoin(TareaIPER, TareaIPER.id == RiesgoItem.tarea_id)
+            .filter(MatrizRiesgo.empresa_id == empresa_id,
+                    RiesgoItem.requisito_legal_id == requisito_row_id).all())
+    return [{**it.to_dict(), 'tarea': nombre} for it, nombre in rows]
 
 
 def contratos_mineros_de(empresa_id):

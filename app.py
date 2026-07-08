@@ -159,8 +159,8 @@ def registro():
         session['nombre'] = nombre
         session['rol'] = 'asesor'
         session.pop('empresa_id', None)
-        # Tras crear la cuenta → registrar la primera empresa (base estructural).
-        return redirect(url_for('empresas'))
+        # Ronda 18: entra directo a la consola; la empresa se registra dentro de "Mis Contratos".
+        return redirect(url_for('dashboard'))
     return render_template('registro.html')
 
 
@@ -188,31 +188,13 @@ def logout():
     return redirect(url_for('index'))
 
 
-# ─────────────────── Empresas (base estructural — Ronda 12) ────────────────
-@app.route('/empresas', methods=['GET', 'POST'])
+# ── Empresas (Ronda 18: gestión dentro de la consola, en "Mis Contratos") ──
+@app.route('/empresas')
 @login_required
 def empresas():
-    """Registrar empresa (base) o listar/seleccionar. Al crear → Consola Operativa."""
-    if request.method == 'POST':
-        f = request.form
-        razon = (f.get('razon_social', '')).strip()
-        if not razon:
-            return render_template('empresas.html', error='Indica la Razón Social.',
-                                   empresas=db.empresas_de(session['rut']), **_form_empresa(f))
-        eid = db.crear_empresa(
-            session['rut'], razon,
-            rut_empresa=(f.get('rut_empresa', '')).strip() or None,
-            mutual=(f.get('mutual', '')).strip() or None,
-            n_adherente=(f.get('n_adherente', '')).strip() or None,
-            rubro=(f.get('rubro', '')).strip() or None)
-        session['empresa_id'] = eid
-        return redirect(url_for('dashboard'))
-    return render_template('empresas.html', empresas=db.empresas_de(session['rut']))
-
-
-def _form_empresa(f):
-    return {k: (f.get(k, '')).strip() for k in
-            ('razon_social', 'rut_empresa', 'mutual', 'n_adherente', 'rubro')}
+    """Compatibilidad: la pantalla /empresas se retiró; ahora la empresa se gestiona en la
+    consola ("Mis Contratos"). Redirige al dashboard."""
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/empresas/<int:eid>/seleccionar')
@@ -226,16 +208,90 @@ def empresa_seleccionar(eid):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # La Consola de Gestión Operativa vive sobre una empresa activa.
-    if not session.get('empresa_id'):
-        return redirect(url_for('empresas'))
-    emp = db.empresa_de(session['rut'], session['empresa_id'])
-    if not emp:                                   # empresa borrada / sesión vieja
-        session.pop('empresa_id', None)
-        return redirect(url_for('empresas'))
+    """Consola de Gestión Operativa. Si aún no hay empresa activa, entra igual: 'Mis Contratos'
+    muestra el alta de empresa (Ronda 18). Si hay empresas pero ninguna activa, toma la primera."""
+    emp = None
+    eid = session.get('empresa_id')
+    if eid:
+        emp = db.empresa_de(session['rut'], eid)
+        if not emp:
+            session.pop('empresa_id', None)
+    if not emp:
+        emps = db.empresas_de(session['rut'])
+        if emps:
+            session['empresa_id'] = emps[0]['id']
+            emp = emps[0]
     return render_template('dashboard.html', nombre=session.get('nombre'),
-                           sns=session.get('sns'), rol=session.get('rol'),
-                           empresa=emp)
+                           sns=session.get('sns'), rol=session.get('rol'), empresa=emp)
+
+
+# ── API de empresas (gestión desde la consola) ──
+@app.route('/api/empresas', methods=['GET'])
+@login_required
+def api_empresas_get():
+    return jsonify({'empresas': db.empresas_de(session['rut']),
+                    'activa': session.get('empresa_id')})
+
+
+@app.route('/api/empresas', methods=['POST'])
+@login_required
+def api_empresa_crear():
+    f = request.get_json(silent=True) or request.form
+    razon = (f.get('razon_social') or '').strip()
+    if not razon:
+        return jsonify({'error': 'Indica la Razón Social.'}), 400
+    eid = db.crear_empresa(
+        session['rut'], razon,
+        rut_empresa=(f.get('rut_empresa') or '').strip() or None,
+        mutual=(f.get('mutual') or '').strip() or None,
+        n_adherente=(f.get('n_adherente') or '').strip() or None,
+        rubro=(f.get('rubro') or '').strip() or None)
+    session['empresa_id'] = eid
+    return jsonify({'ok': True, 'empresa_id': eid, 'empresas': db.empresas_de(session['rut'])})
+
+
+@app.route('/api/empresas/<int:eid>/seleccionar', methods=['POST'])
+@login_required
+def api_empresa_seleccionar(eid):
+    if not db.empresa_de(session['rut'], eid):
+        return jsonify({'error': 'Empresa no encontrada.'}), 404
+    session['empresa_id'] = eid
+    return jsonify({'ok': True, 'empresa_id': eid})
+
+
+# ── Adhesión a Mutualidad (Ley 16.744) — nivel empresa, una vez por RUT ──
+@app.route('/api/empresa/adhesion', methods=['GET'])
+@empresa_required
+def api_adhesion_get():
+    return jsonify(db.adhesion_estado(session['rut'], _empresa_id()))
+
+
+@app.route('/api/empresa/adhesion', methods=['POST'])
+@empresa_required
+def api_adhesion_set():
+    f = request.get_json(silent=True) or request.form
+    db.adhesion_guardar(session['rut'], _empresa_id(),
+                        mutual=(f.get('mutual') or '').strip() or None,
+                        n_adherente=(f.get('n_adherente') or '').strip() or None)
+    return jsonify(db.adhesion_estado(session['rut'], _empresa_id()))
+
+
+@app.route('/api/empresa/adhesion/<tipo>', methods=['POST'])
+@empresa_required
+def api_adhesion_cert(tipo):
+    if tipo not in ('adhesion', 'siniestralidad', 'cotizaciones'):
+        return jsonify({'error': 'Tipo de certificado inválido.'}), 400
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'No se recibió archivo.'}), 400
+    rut, eid = session['rut'], _empresa_id()
+    emp = db.empresa_de(rut, eid)
+    base_cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    doc_id = db.registrar_documento(base_cid, f'cert_{tipo}_{archivo.filename}', 'Adhesión',
+                                    f'cert_{tipo}', contenido=archivo.read(),
+                                    mimetype=archivo.mimetype or 'application/pdf')
+    db.adhesion_set_doc(eid, tipo, doc_id)
+    return jsonify(db.adhesion_estado(rut, eid))
 
 
 @app.route('/contratistas')
@@ -1242,6 +1298,65 @@ def api_miper_tarea():
                                 metodo_correcto=r.get('metodo_correcto'),
                                 probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'))
     return jsonify({'ok': True, 'tarea_id': tid})
+
+
+@app.route('/api/mutuales', methods=['GET'])
+@login_required
+def api_mutuales():
+    return jsonify(iper.MUTUALES)
+
+
+@app.route('/api/miper/sugerencia', methods=['GET'])
+@empresa_required
+def api_miper_sugerencia():
+    """Sugiere el requisito legal aplicable a una actividad/peligro/riesgo (MIPER → Legal)."""
+    s = iper.sugerir_requisito(request.args.get('texto', ''))
+    return jsonify({'sugerencia': s})
+
+
+@app.route('/api/miper/riesgo/<int:rid>/vincular-legal', methods=['POST'])
+@empresa_required
+def api_miper_vincular_legal(rid):
+    """Vincula el riesgo con el requisito legal sugerido (creándolo en la Matriz Legal si falta)."""
+    f = request.get_json(silent=True) or {}
+    eid = _empresa_id()
+    s = f.get('sugerencia') or iper.sugerir_requisito(f.get('texto', ''))
+    if not s:
+        return jsonify({'error': 'Sin requisito sugerido.'}), 400
+    req_row = db.asegurar_requisito_sugerido(eid, s)
+    db.vincular_riesgo_requisito(rid, req_row)
+    return jsonify({'ok': True, 'requisito_row_id': req_row, 'cuerpo_legal': s.get('cuerpo_legal')})
+
+
+@app.route('/api/matriz-legal/<int:rid>/riesgos', methods=['GET'])
+@empresa_required
+def api_matriz_riesgos(rid):
+    """Legal → MIPER: actividades/riesgos vinculados a un requisito legal."""
+    return jsonify(db.riesgos_de_requisito(_empresa_id(), rid))
+
+
+@app.route('/api/miper/desde-requisito', methods=['POST'])
+@empresa_required
+def api_miper_desde_requisito():
+    """Legal → MIPER: crea una tarea/riesgo en la MIPER a partir de un requisito legal, ya vinculado."""
+    f = request.get_json(silent=True) or {}
+    from models import RequisitoLegal, RiesgoItem
+    req = RequisitoLegal.query.filter_by(id=f.get('requisito_id'), empresa_id=_empresa_id()).first()
+    if not req:
+        return jsonify({'error': 'Requisito no encontrado.'}), 404
+    eid = _empresa_id()
+    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
+    mid = m['id'] if isinstance(m, dict) else m
+    nombre = (req.requisito_legal or req.cuerpo_normativo or 'Actividad legal')[:60]
+    tid = db.tarea_crear(mid, nombre, proceso='Legal')
+    rid = db.riesgo_agregar(mid, req.riesgo_asociado or '', req.requisito_legal or '',
+                            req.control_operativo or '', probabilidad=2, consecuencia=2)
+    it = RiesgoItem.query.get(rid)
+    if it:
+        it.tarea_id = tid
+        it.requisito_legal_id = req.id
+        sqla.session.commit()
+    return jsonify({'ok': True, 'tarea_id': tid, 'riesgo_id': rid})
 
 
 @app.route('/api/miper/riesgo', methods=['POST'])

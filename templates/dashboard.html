@@ -102,7 +102,7 @@
            <nav class="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex flex-row flex-wrap lg:flex-col gap-1">
                <button type="button" data-nav="avance" onclick="mostrarVista('avance')" class="nav-item nav-on">
                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance</span></button>
-               <button type="button" data-nav="contratos" onclick="mostrarVista('contratos')" class="nav-item">
+               <button type="button" data-nav="contratos" onclick="mostrarVista('contratos'); cargarEmpresaCard()" class="nav-item">
                    <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis Contratos</span></button>
                <button type="button" data-nav="checklist" onclick="mostrarVista('checklist')" class="nav-item">
                    <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist</span></button>
@@ -589,6 +589,9 @@
 
         <!-- VISTA: Mis Contratos Asesorados -->
         <section id="vista-contratos" class="hidden">
+            <!-- ── Empresa / Adhesión (Ronda 18: registro y Mutual dentro de la consola) ── -->
+            <div id="empresaCard" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6"></div>
+
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
                 <div class="flex items-center gap-2">
                     <i data-lucide="briefcase" class="w-5 h-5 text-primary"></i>
@@ -1660,6 +1663,90 @@
             } catch (e) { /* offline */ }
         }
 
+        // ── Empresa / Adhesión (registro + Mutual dentro de la consola) ──
+        let _mutuales = [];
+        async function cargarEmpresaCard() {
+            const box = document.getElementById('empresaCard');
+            if (!box) return;
+            let data = { empresas: [], activa: null };
+            try { const r = await fetch('/api/empresas'); if (r.ok) data = await r.json(); } catch (e) { }
+            if (!_mutuales.length) { try { const r = await fetch('/api/mutuales'); if (r.ok) _mutuales = await r.json(); } catch (e) { } }
+            if (!data.empresas.length) {
+                box.innerHTML = `
+                    <div class="flex items-center gap-2 mb-3"><i data-lucide="building-2" class="w-5 h-5 text-primary"></i><h3 class="font-extrabold text-gray-900">Registra tu empresa</h3></div>
+                    <p class="text-sm text-gray-500 mb-3">Antes de gestionar contratos, registra la empresa. La Matriz Legal se precargará automáticamente.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <input id="er_razon" class="iet-in sm:col-span-2" placeholder="Razón Social">
+                        <input id="er_rut" class="iet-in" placeholder="RUT empresa">
+                        <input id="er_rubro" class="iet-in" placeholder="Rubro / giro">
+                    </div>
+                    <button type="button" onclick="crearEmpresa()" class="mt-3 inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Registrar empresa</button>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+            // adhesión de la empresa activa
+            let ad = { mutual: '', n_adherente: '', docs: {}, cumple: false };
+            try { const r = await fetch('/api/empresa/adhesion'); if (r.ok) ad = await r.json(); } catch (e) { }
+            const empresas = data.empresas, activa = data.activa;
+            const cert = (t, label) => `<label class="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 text-xs cursor-pointer hover:border-primary">
+                <span>${label} ${ad.docs && ad.docs[t] ? '<span class="text-green-600 font-bold">✓</span>' : '<span class="text-gray-400">(pendiente)</span>'}</span>
+                <span class="text-primary font-bold">${ad.docs && ad.docs[t] ? 'Reemplazar' : 'Subir'}<input type="file" class="hidden" onchange="subirCert('${t}', this)"></span>
+            </label>`;
+            box.innerHTML = `
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="building-2" class="w-5 h-5 text-primary"></i>
+                        <select onchange="seleccionarEmpresa(this.value)" class="iet-in !py-1 !inline-block !w-auto font-bold">
+                            ${empresas.map(e => `<option value="${e.id}" ${e.id === activa ? 'selected' : ''}>${escM(e.razon_social)}</option>`).join('')}
+                        </select>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${ad.cumple ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">${ad.cumple ? 'Adhesión: Cumple' : 'Adhesión: pendiente'}</span>
+                    </div>
+                    <button type="button" onclick="nuevaEmpresa()" class="text-primary text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Otra empresa</button>
+                </div>
+                <div id="nuevaEmpresaForm" class="hidden grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4">
+                    <input id="er_razon" class="iet-in sm:col-span-2" placeholder="Razón Social"><input id="er_rut" class="iet-in" placeholder="RUT"><input id="er_rubro" class="iet-in" placeholder="Rubro">
+                    <button type="button" onclick="crearEmpresa()" class="sm:col-span-4 justify-self-start inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm">Registrar</button>
+                </div>
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Adhesión a Organismo Administrador (Ley 16.744)</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <label class="text-xs text-gray-600 block">Mutualidad
+                        <select id="ad_mutual" class="iet-in"><option value="">Seleccione…</option>${_mutuales.map(m => `<option ${ad.mutual === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+                    <label class="text-xs text-gray-600 block">N° de Adherente (por RUT, se registra una vez)
+                        <input id="ad_num" value="${escM(ad.n_adherente)}" class="iet-in" placeholder="Ej: 123456"></label>
+                </div>
+                <button type="button" onclick="guardarAdhesion()" class="text-[11px] font-bold bg-primary text-white px-3 py-1.5 rounded mb-4"><i data-lucide="save" class="w-3.5 h-3.5 inline"></i> Guardar Mutual / N° adherente</button>
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Respaldos de inicio de actividades</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    ${cert('adhesion', 'Certificado de Adhesión')}
+                    ${cert('siniestralidad', 'Certificado de Siniestralidad')}
+                    ${cert('cotizaciones', 'Comprobante de Cotizaciones')}
+                </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+        async function crearEmpresa() {
+            const razon = (document.getElementById('er_razon') || {}).value || '';
+            if (!razon.trim()) { alert('Indica la Razón Social.'); return; }
+            const r = await fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ razon_social: razon, rut_empresa: (document.getElementById('er_rut') || {}).value || '', rubro: (document.getElementById('er_rubro') || {}).value || '' }) });
+            if (!r.ok) { alert('No se pudo registrar la empresa.'); return; }
+            location.reload();
+        }
+        function nuevaEmpresa() { const f = document.getElementById('nuevaEmpresaForm'); if (f) f.classList.toggle('hidden'); }
+        async function seleccionarEmpresa(id) { await fetch(`/api/empresas/${id}/seleccionar`, { method: 'POST' }); location.reload(); }
+        async function guardarAdhesion() {
+            const mutual = document.getElementById('ad_mutual').value, n_adherente = document.getElementById('ad_num').value;
+            const r = await fetch('/api/empresa/adhesion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mutual, n_adherente }) });
+            if (r.ok) { const d = await r.json(); alert(d.cumple ? '✔ Adhesión completa: el ítem de la Matriz Legal quedó en Cumple.' : 'Guardado. Sube los 3 certificados para marcar Cumple.'); cargarEmpresaCard(); }
+        }
+        async function subirCert(tipo, input) {
+            if (!input.files.length) return;
+            const fd = new FormData(); fd.append('archivo', input.files[0]);
+            const r = await fetch(`/api/empresa/adhesion/${tipo}`, { method: 'POST', body: fd });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo subir el certificado.'); return; }
+            if (d.cumple) alert('✔ Los 3 certificados y datos están completos: Adhesión marcada como Cumple en la Matriz Legal.');
+            cargarEmpresaCard();
+        }
+
         // ── Panel de Brechas unificado (Carpeta Pendiente + FUF No Cumple) ──
         async function cargarBrechas() {
             let brechas = [];
@@ -2359,7 +2446,10 @@
                     <td class="p-2 align-top"><input value="${esc(r.evidencia_notas)}" onchange="editarReq('${esc(id)}','evidencia_notas',this.value)" placeholder="Evidencia / notas" class="w-32 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
                     <td class="p-2 align-top"><input value="${esc(r.responsable)}" onchange="editarReq('${esc(id)}','responsable',this.value)" placeholder="Responsable" class="w-28 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
                     <td class="p-2 align-top"><input type="date" value="${esc(r.fecha_vencimiento)}" onchange="editarReq('${esc(id)}','fecha_vencimiento',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                    <td class="p-2 align-top text-right">${core ? '<span class="text-[9px] text-gray-400">Obligatorio</span>' : `<button type="button" onclick="eliminarReq(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}</td>
+                    <td class="p-2 align-top text-right whitespace-nowrap">
+                        <button type="button" onclick="verRiesgosReq(${r.id})" class="text-gray-300 hover:text-primary" title="Actividades de riesgo vinculadas / crear"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
+                        ${core ? '<span class="text-[9px] text-gray-400 ml-1">Obligatorio</span>' : `<button type="button" onclick="eliminarReq(${r.id})" class="text-gray-300 hover:text-red-500 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+                    </td>
                 </tr>`;
             }).join('');
             if (window.lucide) lucide.createIcons();
@@ -2385,6 +2475,16 @@
                 responsable: document.getElementById('rq_resp').value.trim(), fecha_vencimiento: document.getElementById('rq_venc').value }) });
             ['rq_origen', 'rq_cuerpo', 'rq_req', 'rq_resp', 'rq_venc'].forEach(i => document.getElementById(i).value = '');
             cerrarNuevoReq(); cargarMatriz();
+        }
+        // Legal → MIPER: ver actividades de riesgo vinculadas a un requisito, o crear una nueva
+        async function verRiesgosReq(rid) {
+            let ri = [];
+            try { const r = await fetch(`/api/matriz-legal/${rid}/riesgos`); if (r.ok) ri = await r.json(); } catch (e) { }
+            const lista = ri.length ? ri.map(x => `• ${x.tarea || '—'}: ${x.peligro || ''} / ${x.riesgo || ''}`).join('\n') : '(sin actividades vinculadas)';
+            if (confirm(`Actividades de riesgo (MIPER) vinculadas a este requisito:\n\n${lista}\n\n¿Crear una nueva actividad de riesgo en la MIPER a partir de este requisito legal?`)) {
+                const r = await fetch('/api/miper/desde-requisito', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requisito_id: rid }) });
+                if (r.ok) alert('✔ Actividad creada en la Matriz de Riesgos (MIPER), vinculada a este requisito.');
+            }
         }
         async function importarMatriz(input) {
             if (!input.files.length) return;
@@ -2427,7 +2527,10 @@
                         <td class="p-2 align-top"><textarea onchange="editarRiesgo(${r.id},'medida_control',this.value)" rows="2" class="w-40 border border-gray-200 rounded px-1 py-1 text-[11px]">${escM(r.medida_control)}</textarea></td>
                         <td class="p-2 align-top"><textarea onchange="editarRiesgo(${r.id},'metodo_correcto',this.value)" rows="2" class="w-40 border border-gray-200 rounded px-1 py-1 text-[11px]">${escM(r.metodo_correcto)}</textarea></td>
                         ${minero ? `<td class="p-2 align-top"><select onchange="editarRiesgo(${r.id},'ecf_punto',this.value)" class="border border-gray-200 rounded px-1 py-0.5 text-[10px]"><option value="">ECF…</option>${_miper.ecf.map(e => `<option value="${e.codigo}" ${r.ecf_punto === e.codigo ? 'selected' : ''}>${e.codigo}</option>`).join('')}</select><input value="${escM(r.mfl)}" onchange="editarRiesgo(${r.id},'mfl',this.value)" placeholder="MFL" class="w-20 border border-gray-200 rounded px-1 py-0.5 text-[10px] mt-1"><input value="${escM(r.bowtie)}" onchange="editarRiesgo(${r.id},'bowtie',this.value)" placeholder="Bowtie" class="w-20 border border-gray-200 rounded px-1 py-0.5 text-[10px] mt-1"></td>` : '<td class="p-2 align-top text-[10px] text-gray-300">—</td>'}
-                        <td class="p-2 align-top text-right"><button onclick="eliminarRiesgo(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                        <td class="p-2 align-top text-right whitespace-nowrap">
+                            <button onclick="vincularLegal(${r.id}, ${JSON.stringify((r.peligro || '') + ' ' + (r.riesgo || '')).replace(/"/g, '&quot;')})" class="${r.requisito_legal_id ? 'text-secondary' : 'text-gray-300 hover:text-primary'}" title="${r.requisito_legal_id ? 'Requisito legal vinculado' : 'Sugerir y vincular requisito legal'}"><i data-lucide="scale" class="w-4 h-4"></i></button>
+                            <button onclick="eliminarRiesgo(${r.id})" class="text-gray-300 hover:text-red-500 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>
                     </tr>`;
                 }).join('');
                 return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -2456,6 +2559,15 @@
             cargarMIPER();
         }
         async function eliminarRiesgo(rid) { if (!confirm('¿Eliminar este riesgo?')) return; await fetch(`/api/miper/riesgo/${rid}/eliminar`, { method: 'POST' }); cargarMIPER(); }
+        // MIPER → Legal: sugerir y vincular el requisito legal aplicable a la actividad/riesgo
+        async function vincularLegal(rid, texto) {
+            let s = null;
+            try { const r = await fetch('/api/miper/sugerencia?texto=' + encodeURIComponent(texto)); if (r.ok) s = (await r.json()).sugerencia; } catch (e) { }
+            if (!s) { alert('No encontré un requisito legal sugerido para esta actividad. Puedes vincularlo manualmente desde la Matriz Legal.'); return; }
+            if (!confirm(`Requisito legal sugerido: ${s.cuerpo_legal}\n${s.requisito}\n\n¿Vincular este riesgo a ese requisito (se agrega a la Matriz Legal si no existe)?`)) return;
+            const r = await fetch(`/api/miper/riesgo/${rid}/vincular-legal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sugerencia: s }) });
+            if (r.ok) { alert('✔ Vinculado a ' + s.cuerpo_legal + ' (visible en la Matriz Legal).'); cargarMIPER(); }
+        }
         async function versionarMiper() {
             const motivo = prompt('Motivo de la Revisión V2 (ej. accidente, cambio de operación):'); if (!motivo) return;
             const r = await fetch('/api/miper/versionar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
@@ -2680,6 +2792,7 @@
         renderCL('vehiculo');
         renderCL('fatiga');
         actualizarAvance();
+        cargarEmpresaCard();
         cargarContratos();
         cargarFUF();
         cargarBrechas();

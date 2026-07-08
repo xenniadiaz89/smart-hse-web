@@ -68,6 +68,58 @@ CATALOGO_TAREAS_BASE = [
 ]
 
 
+# ── Organismos Administradores de la Ley 16.744 (Adhesión) ──
+MUTUALES = [
+    'Mutual de Seguridad CChC',
+    'ACHS — Asociación Chilena de Seguridad',
+    'IST — Instituto de Seguridad del Trabajo',
+    'ISL — Instituto de Seguridad Laboral (estatal)',
+]
+
+
+# ── Mapa normativo bidireccional: actividad/peligro → cuerpo legal aplicable ──
+# Cada entrada: palabras clave → {cuerpo_legal, id_requisito sugerido, requisito}.
+MAPA_LEGAL_ACTIVIDAD = [
+    {'kw': ['manejo manual', 'carga', 'levant', 'mmc'],
+     'cuerpo_legal': 'Ley 20.001 / DS 63', 'id_requisito': 'LEY-MMC',
+     'requisito': 'Evaluación y control del manejo manual de cargas (límites de peso, ayudas mecánicas).'},
+    {'kw': ['radiación uv', 'radiacion uv', 'ultravioleta', 'exposición solar', 'sol'],
+     'cuerpo_legal': 'Ley 20.096 / DS 594', 'id_requisito': 'LEY-UV',
+     'requisito': 'Protección contra radiación UV de origen solar (Ley 20.096, DS 594 Art. 109).'},
+    {'kw': ['ruido', 'prexor', 'acústic'],
+     'cuerpo_legal': 'DS 594 (PREXOR)', 'id_requisito': 'LEY-RUIDO',
+     'requisito': 'Protocolo de vigilancia de riesgos por exposición a ruido (PREXOR, DS 594).'},
+    {'kw': ['conducción', 'conduccion', 'vehículo', 'vehiculo', 'tránsito', 'transito', 'manej'],
+     'cuerpo_legal': 'Ley 18.290 / DS 44', 'id_requisito': 'LEY-CONDUC',
+     'requisito': 'Gestión del riesgo de conducción y tránsito (Ley del Tránsito 18.290; DS 44).'},
+    {'kw': ['digitación', 'digitacion', 'pantalla', 'oficina', 'tmert', 'ergonom'],
+     'cuerpo_legal': 'DS 594 (TMERT-EESS)', 'id_requisito': 'LEY-TMERT',
+     'requisito': 'Identificación y control de TMERT de extremidad superior (Norma Técnica TMERT, DS 594).'},
+    {'kw': ['orden y aseo', 'resbal', 'caída mismo', 'caida mismo', 'piso'],
+     'cuerpo_legal': 'DS 594', 'id_requisito': 'LEY-DS594-OA',
+     'requisito': 'Condiciones de orden, aseo y superficies de trabajo seguras (DS 594).'},
+    {'kw': ['altura', 'caída de altura', 'caida de altura', 'distinto nivel'],
+     'cuerpo_legal': 'DS 594 / DS 44', 'id_requisito': 'LEY-ALTURA',
+     'requisito': 'Control de trabajos en altura física y caídas a distinto nivel (DS 594, DS 44).'},
+    {'kw': ['sustancia', 'químic', 'quimic', 'peligros'],
+     'cuerpo_legal': 'DS 594 / DS 43', 'id_requisito': 'LEY-SUSTQUIM',
+     'requisito': 'Almacenamiento y manejo de sustancias peligrosas (DS 43, DS 594).'},
+]
+
+
+def sugerir_requisito(texto):
+    """Devuelve el requisito legal sugerido para una actividad/peligro/riesgo (por palabras
+    clave), o None si no hay coincidencia."""
+    t = (texto or '').lower()
+    if not t.strip():
+        return None
+    for m in MAPA_LEGAL_ACTIVIDAD:
+        if any(k in t for k in m['kw']):
+            return {'cuerpo_legal': m['cuerpo_legal'], 'id_requisito': m['id_requisito'],
+                    'requisito': m['requisito']}
+    return None
+
+
 # ── Capa minera condicional: subpuntos ECF (Estándares de Control de Fatalidades) ──
 ECF_PUNTOS = [
     {'codigo': '22.1', 'titulo': 'Gestión de Riesgos Críticos y Estándares de Control de Fatalidades'},
