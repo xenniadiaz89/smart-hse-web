@@ -1596,8 +1596,9 @@ def api_faena_pauta(cid):
  <div class="pie">Smart HSE Chile · Pauta generada automáticamente desde la Carpeta de Arranque y los estándares del mandante.
   <button class="noprint" onclick="window.print()">Imprimir / Guardar PDF</button></div>
 </body></html>"""
+    _num = re.sub(r'[^\w-]+', '_', c.get('numero', '') or '')   # fuera del f-string: 3.11 no admite '\' dentro de {}
     return send_file(BytesIO(html.encode('utf-8')), mimetype='text/html', as_attachment=False,
-                     download_name=f'Pauta_Arranque_{re.sub(r"[^\\w-]+","_",c.get("numero","") or "")}.html')
+                     download_name=f'Pauta_Arranque_{_num}.html')
 
 
 @app.route('/api/faena/<int:cid>/inyectar', methods=['POST'])
