@@ -1183,7 +1183,42 @@ def precargar_faena(rut, contrato_id):
             it.tarea_id = tid
         riesgos += 1
     _commit()
-    return {'legales': legales, 'riesgos': riesgos, 'mandante': mandante}
+    # (c) MIPER Codelco RT/DRT: preset real (SIGO-F-006 V7) por proceso, ligado a Carpeta 19 / RESSO B.3
+    miper_drt_tareas = 0
+    if resso.es_codelco(mandante) and any(k in (mandante or '').lower()
+                                          for k in ('radomiro', 'drt', ' rt', 'rt ', 'división rt')):
+        miper_drt_tareas = _inyectar_miper_drt(mid, contrato_id)
+    return {'legales': legales, 'riesgos': riesgos, 'miper_drt': miper_drt_tareas, 'mandante': mandante}
+
+
+def _inyectar_miper_drt(matriz_id, contrato_id):
+    """Inyecta el preset MIPER de Codelco RT (miper_drt.MIPER_DRT): una Tarea por proceso y sus
+    riesgos con contrato_id + categoria='iper' (Carpeta 19 / RESSO B.3). Idempotente. VEP=P×C."""
+    import miper_drt
+    creadas = 0
+    for proc in miper_drt.MIPER_DRT:
+        nombre = f"DRT · {proc['proceso']}"
+        existe = TareaIPER.query.filter_by(matriz_id=matriz_id, nombre=nombre).first()
+        if existe:
+            tid = existe.id
+            ya = {(r.peligro, r.riesgo) for r in RiesgoItem.query.filter_by(tarea_id=tid).all()}
+        else:
+            tid = tarea_crear(matriz_id, nombre, proceso='Codelco RT (SIGO-F-006)')
+            ya = set()
+            creadas += 1
+        for r in proc['riesgos']:
+            if (r['peligro'], r['riesgo']) in ya:
+                continue
+            rid = riesgo_agregar(matriz_id, r['peligro'], r['riesgo'], r.get('medida_control'),
+                                 probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+                                 nivel_riesgo=r.get('nivel_texto'), metodo_correcto=r.get('metodo_correcto'),
+                                 es_critico=r.get('es_critico', 0), contrato_id=contrato_id)
+            it = RiesgoItem.query.get(rid)
+            if it:
+                it.tarea_id = tid
+                it.ecf_punto = r.get('codigo')       # código DRT (RC-10, A1, …)
+    _commit()
+    return creadas
 
 
 def inyectar_actividades_faena(rut, contrato_id, nombres):
