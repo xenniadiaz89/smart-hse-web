@@ -29,8 +29,9 @@ def _commit():
 
 # ─────────────────────────────── Inicialización ───────────────────────────
 def init_db():
-    """Crea las tablas (auto-migración al desplegar) y siembra el mapping."""
-    _reset_tablas_legacy()      # reestructuración destructiva (solo datos demo) antes de crear
+    """Crea las tablas y aplica SOLO migraciones ADITIVAS (cero pérdida de datos, Ronda 21).
+    Ya no se ejecuta ninguna operación destructiva en el arranque: no se borran tablas ni datos
+    de usuarios, empresas, avances ni documentos. Todo persiste en Postgres entre reinicios."""
     sqla.create_all()
     _migrar_columnas()
     seed_mapping()
@@ -85,21 +86,11 @@ def empresa_set_logo(empresa_id, doc_id):
 
 
 def _reset_tablas_legacy():
-    """Ronda 12: `fuf_estado` cambió su llave de (rut_asesor,item_n) a (empresa_id,item_n).
-    create_all() no puede reescribir la restricción única de una tabla existente, así que si
-    la tabla legada NO tiene `empresa_id`, se elimina para recrearla con el nuevo esquema.
-    Es seguro: el avance FUF es dato demo que se re-responde por empresa (los datos se
-    reinician, según lo acordado). Best-effort: nunca interrumpe el arranque."""
-    try:
-        insp = inspect(sqla.engine)
-        if 'fuf_estado' not in set(insp.get_table_names()):
-            return
-        cols = {c['name'] for c in insp.get_columns('fuf_estado')}
-        if 'empresa_id' not in cols:
-            with sqla.engine.begin() as conn:
-                conn.execute(text('DROP TABLE fuf_estado'))
-    except Exception:
-        pass
+    """DESACTIVADA (Ronda 21 — cero pérdida de datos).
+    Antes eliminaba `fuf_estado` si le faltaba `empresa_id` (migración de la Ronda 12, ya aplicada
+    en producción). Se conserva como no-op para no volver a introducir ninguna operación
+    destructiva en el arranque. El arranque solo hace migraciones ADITIVAS."""
+    return
 
 
 def _migrar_columnas():
@@ -1160,8 +1151,10 @@ def precargar_faena(rut, contrato_id):
     mid = mid['id'] if mid else crear_matriz_riesgo(empresa_id, rut)
 
     legales, riesgos = 0, 0
-    # (a) Capa mandante: Riesgos Críticos + ECF como requisitos legales del contrato
-    catalogo = resso.ECF_RC_EST.get('RC', []) + resso.ECF_RC_EST.get('ECF', [])
+    # (a) Capa mandante (RESSO): Riesgos Críticos + ECF + SST (Estándares de Salud) como
+    #     requisitos legales del contrato. NO toca la Matriz Legal transversal (DS 44 base).
+    catalogo = (resso.ECF_RC_EST.get('RC', []) + resso.ECF_RC_EST.get('ECF', [])
+                + resso.ECF_RC_EST.get('SST', []))
     for item in catalogo:
         idr = f"F{contrato_id}-{item['codigo']}"
         if RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first():

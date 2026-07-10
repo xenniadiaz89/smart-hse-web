@@ -177,8 +177,8 @@ def prueba():
     if emps:
         session['empresa_id'] = emps[0]['id']
     else:
-        session['empresa_id'] = db.crear_empresa('DEMO', 'Empresa Demo SPA',
-                                                 mutual='Mutual demo', rubro='Servicios')
+        # Marca blanca (Ronda 21): empresa demo neutra, sin datos corporativos de terceros.
+        session['empresa_id'] = db.crear_empresa('DEMO', 'Empresa Demo (Smart HSE)', rubro='Servicios')
     return redirect(url_for('dashboard'))
 
 
@@ -1469,6 +1469,61 @@ def api_faena_legal(cid):
             'responsable': (f.get('responsable') or '').strip()}
     db.requisito_guardar(eid, data)
     return jsonify(db.matriz_legal_contrato(eid, cid))
+
+
+@app.route('/api/faena/<int:cid>/pauta', methods=['GET'])
+@empresa_required
+def api_faena_pauta(cid):
+    """Genera la Pauta de Arranque RESSO (HTML imprimible → PDF): ítems de la Carpeta de Arranque
+    + estándares del mandante de la faena, con el logo de la empresa. Reusa el patrón de carta_na."""
+    rut, eid = session['rut'], _empresa_id()
+    c = db.contrato_de(rut, cid)
+    if not c:
+        return ('Contrato no encontrado', 404)
+    logo = _logo_empresa(rut, eid)
+    emp = db.empresa_de(rut, eid) or {}
+    carpeta = resso.carpeta_lista() if hasattr(resso, 'carpeta_lista') else []
+    if not carpeta:
+        carpeta = [{'n': n, 'titulo': t, 'evidencia': e, 'a_quien': q}
+                   for (n, t, e, q) in resso.CARPETA_ARRANQUE]
+    estandares = db.matriz_legal_contrato(eid, cid)
+    hoy = date.today().strftime('%d-%m-%Y')
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    logo_html = f'<img src="{logo}" style="max-height:74px;max-width:220px">' if logo else \
+        f'<div style="font-weight:800;color:#006a9b;font-size:20px">{esc(emp.get("razon_social") or "Empresa")}</div>'
+    filas_carp = ''.join(
+        f'<tr><td style="text-align:center">{it["n"]}</td><td><b>{esc(it["titulo"])}</b><br>'
+        f'<span style="color:#666;font-size:11px">{esc(it.get("evidencia"))}</span></td>'
+        f'<td>{esc(it.get("a_quien"))}</td><td style="text-align:center">☐</td></tr>' for it in carpeta)
+    filas_est = ''.join(
+        f'<tr><td>{esc(e.get("id_requisito"))}</td><td>{esc(e.get("requisito_legal"))}</td>'
+        f'<td>{esc(e.get("estado_avance"))}</td></tr>' for e in estandares) or \
+        '<tr><td colspan="3" style="color:#999">Sin estándares del mandante precargados. Usa “Precargar”.</td></tr>'
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Pauta de Arranque · {esc(c.get('numero',''))}</title><style>
+ body{{font-family:Arial,Helvetica,sans-serif;color:#1a2b3c;max-width:900px;margin:24px auto;padding:0 24px;line-height:1.45;font-size:12px}}
+ .head{{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #006a9b;padding-bottom:12px;margin-bottom:14px}}
+ h1{{font-size:17px;margin:0;color:#006a9b}} .sub{{font-size:11px;color:#666}}
+ table{{width:100%;border-collapse:collapse;margin:10px 0}} th,td{{border:1px solid #d1d5db;padding:6px 8px;text-align:left;vertical-align:top}}
+ th{{background:#eef2f5;font-size:10px;text-transform:uppercase;color:#374151}} h2{{font-size:13px;color:#006a9b;margin:18px 0 4px}}
+ .pie{{margin-top:22px;font-size:10px;color:#999}} @media print{{.noprint{{display:none}}}}
+</style></head><body>
+ <div class="head">{logo_html}<div style="text-align:right"><h1>PAUTA DE ARRANQUE — CARPETA (RESSO)</h1>
+  <div class="sub">Estándar minero · {esc(c.get('mandante',''))}{(' — ' + esc(c.get('faena'))) if c.get('faena') else ''}</div></div></div>
+ <table><tr><td class="k" style="width:180px;background:#f4f7f6"><b>Empresa</b></td><td>{esc(emp.get('razon_social'))}</td>
+  <td class="k" style="width:140px;background:#f4f7f6"><b>N° Contrato</b></td><td>{esc(c.get('numero',''))}</td></tr>
+  <tr><td style="background:#f4f7f6"><b>Mandante</b></td><td>{esc(c.get('mandante',''))}</td>
+  <td style="background:#f4f7f6"><b>Fecha</b></td><td>{esc(hoy)}</td></tr></table>
+ <h2>1. Carpeta de Arranque (29 ítems)</h2>
+ <table><thead><tr><th style="width:36px">N°</th><th>Documento / evidencia</th><th style="width:150px">Responsable</th><th style="width:44px">✔</th></tr></thead><tbody>{filas_carp}</tbody></table>
+ <h2>2. Estándares del mandante (RC · ECF · SST)</h2>
+ <table><thead><tr><th style="width:90px">Código</th><th>Estándar</th><th style="width:110px">Estado</th></tr></thead><tbody>{filas_est}</tbody></table>
+ <div class="pie">Smart HSE Chile · Pauta generada automáticamente desde la Carpeta de Arranque y los estándares del mandante.
+  <button class="noprint" onclick="window.print()">Imprimir / Guardar PDF</button></div>
+</body></html>"""
+    return send_file(BytesIO(html.encode('utf-8')), mimetype='text/html', as_attachment=False,
+                     download_name=f'Pauta_Arranque_{re.sub(r"[^\\w-]+","_",c.get("numero","") or "")}.html')
 
 
 @app.route('/api/faena/<int:cid>/inyectar', methods=['POST'])

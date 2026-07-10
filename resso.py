@@ -167,6 +167,13 @@ ECF_RC_EST = {
         {'codigo': 'EST-01', 'titulo': 'Estándar de trabajo en altura física'},
         {'codigo': 'EST-02', 'titulo': 'Estándar de bloqueo y señalización'},
     ],
+    'SST': [
+        {'codigo': 'SST-01', 'titulo': 'Vigilancia de exposición a ruido (PREXOR)'},
+        {'codigo': 'SST-02', 'titulo': 'Vigilancia de exposición a sílice (PLANESI)'},
+        {'codigo': 'SST-03', 'titulo': 'Protección contra radiación UV de origen solar'},
+        {'codigo': 'SST-04', 'titulo': 'Hipobaria intermitente crónica por gran altitud (GAG)'},
+        {'codigo': 'SST-05', 'titulo': 'Vigilancia de trastornos musculoesqueléticos (TMERT-EESS)'},
+    ],
 }
 
 
