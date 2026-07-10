@@ -104,7 +104,7 @@
                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance</span></button>
                <button type="button" data-nav="contratos" onclick="mostrarVista('contratos'); cargarEmpresaCard()" class="nav-item">
                    <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis Contratos</span></button>
-               <button type="button" data-nav="checklist" onclick="mostrarVista('checklist')" class="nav-item">
+               <button type="button" data-nav="checklist" onclick="mostrarVista('checklist'); cargarVehiculos()" class="nav-item">
                    <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist</span></button>
                <button type="button" data-nav="ds44" onclick="mostrarVista('ds44')" class="nav-item">
                    <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
@@ -567,6 +567,26 @@
                <i data-lucide="list-checks" class="w-5 h-5 text-primary"></i>
                <h2 class="text-xl font-extrabold text-gray-900">Checklists digitales</h2>
            </div>
+
+           <!-- ── Flota / Vehículos con QR (Ronda 22) ── -->
+           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                   <div class="flex items-center gap-2">
+                       <i data-lucide="truck" class="w-5 h-5 text-primary"></i>
+                       <h3 class="font-extrabold text-gray-900">Flota / Vehículos (QR por patente)</h3>
+                   </div>
+                   <button type="button" onclick="toggleFormVehiculo()" class="text-primary text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Agregar vehículo</button>
+               </div>
+               <p class="text-gray-500 text-xs mb-3">Cada patente genera un <b>código QR</b>. El conductor lo escanea antes del <b>primer viaje del día</b> y completa el checklist <b>FYS (fatiga)</b> + <b>preuso de vehículo</b> desde su teléfono. Las no conformidades alertan en el Panel de Actividades Pendientes.</p>
+               <div id="formVehiculo" class="hidden grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4">
+                   <input id="ve_patente" class="iet-in" placeholder="Patente (ej. GKTR-45)">
+                   <input id="ve_tipo" class="iet-in" placeholder="Tipo (camioneta…)">
+                   <input id="ve_marca" class="iet-in" placeholder="Marca/Modelo">
+                   <div class="flex gap-2"><input id="ve_km" type="number" class="iet-in" placeholder="Km"><button type="button" onclick="crearVehiculo()" class="bg-secondary text-white px-3 rounded-lg text-sm font-bold shrink-0">+</button></div>
+               </div>
+               <div id="vehiculosLista" class="space-y-2"></div>
+           </div>
+
            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                <!-- Conducción · Preuso de vehículo -->
                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit" data-cl="vehiculo">
@@ -2516,6 +2536,40 @@
             alert(`✅ Importados ${d.importados} requisitos.`);
             cargarMatriz();
         }
+
+        // ── Flota / Vehículos con QR (Ronda 22) ──
+        function toggleFormVehiculo() { document.getElementById('formVehiculo').classList.toggle('hidden'); }
+        async function cargarVehiculos() {
+            let data = [];
+            try { const r = await fetch('/api/vehiculos'); if (r.ok) data = await r.json(); } catch (e) { }
+            const cont = document.getElementById('vehiculosLista');
+            if (!cont) return;
+            if (!data.length) { cont.innerHTML = '<p class="text-sm text-gray-400">Aún no hay vehículos. Agrega una patente para generar su QR.</p>'; return; }
+            cont.innerHTML = data.map(v => {
+                const uc = v.ultimo_checklist;
+                const estado = uc ? (uc.conforme ? `<span class="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Último: conforme (${uc.fecha})</span>` : `<span class="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Último: NC (${uc.fecha})</span>`) : '<span class="text-[10px] text-gray-400">Sin checklist</span>';
+                return `<div class="flex flex-wrap items-center justify-between gap-3 border border-gray-100 rounded-xl p-3">
+                    <div class="min-w-0">
+                        <p class="font-bold text-gray-900">${escM(v.patente)} <span class="text-[11px] text-gray-400">${escM(v.marca_modelo || '')}${v.tipo ? ' · ' + escM(v.tipo) : ''}${v.km_actual != null ? ' · ' + v.km_actual + ' km' : ''}</span></p>
+                        <div class="mt-1">${estado}</div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <a href="/api/vehiculos/${v.id}/qr" target="_blank" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Ver / imprimir QR</a>
+                        <button type="button" onclick="eliminarVehiculo(${v.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        async function crearVehiculo() {
+            const patente = document.getElementById('ve_patente').value.trim();
+            if (!patente) { alert('Indica la patente.'); return; }
+            const r = await fetch('/api/vehiculos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patente, tipo: document.getElementById('ve_tipo').value.trim(), marca_modelo: document.getElementById('ve_marca').value.trim(), km_actual: document.getElementById('ve_km').value }) });
+            if (!r.ok) { alert('No se pudo agregar el vehículo.'); return; }
+            ['ve_patente', 've_tipo', 've_marca', 've_km'].forEach(i => document.getElementById(i).value = '');
+            cargarVehiculos();
+        }
+        async function eliminarVehiculo(id) { if (!confirm('¿Eliminar este vehículo y su historial de checklists?')) return; await fetch(`/api/vehiculos/${id}/eliminar`, { method: 'POST' }); cargarVehiculos(); }
 
         // ── Gestión de faena (Fase 2: precarga por contrato) ──
         let _faena = null;

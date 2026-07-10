@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checklist · {{ v.patente }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038' } } } };</script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 font-sans">
+    <div class="max-w-md mx-auto">
+        <div class="bg-primary text-white rounded-2xl p-5 mb-4 shadow">
+            <p class="text-[11px] uppercase tracking-wide text-white/70 font-bold">Checklist de terreno · primer viaje del día</p>
+            <h1 class="text-2xl font-extrabold">{{ v.patente }}</h1>
+            <p class="text-white/85 text-sm">{{ v.marca_modelo or '' }}{% if v.tipo %} · {{ v.tipo }}{% endif %}</p>
+        </div>
+
+        <div id="resultado" class="hidden rounded-2xl p-4 mb-4 shadow text-sm"></div>
+
+        <form id="clForm" class="space-y-4">
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">Conductor</p>
+                <input id="conductor_nombre" required placeholder="Nombre completo" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary">
+                <input id="conductor_rut" required placeholder="RUT (ej. 12.345.678-5)" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary">
+                <input id="km" type="number" inputmode="numeric" placeholder="Kilometraje actual" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary">
+            </div>
+
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-1">Fatiga y Somnolencia (FYS)</p>
+                <p class="text-xs text-gray-500 mb-3">Responde con honestidad. Es por tu seguridad.</p>
+                {% for it in fys %}
+                <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                    <span class="text-sm text-gray-700">{{ it.txt }}</span>
+                    <div class="flex gap-1 shrink-0">
+                        <label class="cursor-pointer"><input type="radio" name="fys_{{ it.k }}" value="si" class="peer hidden"><span class="px-3 py-1.5 rounded-lg border text-xs font-bold peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary">Sí</span></label>
+                        <label class="cursor-pointer"><input type="radio" name="fys_{{ it.k }}" value="no" class="peer hidden"><span class="px-3 py-1.5 rounded-lg border text-xs font-bold peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary">No</span></label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">Preuso del Vehículo</p>
+                {% for it in veh %}
+                <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                    <span class="text-sm text-gray-700">{{ it.txt }}</span>
+                    <div class="flex gap-1 shrink-0">
+                        <label class="cursor-pointer"><input type="radio" name="veh_{{ it.k }}" value="c" class="peer hidden"><span class="px-2.5 py-1.5 rounded-lg border text-xs font-bold peer-checked:bg-secondary peer-checked:text-white peer-checked:border-secondary">C</span></label>
+                        <label class="cursor-pointer"><input type="radio" name="veh_{{ it.k }}" value="nc" class="peer hidden"><span class="px-2.5 py-1.5 rounded-lg border text-xs font-bold peer-checked:bg-red-500 peer-checked:text-white peer-checked:border-red-500">NC</span></label>
+                        <label class="cursor-pointer"><input type="radio" name="veh_{{ it.k }}" value="na" class="peer hidden"><span class="px-2.5 py-1.5 rounded-lg border text-xs font-bold peer-checked:bg-gray-400 peer-checked:text-white peer-checked:border-gray-400">N/A</span></label>
+                    </div>
+                </div>
+                {% endfor %}
+                <p class="text-[11px] text-gray-400 mt-2">C = Conforme · NC = No conforme · N/A = No aplica</p>
+            </div>
+
+            <button type="submit" class="w-full bg-secondary hover:bg-[#6a9e32] text-white py-4 rounded-2xl font-extrabold text-lg shadow">Enviar checklist</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('clForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('conductor_nombre', document.getElementById('conductor_nombre').value);
+            fd.append('conductor_rut', document.getElementById('conductor_rut').value);
+            fd.append('km', document.getElementById('km').value);
+            document.querySelectorAll('input[type=radio]:checked').forEach(r => fd.append(r.name, r.value));
+            const r = await fetch(location.pathname, { method: 'POST', body: fd });
+            const d = await r.json().catch(() => ({}));
+            const box = document.getElementById('resultado');
+            box.classList.remove('hidden');
+            if (!r.ok) { box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-red-100 text-red-700'; box.textContent = d.error || 'No se pudo enviar.'; return; }
+            if (d.conforme) {
+                box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-green-100 text-green-800';
+                box.innerHTML = '<b>✅ Checklist conforme.</b> Puedes conducir. Registro guardado.';
+            } else {
+                box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-red-100 text-red-800';
+                box.innerHTML = '<b>⚠ Se detectaron no conformidades / fatiga:</b><br>' + (d.alertas || []).map(a => '• ' + a).join('<br>') + '<br><br>Informa al encargado antes de conducir. Se notificó en la plataforma.';
+            }
+            document.getElementById('clForm').classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>

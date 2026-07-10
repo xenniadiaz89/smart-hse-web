@@ -60,6 +60,21 @@ def actividades_pendientes(db, empresa_id):
             'prioridad': 1 if r.get('capa') == 'core' else 2,
         })
 
+    # (d) Vehículos: checklists de terreno con no conformidad / fatiga (Ronda 22)
+    try:
+        for c in db.checklists_no_conformes(empresa_id):
+            items.append({
+                'tipo': 'vehiculo',
+                'titulo': f"Checklist vehículo {c.get('patente','')} — no conforme",
+                'estado': 'pendiente',
+                'detalle': c.get('observacion') or 'Se detectaron no conformidades o indicios de fatiga.',
+                'responsable': c.get('conductor_nombre') or '—',
+                'fecha_compromiso': c.get('fecha'),
+                'prioridad': 0,
+            })
+    except Exception:
+        pass
+
     items.sort(key=lambda x: x.get('prioridad', 9))
     return items
 

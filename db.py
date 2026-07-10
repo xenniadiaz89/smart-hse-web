@@ -15,7 +15,7 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
                     TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
-                    BibliotecaTarea)
+                    BibliotecaTarea, Vehiculo, ChecklistVehiculo)
 import iper
 
 
@@ -1447,3 +1447,85 @@ def irls_de_trabajador(trabajador_id):
     return [r.to_dict() for r in
             IRLGenerado.query.filter_by(trabajador_id=trabajador_id)
             .order_by(IRLGenerado.id.desc()).all()]
+
+
+# ══════════════ Ronda 22 — Vehículos + QR (checklist móvil) ══════════════
+import secrets as _secrets, json as _json2
+
+
+def vehiculo_crear(empresa_id, patente, tipo=None, marca_modelo=None, km_actual=None):
+    patente = (patente or '').strip().upper()
+    v = Vehiculo(empresa_id=empresa_id, patente=patente, tipo=tipo, marca_modelo=marca_modelo,
+                 km_actual=km_actual, token=_secrets.token_urlsafe(9), creado=_hoy())
+    sqla.session.add(v)
+    _commit()
+    return v.id
+
+
+def vehiculos_de(empresa_id):
+    out = []
+    for v in Vehiculo.query.filter_by(empresa_id=empresa_id).order_by(Vehiculo.patente).all():
+        d = v.to_dict()
+        ult = (ChecklistVehiculo.query.filter_by(vehiculo_id=v.id)
+               .order_by(ChecklistVehiculo.id.desc()).first())
+        d['ultimo_checklist'] = ult.to_dict() if ult else None
+        out.append(d)
+    return out
+
+
+def vehiculo_de(empresa_id, vehiculo_id):
+    v = Vehiculo.query.filter_by(id=vehiculo_id, empresa_id=empresa_id).first()
+    return v.to_dict() if v else None
+
+
+def vehiculo_por_token(token):
+    v = Vehiculo.query.filter_by(token=token).first()
+    return v.to_dict() if v else None
+
+
+def vehiculo_eliminar(empresa_id, vehiculo_id):
+    ChecklistVehiculo.query.filter_by(vehiculo_id=vehiculo_id).delete()
+    Vehiculo.query.filter_by(id=vehiculo_id, empresa_id=empresa_id).delete()
+    _commit()
+
+
+def checklist_hoy(vehiculo_id, conductor_rut):
+    """¿Ya se hizo hoy el checklist de este vehículo para este conductor? (primer viaje del día)."""
+    if not conductor_rut:
+        return None
+    row = (ChecklistVehiculo.query
+           .filter_by(vehiculo_id=vehiculo_id, conductor_rut=conductor_rut, fecha=_hoy()).first())
+    return row.to_dict() if row else None
+
+
+def checklist_vehiculo_guardar(vehiculo_id, empresa_id, conductor_nombre, conductor_rut, km,
+                               fys, veh, conforme, alertas):
+    from datetime import datetime as _dt2
+    row = ChecklistVehiculo(
+        vehiculo_id=vehiculo_id, empresa_id=empresa_id, conductor_nombre=conductor_nombre,
+        conductor_rut=conductor_rut, fecha=_hoy(), km=km,
+        fys_json=_json2.dumps(fys, ensure_ascii=False), vehiculo_json=_json2.dumps(veh, ensure_ascii=False),
+        conforme=1 if conforme else 0, observacion=' · '.join(alertas) if alertas else None,
+        creado_ts=_dt2.now().isoformat(timespec='seconds'))
+    sqla.session.add(row)
+    # actualizar km del vehículo
+    v = Vehiculo.query.get(vehiculo_id)
+    if v and km is not None:
+        v.km_actual = km
+    _commit()
+    return row.id
+
+
+def checklists_de_vehiculo(vehiculo_id, limite=30):
+    return [c.to_dict() for c in
+            ChecklistVehiculo.query.filter_by(vehiculo_id=vehiculo_id)
+            .order_by(ChecklistVehiculo.id.desc()).limit(limite).all()]
+
+
+def checklists_no_conformes(empresa_id):
+    """Checklists con alerta (fatiga o vehículo NC) — para el panel de pendientes."""
+    rows = (sqla.session.query(ChecklistVehiculo, Vehiculo.patente)
+            .join(Vehiculo, Vehiculo.id == ChecklistVehiculo.vehiculo_id)
+            .filter(ChecklistVehiculo.empresa_id == empresa_id, ChecklistVehiculo.conforme == 0)
+            .order_by(ChecklistVehiculo.id.desc()).limit(20).all())
+    return [{**c.to_dict(), 'patente': p} for c, p in rows]

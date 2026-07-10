@@ -427,3 +427,34 @@ class BibliotecaTarea(_DictMixin, sqla.Model):
     probabilidad = sqla.Column(sqla.Integer)
     consecuencia = sqla.Column(sqla.Integer)
     creado = sqla.Column(sqla.Text)
+
+
+# ══════════ Ronda 22 — Vehículos + QR (checklist móvil de terreno) ══════════
+class Vehiculo(_DictMixin, sqla.Model):
+    """Vehículo/equipo de la empresa. Cada patente tiene un token para su QR (ruta móvil pública)."""
+    __tablename__ = 'vehiculo'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    patente = sqla.Column(sqla.Text, nullable=False)
+    tipo = sqla.Column(sqla.Text)                           # camioneta, bus, maquinaria…
+    marca_modelo = sqla.Column(sqla.Text)
+    km_actual = sqla.Column(sqla.Integer)
+    token = sqla.Column(sqla.Text, unique=True, index=True)  # llave del QR (/v/<token>)
+    creado = sqla.Column(sqla.Text)
+
+
+class ChecklistVehiculo(_DictMixin, sqla.Model):
+    """Registro de un checklist de terreno (FYS + preuso de vehículo) hecho al escanear el QR."""
+    __tablename__ = 'checklist_vehiculo'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    vehiculo_id = sqla.Column(sqla.Integer, sqla.ForeignKey('vehiculo.id'), index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    conductor_nombre = sqla.Column(sqla.Text)
+    conductor_rut = sqla.Column(sqla.Text)
+    fecha = sqla.Column(sqla.Text)                          # YYYY-MM-DD (día del checklist)
+    km = sqla.Column(sqla.Integer)
+    fys_json = sqla.Column(sqla.Text)                       # respuestas Fatiga y Somnolencia
+    vehiculo_json = sqla.Column(sqla.Text)                  # respuestas preuso vehículo
+    conforme = sqla.Column(sqla.Integer, default=1)         # 0 si hay no conformidades / alerta
+    observacion = sqla.Column(sqla.Text)
+    creado_ts = sqla.Column(sqla.Text)

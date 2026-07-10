@@ -19,6 +19,7 @@ import cumplimiento
 import alertas
 import docgen
 import iper
+import vehiculos
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -1579,6 +1580,87 @@ def api_biblioteca_add():
                         medida_control=f.get('medida_control'), metodo_correcto=f.get('metodo_correcto'),
                         probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'))
     return jsonify(db.biblioteca_listar(_empresa_id()))
+
+
+# ══════════════ Ronda 22 — Vehículos + QR + checklist móvil ══════════════
+@app.route('/api/vehiculos', methods=['GET'])
+@empresa_required
+def api_vehiculos_get():
+    return jsonify(db.vehiculos_de(_empresa_id()))
+
+
+@app.route('/api/vehiculos', methods=['POST'])
+@empresa_required
+def api_vehiculo_crear():
+    f = request.get_json(silent=True) or request.form
+    patente = (f.get('patente') or '').strip()
+    if not patente:
+        return jsonify({'error': 'Indica la patente.'}), 400
+    km = f.get('km_actual')
+    db.vehiculo_crear(_empresa_id(), patente, tipo=(f.get('tipo') or '').strip() or None,
+                      marca_modelo=(f.get('marca_modelo') or '').strip() or None,
+                      km_actual=int(km) if str(km or '').isdigit() else None)
+    return jsonify(db.vehiculos_de(_empresa_id()))
+
+
+@app.route('/api/vehiculos/<int:vid>/eliminar', methods=['POST'])
+@empresa_required
+def api_vehiculo_eliminar(vid):
+    db.vehiculo_eliminar(_empresa_id(), vid)
+    return jsonify(db.vehiculos_de(_empresa_id()))
+
+
+@app.route('/api/vehiculos/<int:vid>/qr', methods=['GET'])
+@empresa_required
+def api_vehiculo_qr(vid):
+    """QR (PNG) que apunta a la ruta móvil pública del vehículo (/v/<token>)."""
+    v = db.vehiculo_de(_empresa_id(), vid)
+    if not v or not v.get('token'):
+        return ('Vehículo no encontrado', 404)
+    import segno
+    url = url_for('checklist_movil', token=v['token'], _external=True)
+    buf = BytesIO()
+    segno.make(url, error='m').save(buf, kind='png', scale=6, border=2)
+    buf.seek(0)
+    return send_file(buf, mimetype='image/png', as_attachment=False,
+                     download_name=f"QR_{v.get('patente','vehiculo')}.png")
+
+
+@app.route('/api/vehiculos/checklists-alerta', methods=['GET'])
+@empresa_required
+def api_vehiculo_alertas():
+    return jsonify(db.checklists_no_conformes(_empresa_id()))
+
+
+# ── Ruta MÓVIL PÚBLICA (se abre al escanear el QR; sin login) ──
+@app.route('/v/<token>', methods=['GET'])
+def checklist_movil(token):
+    v = db.vehiculo_por_token(token)
+    if not v:
+        return ('Vehículo no encontrado o QR inválido.', 404)
+    return render_template('mobile_checklist.html', v=v, token=token,
+                           fys=vehiculos.FYS_ITEMS, veh=vehiculos.VEHICULO_ITEMS,
+                           ya_hoy=None)
+
+
+@app.route('/v/<token>', methods=['POST'])
+def checklist_movil_guardar(token):
+    v = db.vehiculo_por_token(token)
+    if not v:
+        return jsonify({'error': 'QR inválido.'}), 404
+    f = request.get_json(silent=True) or request.form
+    nombre = (f.get('conductor_nombre') or '').strip()
+    rut = (f.get('conductor_rut') or '').strip()
+    if not (nombre and rut):
+        return jsonify({'error': 'Indica tu nombre y RUT.'}), 400
+    fys = {it['k']: (f.get('fys_' + it['k']) or '') for it in vehiculos.FYS_ITEMS}
+    veh = {it['k']: (f.get('veh_' + it['k']) or '') for it in vehiculos.VEHICULO_ITEMS}
+    km = f.get('km')
+    km = int(km) if str(km or '').isdigit() else None
+    conforme, alertas = vehiculos.evaluar(fys, veh)
+    db.checklist_vehiculo_guardar(v['id'], v['empresa_id'], nombre, normalizar_rut(rut) if rut_valido(rut) else rut,
+                                  km, fys, veh, conforme, alertas)
+    return jsonify({'ok': True, 'conforme': conforme, 'alertas': alertas})
 
 
 @app.route('/api/contratos/<int:cid>/carpeta/<int:n>/documento', methods=['POST'])
