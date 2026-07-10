@@ -251,6 +251,7 @@ class RequisitoLegal(_DictMixin, sqla.Model):
     is_mandatory = sqla.Column(sqla.Integer, default=0)   # 1 = fila Core (bloquea Requisito/Cuerpo_Legal)
     evidencia_notas = sqla.Column(sqla.Text)
     fecha_vencimiento = sqla.Column(sqla.Text)
+    contrato_id = sqla.Column(sqla.Integer, index=True)   # Ronda 18 F2: requisito por contrato/faena (null = transversal)
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'id_requisito'),)
 
 

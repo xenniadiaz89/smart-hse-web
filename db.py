@@ -72,6 +72,8 @@ _COLUMNAS_NUEVAS = [
     ('riesgo_item', 'bowtie', 'TEXT'),
     ('irl_generado', 'requiere_refirma', 'INTEGER DEFAULT 0'),
     ('irl_generado', 'motivo_actualizacion', 'TEXT'),
+    # Ronda 18 Fase 2 — capa legal por contrato/faena
+    ('requisito_legal', 'contrato_id', 'INTEGER'),
 ]
 
 
@@ -851,9 +853,17 @@ def pendientes_legales(empresa_id):
 
 # ── Matriz Legal por capas (RequisitoLegal) ──
 def matriz_legal(empresa_id):
+    """Matriz Legal TRANSVERSAL de la empresa (requisitos sin contrato: Core + Operativa)."""
     return [r.to_dict() for r in
-            RequisitoLegal.query.filter_by(empresa_id=empresa_id)
+            RequisitoLegal.query.filter_by(empresa_id=empresa_id, contrato_id=None)
             .order_by(RequisitoLegal.capa, RequisitoLegal.id_requisito).all()]
+
+
+def matriz_legal_contrato(empresa_id, contrato_id):
+    """Requisitos legales de la capa mandante ligados a un contrato/faena."""
+    return [r.to_dict() for r in
+            RequisitoLegal.query.filter_by(empresa_id=empresa_id, contrato_id=contrato_id)
+            .order_by(RequisitoLegal.id_requisito).all()]
 
 
 # Campos siempre editables (también en filas Core); el resto queda bloqueado en Core.
@@ -861,7 +871,7 @@ _MATRIZ_CAMPOS_GESTION = ('estado_avance', 'evidencia_notas', 'responsable',
                           'fecha_vencimiento', 'fecha_actualizacion')
 _MATRIZ_CAMPOS_DEF = ('capa', 'origen', 'cuerpo_normativo', 'requisito_legal', 'obligacion',
                       'riesgo_asociado', 'control_operativo', 'frecuencia', 'categoria',
-                      'fuente_legal_id', 'articulo', 'frecuencia_actualizacion_meses')
+                      'fuente_legal_id', 'articulo', 'frecuencia_actualizacion_meses', 'contrato_id')
 
 
 def requisito_guardar(empresa_id, data):
@@ -1121,6 +1131,103 @@ def riesgos_de_requisito(empresa_id, requisito_row_id):
 def contratos_mineros_de(empresa_id):
     return [{'id': c.id, 'numero': c.numero, 'mandante': c.mandante}
             for c in Contrato.query.filter_by(empresa_id=empresa_id, es_contratista_minera=1).all()]
+
+
+# ── Fase 2: Gestión de faena — precarga por contrato desde la Carpeta de Arranque ──
+def riesgos_de_contrato(empresa_id, contrato_id):
+    """Ítems de riesgo (MIPER) ligados a un contrato/faena, con el nombre de su tarea."""
+    rows = (sqla.session.query(RiesgoItem, TareaIPER.nombre)
+            .join(MatrizRiesgo, MatrizRiesgo.id == RiesgoItem.matriz_id)
+            .outerjoin(TareaIPER, TareaIPER.id == RiesgoItem.tarea_id)
+            .filter(MatrizRiesgo.empresa_id == empresa_id,
+                    RiesgoItem.contrato_id == contrato_id)
+            .order_by(RiesgoItem.id).all())
+    return [{**it.to_dict(), 'tarea': nombre} for it, nombre in rows]
+
+
+def precargar_faena(rut, contrato_id):
+    """Precarga 'lo básico de la Carpeta de Arranque' para un contrato minero:
+    (a) requisitos legales de la CAPA MANDANTE (RC/ECF del mandante) ligados al contrato;
+    (b) actividades/riesgos críticos del mandante en la MIPER, tagueados con contrato_id.
+    Idempotente. Devuelve {legales, riesgos} creados/existentes."""
+    import resso
+    c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
+    if not c:
+        return {'error': 'Contrato no encontrado.'}
+    empresa_id = c.empresa_id
+    mandante = c.mandante or 'Mandante'
+    mid = matriz_riesgo_vigente(empresa_id)
+    mid = mid['id'] if mid else crear_matriz_riesgo(empresa_id, rut)
+
+    legales, riesgos = 0, 0
+    # (a) Capa mandante: Riesgos Críticos + ECF como requisitos legales del contrato
+    catalogo = resso.ECF_RC_EST.get('RC', []) + resso.ECF_RC_EST.get('ECF', [])
+    for item in catalogo:
+        idr = f"F{contrato_id}-{item['codigo']}"
+        if RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first():
+            continue
+        sqla.session.add(RequisitoLegal(
+            empresa_id=empresa_id, contrato_id=contrato_id, id_requisito=idr, capa='mandante',
+            is_mandatory=0, origen=mandante, cuerpo_normativo=f"Estándar {mandante} · {item['codigo']}",
+            requisito_legal=item['titulo'], estado_avance='pendiente', fecha=_hoy()))
+        legales += 1
+    _commit()
+    # (b) MIPER faena: Riesgos Críticos del mandante como tareas críticas (contrato_id)
+    for item in resso.ECF_RC_EST.get('RC', []):
+        nombre = f"{item['codigo']} · {item['titulo']}"
+        existe = (sqla.session.query(TareaIPER)
+                  .join(RiesgoItem, RiesgoItem.tarea_id == TareaIPER.id)
+                  .filter(TareaIPER.matriz_id == mid, RiesgoItem.contrato_id == contrato_id,
+                          TareaIPER.nombre == nombre).first())
+        if existe:
+            continue
+        tid = tarea_crear(mid, nombre, proceso=f'Faena {mandante}')
+        rid = riesgo_agregar(mid, item['titulo'], f"Riesgo crítico: {item['titulo']}",
+                             'Control crítico según estándar del mandante (verificación en terreno).',
+                             probabilidad=3, consecuencia=3, es_critico=1, contrato_id=contrato_id)
+        it = RiesgoItem.query.get(rid)
+        if it:
+            it.tarea_id = tid
+        riesgos += 1
+    _commit()
+    return {'legales': legales, 'riesgos': riesgos, 'mandante': mandante}
+
+
+def inyectar_actividades_faena(rut, contrato_id, nombres):
+    """Inyecta actividades base/personalizadas (por nombre) a la MIPER de una faena (contrato_id),
+    tomándolas del catálogo base transversal o de la biblioteca. Sincroniza con IRL vía tareas."""
+    import iper as _iper
+    c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
+    if not c:
+        return {'error': 'Contrato no encontrado.'}
+    empresa_id = c.empresa_id
+    mid = matriz_riesgo_vigente(empresa_id)
+    mid = mid['id'] if mid else crear_matriz_riesgo(empresa_id, rut)
+    catalogo = {t['tarea']: t for t in _iper.CATALOGO_TAREAS_BASE}
+    biblio = {b['nombre']: b for b in biblioteca_listar(empresa_id)}
+    n = 0
+    for nombre in (nombres or []):
+        base = catalogo.get(nombre)
+        tid = tarea_crear(mid, nombre, proceso=f'Faena {c.mandante or ""}'.strip())
+        if base:
+            for r in base.get('riesgos', []):
+                rid = riesgo_agregar(mid, r['peligro'], r['riesgo'], r['medida_control'],
+                                     probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+                                     metodo_correcto=r.get('metodo_correcto'), contrato_id=contrato_id)
+                it = RiesgoItem.query.get(rid)
+                if it:
+                    it.tarea_id = tid
+        elif nombre in biblio:
+            b = biblio[nombre]
+            rid = riesgo_agregar(mid, b.get('peligro'), b.get('riesgo'), b.get('medida_control'),
+                                 probabilidad=b.get('probabilidad'), consecuencia=b.get('consecuencia'),
+                                 metodo_correcto=b.get('metodo_correcto'), contrato_id=contrato_id)
+            it = RiesgoItem.query.get(rid)
+            if it:
+                it.tarea_id = tid
+        n += 1
+    _commit()
+    return {'inyectadas': n}
 
 
 # ── Biblioteca personalizada (auto-aprendizaje) ──

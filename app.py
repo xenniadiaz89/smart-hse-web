@@ -1425,6 +1425,63 @@ def api_miper_versionar():
     return jsonify({'ok': True, 'matriz': nueva})
 
 
+# ══════════════ Fase 2 — Gestión de faena (precarga por contrato) ══════════════
+@app.route('/api/faena/<int:cid>', methods=['GET'])
+@empresa_required
+def api_faena_get(cid):
+    """Capa legal (mandante) + riesgos de la faena de un contrato + catálogo de actividades."""
+    rut, eid = session['rut'], _empresa_id()
+    c = db.contrato_de(rut, cid)
+    if not c:
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    actividades = [t['tarea'] for t in iper.CATALOGO_TAREAS_BASE] + \
+                  [b['nombre'] for b in db.biblioteca_listar(eid)]
+    return jsonify({'contrato': c,
+                    'legal': db.matriz_legal_contrato(eid, cid),
+                    'riesgos': db.riesgos_de_contrato(eid, cid),
+                    'actividades': sorted(set(actividades))})
+
+
+@app.route('/api/faena/<int:cid>/precargar', methods=['POST'])
+@empresa_required
+def api_faena_precargar(cid):
+    res = db.precargar_faena(session['rut'], cid)
+    if res.get('error'):
+        return jsonify(res), 400
+    return jsonify({'ok': True, **res,
+                    'legal': db.matriz_legal_contrato(_empresa_id(), cid),
+                    'riesgos': db.riesgos_de_contrato(_empresa_id(), cid)})
+
+
+@app.route('/api/faena/<int:cid>/legal', methods=['POST'])
+@empresa_required
+def api_faena_legal(cid):
+    """Agrega un requisito legal de mandante ligado a la faena (CRUD capa mandante)."""
+    eid = _empresa_id()
+    if not db.contrato_de(session['rut'], cid):
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    f = request.get_json(silent=True) or {}
+    existentes = db.matriz_legal_contrato(eid, cid)
+    n = 1 + len(existentes)
+    data = {'id_requisito': f"F{cid}-OP-{n:02d}", 'capa': 'mandante', 'contrato_id': cid,
+            'origen': (f.get('origen') or '').strip(), 'cuerpo_normativo': (f.get('cuerpo_normativo') or '').strip(),
+            'requisito_legal': (f.get('requisito_legal') or '').strip(),
+            'responsable': (f.get('responsable') or '').strip()}
+    db.requisito_guardar(eid, data)
+    return jsonify(db.matriz_legal_contrato(eid, cid))
+
+
+@app.route('/api/faena/<int:cid>/inyectar', methods=['POST'])
+@empresa_required
+def api_faena_inyectar(cid):
+    """Inyecta actividades/procesos (del catálogo base o biblioteca) a la MIPER de la faena."""
+    f = request.get_json(silent=True) or {}
+    res = db.inyectar_actividades_faena(session['rut'], cid, f.get('actividades') or [])
+    if res.get('error'):
+        return jsonify(res), 400
+    return jsonify({'ok': True, **res, 'riesgos': db.riesgos_de_contrato(_empresa_id(), cid)})
+
+
 @app.route('/api/biblioteca', methods=['GET'])
 @empresa_required
 def api_biblioteca_get():
