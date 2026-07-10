@@ -33,8 +33,32 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 sqla.init_app(app)
 
-with app.app_context():
-    db.init_db()                                # crea tablas (auto-migración) + siembra mapping
+# Arranque tolerante a fallos (Hotfix deploy): si init_db() falla contra Postgres (BD caída/expirada,
+# seed/migración), NO se crashea el proceso (evita el bucle "Exited with status 1" en Render); se
+# imprime el traceback en los logs y se reintenta en la primera request hasta lograrlo.
+_db_ready = False
+
+
+def _try_init_db():
+    global _db_ready
+    if _db_ready:
+        return
+    try:
+        with app.app_context():
+            db.init_db()                        # crea tablas (auto-migración) + siembra
+        _db_ready = True
+    except Exception:
+        import traceback
+        traceback.print_exc()                   # el error real queda visible en los logs de Render
+
+
+_try_init_db()                                  # intento al arrancar (sin tumbar el worker)
+
+
+@app.before_request
+def _ensure_db_ready():
+    if not _db_ready:
+        _try_init_db()
 
 
 # ─────────────────────────── Utilidades RUT / clave ────────────────────────
