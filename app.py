@@ -32,6 +32,18 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
     os.path.dirname(__file__), 'smarthse.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Hotfix deploy v3: SOLO en Postgres (prod), conexión que FALLA RÁPIDO. Si el Postgres de Render está
+# suspendido/expirado y su host traga los paquetes, un connect sin timeout CUELGA el arranque → gunicorn
+# mata el worker por timeout → "Exited with status 1" (un SIGKILL durante el cuelgue NO es una excepción,
+# así que las guardas try/except no lo ven). Con connect_timeout el connect lanza OperationalError en ≤5s
+# → lo atrapa la guarda de init_db → el servicio SUBE (Live, degradado) y el error real queda en Logs.
+# No se aplica a SQLite (su DBAPI no acepta connect_timeout).
+if _db_url:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,                  # descarta conexiones muertas del pool antes de usarlas
+        'connect_args': {'connect_timeout': 5},  # psycopg2: falla en ≤5s en vez de colgarse indefinido
+    }
+
 # Arranque tolerante a fallos (Hotfix deploy v2). El crash de "Exited with status 1" ocurría en
 # sqla.init_app(), que dentro llama create_engine e IMPORTA psycopg2 y parsea DATABASE_URL. Se hace en
 # dos capas guardadas:
