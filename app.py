@@ -31,17 +31,29 @@ if _db_url.startswith('postgres://'):          # Render entrega 'postgres://'; S
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
     os.path.dirname(__file__), 'smarthse.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-sqla.init_app(app)
 
-# Arranque tolerante a fallos (Hotfix deploy): si init_db() falla contra Postgres (BD caída/expirada,
-# seed/migración), NO se crashea el proceso (evita el bucle "Exited with status 1" en Render); se
-# imprime el traceback en los logs y se reintenta en la primera request hasta lograrlo.
+# Arranque tolerante a fallos (Hotfix deploy v2). El crash de "Exited with status 1" ocurría en
+# sqla.init_app(), que dentro llama create_engine e IMPORTA psycopg2 y parsea DATABASE_URL. Se hace en
+# dos capas guardadas:
+#   (1) init_app UNA sola vez al arrancar (Flask bloquea el setup tras la 1ª request, así que no se
+#       reintenta): si el driver no está o la URL es inválida, NO se tumba el worker; se loguea la traza
+#       y el servicio sube igual (queda Live, con el error visible en Logs).
+#   (2) init_db (conexión + create_all + seeds) sí se reintenta en cada request hasta lograrlo, para
+#       recuperarse de una caída/latencia transitoria del Postgres.
+_db_app_bound = False
 _db_ready = False
+
+try:
+    sqla.init_app(app)                          # importa psycopg2 + parsea URL (paso que reventaba)
+    _db_app_bound = True
+except Exception:
+    import traceback
+    traceback.print_exc()                       # driver ausente / URL inválida → visible en Logs de Render
 
 
 def _try_init_db():
     global _db_ready
-    if _db_ready:
+    if _db_ready or not _db_app_bound:
         return
     try:
         with app.app_context():
