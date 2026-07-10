@@ -61,9 +61,14 @@
                 Automatización Inteligente para tu <span class="text-secondary">Gestión HSE en Chile</span>
             </h1>
             <p class="text-lg md:text-xl text-gray-100 mb-10 max-w-3xl mx-auto drop-shadow">Potenciando la seguridad, el cumplimiento y el crecimiento sostenible.</p>
-            <a href="/prueba" class="inline-block bg-secondary hover:bg-[#6a9e32] text-white px-10 py-4 rounded-xl font-bold shadow-lg transition text-lg">
-                Probar gratis
-            </a>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="/prueba" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-8 py-4 rounded-xl font-bold shadow-lg transition text-lg">
+                    <i data-lucide="hard-hat" class="w-5 h-5"></i> Soy Asesor de Prevención — Probar gratis
+                </a>
+                <a href="#empresas" class="inline-flex items-center gap-2 bg-white/95 hover:bg-white text-primary px-8 py-4 rounded-xl font-bold shadow-lg transition text-lg">
+                    <i data-lucide="building-2" class="w-5 h-5"></i> Soy Empresa — Comunícate con nosotros
+                </a>
+            </div>
         </div>
     </section>
 
@@ -98,6 +103,36 @@
                 <p class="text-sm text-gray-600">Ley 16.744, Ley Karin, DS 44/2024 y DS 594 enlazadas a la Biblioteca del Congreso (BCN).</p>
                 <span class="inline-flex items-center gap-1 text-primary font-bold text-sm mt-4">Ver biblioteca <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
             </a>
+        </div>
+    </section>
+
+    <!-- ── Dos públicos: Asesor vs Empresa ── -->
+    <section class="px-6 md:px-12 pb-20">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Asesor de Prevención -->
+            <div class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
+                <div class="h-14 w-14 rounded-2xl bg-secondary/15 text-secondary flex items-center justify-center mb-5"><i data-lucide="hard-hat" class="w-7 h-7"></i></div>
+                <h3 class="text-2xl font-extrabold text-gray-900 mb-2">Para el Asesor de Prevención</h3>
+                <p class="text-gray-600 mb-5">Gestiona todas tus empresas y faenas desde una sola consola: Matriz Legal, IPER (DS 44), Carpeta de Arranque, IRL y cartas — sin copiar y pegar entre carpetas.</p>
+                <a href="/prueba" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-6 py-3 rounded-xl font-bold">Probar gratis <i data-lucide="arrow-right" class="w-4 h-4"></i></a>
+            </div>
+            <!-- Empresa (contacto) -->
+            <div id="empresas" class="bg-primary text-white rounded-2xl p-8 shadow-lg scroll-mt-24">
+                <div class="h-14 w-14 rounded-2xl bg-white/15 flex items-center justify-center mb-5"><i data-lucide="building-2" class="w-7 h-7"></i></div>
+                <h3 class="text-2xl font-extrabold mb-2">Para tu Empresa</h3>
+                <p class="text-white/85 mb-4">¿Eres empresa y quieres profesionalizar tu gestión preventiva? Conectamos Smart HSE con tus procesos internos — incluida la integración para <b>enviar solicitudes directo a Recursos Humanos</b> y coordinar tareas del área. Cuéntanos qué necesitas y te contactamos.</p>
+                <form onsubmit="return contactoEmpresa(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input id="ce_empresa" required placeholder="Empresa" class="p-3 rounded-lg text-gray-900 outline-none">
+                    <input id="ce_nombre" required placeholder="Tu nombre" class="p-3 rounded-lg text-gray-900 outline-none">
+                    <input id="ce_email" type="email" placeholder="Correo (opcional)" class="p-3 rounded-lg text-gray-900 outline-none">
+                    <input id="ce_fono" placeholder="Teléfono (opcional)" class="p-3 rounded-lg text-gray-900 outline-none">
+                    <textarea id="ce_msg" rows="2" placeholder="¿Qué necesitas? (ej. integración con RR.HH.)" class="sm:col-span-2 p-3 rounded-lg text-gray-900 outline-none"></textarea>
+                    <div class="sm:col-span-2 flex flex-wrap gap-3">
+                        <button type="submit" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6a9e32] text-white px-6 py-3 rounded-xl font-bold"><i data-lucide="send" class="w-4 h-4"></i> Enviar solicitud</button>
+                        <a href="https://wa.me/56936413965" target="_blank" rel="noopener" class="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-6 py-3 rounded-xl font-bold"><i data-lucide="message-circle" class="w-4 h-4"></i> WhatsApp</a>
+                    </div>
+                </form>
+            </div>
         </div>
     </section>
 
@@ -206,6 +241,17 @@
 
     <script>
         lucide.createIcons();
+
+        // Contacto de empresa: arma un correo prellenado a Smart HSE (integración con RR.HH. se
+        // desarrolla en una fase posterior). Sin backend de envío.
+        function contactoEmpresa(ev) {
+            ev.preventDefault();
+            const g = id => (document.getElementById(id).value || '').trim();
+            const cuerpo = `Empresa: ${g('ce_empresa')}%0AContacto: ${g('ce_nombre')}%0ACorreo: ${g('ce_email')}%0ATeléfono: ${g('ce_fono')}%0A%0AMensaje:%0A${g('ce_msg')}`;
+            const asunto = encodeURIComponent('Solicitud de empresa — Smart HSE');
+            window.location.href = `mailto:contacto@smarthse.cl?subject=${asunto}&body=${cuerpo}`;
+            return false;
+        }
 
         function toggleModal(show) {
             document.getElementById('demoModal').classList.toggle('hidden', !show);

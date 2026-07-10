@@ -233,6 +233,22 @@ def api_empresas_get():
                     'activa': session.get('empresa_id')})
 
 
+# ── Límites del Plan Básico del Asesor (Ronda 20) ──
+MAX_EMPRESAS_BASICO = 30
+MAX_TRABAJADORES_BASICO = 20      # sobre 20 → plan de 25-50; más arriba, otro pack
+
+
+@app.route('/api/plan', methods=['GET'])
+@login_required
+def api_plan():
+    """Uso del Plan Básico: empresas de la cuenta y trabajadores de la empresa activa."""
+    empresas = db.empresas_de(session['rut'])
+    eid = session.get('empresa_id')
+    trabajadores = len(db.trabajadores_de(eid)) if eid else 0
+    return jsonify({'plan': 'Básico', 'empresas': len(empresas), 'max_empresas': MAX_EMPRESAS_BASICO,
+                    'trabajadores': trabajadores, 'max_trabajadores': MAX_TRABAJADORES_BASICO})
+
+
 @app.route('/api/empresas', methods=['POST'])
 @login_required
 def api_empresa_crear():
@@ -240,6 +256,10 @@ def api_empresa_crear():
     razon = (f.get('razon_social') or '').strip()
     if not razon:
         return jsonify({'error': 'Indica la Razón Social.'}), 400
+    if len(db.empresas_de(session['rut'])) >= MAX_EMPRESAS_BASICO:
+        return jsonify({'error': 'limite_empresas',
+                        'mensaje': f'Alcanzaste el límite del Plan Básico ({MAX_EMPRESAS_BASICO} '
+                                   'empresas). Migra a un pack corporativo superior para gestionar más.'}), 403
     eid = db.crear_empresa(
         session['rut'], razon,
         rut_empresa=(f.get('rut_empresa') or '').strip() or None,
@@ -1093,6 +1113,11 @@ def api_trabajador_crear():
         return jsonify({'error': 'Indica RUT y nombre del trabajador.'}), 400
     if not rut_valido(rut):
         return jsonify({'error': 'El RUT del trabajador no es válido.'}), 400
+    if len(db.trabajadores_de(_empresa_id())) >= MAX_TRABAJADORES_BASICO:
+        return jsonify({'error': 'limite_trabajadores',
+                        'mensaje': f'Alcanzaste el tope del Plan Básico ({MAX_TRABAJADORES_BASICO} '
+                                   'trabajadores por empresa). Migra a un plan superior (25-50 '
+                                   'trabajadores) para agregar más.'}), 403
     db.trabajador_crear(_empresa_id(), normalizar_rut(rut), nombre,
                         cargo=(f.get('cargo') or '').strip() or None,
                         rol=(f.get('rol') or '').strip() or None)
