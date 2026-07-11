@@ -1192,7 +1192,7 @@ def precargar_faena(rut, contrato_id):
 
 def _inyectar_miper_drt(matriz_id, contrato_id):
     """Inyecta el preset MIPER de Codelco RT (miper_drt.MIPER_DRT): una Tarea por proceso y sus
-    riesgos con contrato_id + categoria='iper' (Carpeta 19 / RESSO B.3). Idempotente. VEP=P×C."""
+    riesgos con contrato_id + categoria='iper' (Carpeta 19 / RESSO B.5.3). Idempotente. VEP=P×C."""
     import miper_drt
     creadas = 0
     for proc in miper_drt.MIPER_DRT:
