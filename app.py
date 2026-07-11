@@ -32,6 +32,25 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url or 'sqlite:///' + os.path.join(
     os.path.dirname(__file__), 'smarthse.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Alarma anti-pérdida de datos: dejar claro en los logs qué backend de BD se usa. En Render (var RENDER)
+# SIN DATABASE_URL, la app caería a SQLite en disco EFÍMERO → los datos se pierden en cada reinicio/dormida.
+# Se avisa de forma inequívoca para detectarlo al instante (antes de que un usuario pierda su trabajo).
+_en_render = bool(os.environ.get('RENDER'))
+if _db_url:
+    try:
+        _host = _db_url.split('@', 1)[1].split('/', 1)[0]
+    except Exception:
+        _host = '(host?)'
+    print(f'[Smart HSE] Base de datos: POSTGRES persistente @ {_host}', flush=True)
+elif _en_render:
+    print('\n' + '=' * 78 +
+          '\n⚠️  [Smart HSE] SIN DATABASE_URL en Render: usando SQLite EFÍMERO.'
+          '\n⚠️  LOS DATOS (registro, empresas, avances) SE PERDERÁN en cada reinicio/dormida.'
+          '\n⚠️  Conecta un Postgres persistente (Neon/Supabase/Render) en Environment → DATABASE_URL.'
+          '\n' + '=' * 78 + '\n', flush=True)
+else:
+    print('[Smart HSE] Base de datos: SQLite local (desarrollo).', flush=True)
+
 # Hotfix deploy v3: SOLO en Postgres (prod), conexión que FALLA RÁPIDO. Si el Postgres de Render está
 # suspendido/expirado y su host traga los paquetes, un connect sin timeout CUELGA el arranque → gunicorn
 # mata el worker por timeout → "Exited with status 1" (un SIGKILL durante el cuelgue NO es una excepción,
