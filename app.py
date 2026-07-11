@@ -1546,6 +1546,22 @@ def api_faena_precargar(cid):
                     'riesgos': db.riesgos_de_contrato(_empresa_id(), cid)})
 
 
+@app.route('/api/faena/<int:cid>/miper.xlsx', methods=['GET'])
+@empresa_required
+def api_faena_miper_xlsx(cid):
+    """Descarga la Matriz de Riesgos (MIPER) en el FORMATO del mandante (SIGO-F-006 .xlsx),
+    con la cabecera autocompletada desde el contrato, lista para subir a la nube del mandante."""
+    import docgen_xlsx
+    eid = _empresa_id()
+    c = db.contrato_de(session['rut'], cid)
+    if not c:
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    data = docgen_xlsx.build_miper_xlsx(c, db.riesgos_de_contrato(eid, cid))
+    nombre = f"SIGO-F-006_MIPER_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
+    return send_file(BytesIO(data), as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/api/faena/<int:cid>/legal', methods=['POST'])
 @empresa_required
 def api_faena_legal(cid):

@@ -1183,12 +1183,11 @@ def precargar_faena(rut, contrato_id):
             it.tarea_id = tid
         riesgos += 1
     _commit()
-    # (c) MIPER Codelco RT/DRT: preset real (SIGO-F-006 V7) por proceso, ligado a Carpeta 19 / RESSO B.3
-    miper_drt_tareas = 0
-    if resso.es_codelco(mandante) and any(k in (mandante or '').lower()
-                                          for k in ('radomiro', 'drt', ' rt', 'rt ', 'división rt')):
-        miper_drt_tareas = _inyectar_miper_drt(mid, contrato_id)
-    return {'legales': legales, 'riesgos': riesgos, 'miper_drt': miper_drt_tareas, 'mandante': mandante}
+    # (c) NO se auto-inyecta el contenido MIPER específico de un contrato real (AllScan/Conducción, etc.):
+    #     eso ensucia la matriz con datos ajenos. El asesor llena las tareas reales de SU contrato sobre el
+    #     formato SIGO-F-006 (descargable con docgen_xlsx). `_inyectar_miper_drt`/`miper_drt.py` se conservan
+    #     solo como referencia y NO se llaman en la precarga.
+    return {'legales': legales, 'riesgos': riesgos, 'miper_drt': 0, 'mandante': mandante}
 
 
 def _inyectar_miper_drt(matriz_id, contrato_id):

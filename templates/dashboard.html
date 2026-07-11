@@ -2597,7 +2597,10 @@
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <h3 class="font-bold text-gray-900 flex items-center gap-2"><i data-lucide="scale" class="w-4 h-4 text-primary"></i> Requisitos del mandante (RESSO: Riesgos Críticos · ECF · SST)</h3>
-                        <a href="/api/faena/${cid}/pauta" target="_blank" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar Pauta de Arranque</a>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="/api/faena/${cid}/miper.xlsx" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="sheet" class="w-3.5 h-3.5"></i> Descargar MIPER (Excel SIGO-F-006)</a>
+                            <a href="/api/faena/${cid}/pauta" target="_blank" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar Pauta de Arranque</a>
+                        </div>
                     </div>
                     <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500"><th class="p-2">ID</th><th class="p-2">Cuerpo/Estándar</th><th class="p-2">Requisito</th><th class="p-2">Estado</th></tr></thead><tbody>${legal || '<tr><td colspan="4" class="p-3 text-gray-400">Sin requisitos de faena. Usa “Precargar desde Carpeta de Arranque”.</td></tr>'}</tbody></table></div>
                     <div class="mt-3 flex flex-wrap gap-2 items-end">
