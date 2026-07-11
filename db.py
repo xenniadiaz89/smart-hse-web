@@ -1136,6 +1136,18 @@ def riesgos_de_contrato(empresa_id, contrato_id):
     return [{**it.to_dict(), 'tarea': nombre} for it, nombre in rows]
 
 
+def tareas_de_contrato(empresa_id, contrato_id):
+    """Procesos/actividades (TareaIPER) con al menos un riesgo ligado al contrato — para el
+    Mapa de Proceso (SIGO-F-011). Devuelve pares {proceso, tarea} distintos y ordenados."""
+    rows = (sqla.session.query(TareaIPER.proceso, TareaIPER.nombre)
+            .join(RiesgoItem, RiesgoItem.tarea_id == TareaIPER.id)
+            .join(MatrizRiesgo, MatrizRiesgo.id == TareaIPER.matriz_id)
+            .filter(MatrizRiesgo.empresa_id == empresa_id,
+                    RiesgoItem.contrato_id == contrato_id)
+            .distinct().order_by(TareaIPER.proceso, TareaIPER.nombre).all())
+    return [{'proceso': (p or '').strip(), 'tarea': (n or '').strip()} for p, n in rows]
+
+
 def precargar_faena(rut, contrato_id):
     """Precarga 'lo básico de la Carpeta de Arranque' para un contrato minero:
     (a) requisitos legales de la CAPA MANDANTE (RC/ECF del mandante) ligados al contrato;

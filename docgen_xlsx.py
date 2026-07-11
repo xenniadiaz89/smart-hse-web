@@ -17,6 +17,7 @@ import openpyxl
 
 _TPL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plantillas')
 _TPL_MIPER = os.path.join(_TPL_DIR, 'SIGO-F-006_MIPER.xlsx')
+_TPL_MAPA = os.path.join(_TPL_DIR, 'SIGO-F-011_MapaProceso.xlsx')
 
 # Hoja base (proceso) que se usa como layout de la matriz; las demás hojas de proceso se descartan.
 _HOJA_DATOS = 'Conducción'
@@ -81,6 +82,65 @@ def build_miper_xlsx(contrato, riesgos):
         ws.cell(r, 14, x.get('medida_control'))      # N MEDIDAS PREVENTIVAS
         ws.cell(r, 15, x.get('tipo_control'))        # O PRELACIÓN DE CONTROLES
         # P..S EVALUACIÓN RESIDUAL, T RESPONSABLE → en blanco (los completa el asesor)
+        r += 1
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out.getvalue()
+
+
+# ── Mapa de Proceso SIGO-F-011 ──────────────────────────────────────────────
+_MAPA_HOJA = 'EJEMPLO MP'
+_MAPA_FILA_ACT = 14       # primera fila de la tabla Actividades/Tareas (bajo el encabezado 12-13)
+
+
+def build_mapa_xlsx(contrato, tareas):
+    """Devuelve los bytes de un .xlsx SIGO-F-011 (Mapa de Proceso) con Antecedentes autocompletados,
+    la lista de Procesos y la tabla Actividades→Tareas del contrato. Campos no modelados (cargo, lugar,
+    dotación) quedan en blanco para que el asesor los complete."""
+    wb = openpyxl.load_workbook(_TPL_MAPA)
+    ws = wb[_MAPA_HOJA] if _MAPA_HOJA in wb.sheetnames else wb[wb.sheetnames[0]]
+    ws.title = 'Mapa de Proceso'
+
+    d = _datos(contrato)
+    division = contrato.get('mandante') or 'CODELCO'
+    empresa = contrato.get('empresa') or ''
+    numero = contrato.get('numero') or ''
+    # A. Antecedentes (valores en fila 5, bajo las etiquetas de fila 4).
+    ws['B5'] = division                                   # Centro de Trabajo
+    ws['E5'] = d.get('gerencia', '')                      # Gerencia
+    ws['G5'] = d.get('superintendencia', '')              # Superintendencia / Dirección
+    ws['I5'] = d.get('area', '')                          # Área
+    ws['L5'] = f"{empresa} / {numero}"                    # EE.CC / N° CONTRATO
+    # B. Reseña
+    servicio = d.get('nombre_servicio', '')
+    ws['B7'] = (f"Reseña: {empresa} presta el servicio "
+                f"{servicio or '(servicio)'} para {division}.")
+
+    procesos = []
+    for t in tareas:
+        p = t.get('proceso') or 'Proceso'
+        if p not in procesos:
+            procesos.append(p)
+    # C. Procesos operativos: se listan numerados en la celda de la sección (fila 10).
+    ws['B10'] = len(procesos) or 1
+    ws['C10'] = '\n'.join(f"{i}. {p}" for i, p in enumerate(procesos, 1)) or '(sin procesos)'
+
+    # D. Actividades → Tareas: limpiar el área de datos (quitar combinaciones y ejemplo) y escribir.
+    for rango in list(ws.merged_cells.ranges):
+        if rango.min_row >= _MAPA_FILA_ACT:
+            ws.unmerge_cells(str(rango))
+    for fila in ws.iter_rows(min_row=_MAPA_FILA_ACT, max_row=max(ws.max_row, _MAPA_FILA_ACT), min_col=1, max_col=14):
+        for celda in fila:
+            celda.value = None
+    r = _MAPA_FILA_ACT
+    for i, t in enumerate(tareas, 1):
+        ws.cell(r, 2, f"{procesos.index(t.get('proceso') or 'Proceso') + 1}.{i}")  # B N° Actividad
+        ws.cell(r, 3, t.get('proceso'))                  # C Actividad del Proceso
+        ws.cell(r, 5, f"{i}")                            # E N° Tarea
+        ws.cell(r, 6, t.get('tarea'))                    # F Tarea de la Actividad
+        # H R/NR, I Cargo, J Lugar, K/L/M/N dotación → en blanco (los completa el asesor)
         r += 1
 
     out = BytesIO()

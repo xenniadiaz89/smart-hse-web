@@ -1562,6 +1562,22 @@ def api_faena_miper_xlsx(cid):
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+@app.route('/api/faena/<int:cid>/mapa.xlsx', methods=['GET'])
+@empresa_required
+def api_faena_mapa_xlsx(cid):
+    """Descarga el Mapa de Proceso (SIGO-F-011 .xlsx) con Antecedentes autocompletados y la tabla
+    Procesos → Actividades → Tareas del contrato, en el formato del mandante."""
+    import docgen_xlsx
+    eid = _empresa_id()
+    c = db.contrato_de(session['rut'], cid)
+    if not c:
+        return jsonify({'error': 'Contrato no encontrado.'}), 404
+    data = docgen_xlsx.build_mapa_xlsx(c, db.tareas_de_contrato(eid, cid))
+    nombre = f"SIGO-F-011_MapaProceso_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
+    return send_file(BytesIO(data), as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/api/faena/<int:cid>/legal', methods=['POST'])
 @empresa_required
 def api_faena_legal(cid):
