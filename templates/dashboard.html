@@ -334,6 +334,7 @@
                 <button type="button" onclick="agregarProtocolo()" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="plus" class="w-4 h-4"></i> Añadir protocolo extra</button>
             </div>
             <p class="text-gray-600 mb-5 text-sm">Actualiza los <b>puestos evaluados</b> vs <b>totales</b> de cada protocolo de vigilancia. El % alimenta la Tarjeta 3 del Panel DS 44 en vivo.</p>
+            <div id="protoMutual" class="mb-5"></div>
             <div id="protocolosCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-gray-400 text-sm">Cargando…</p></div>
         </section>
 
@@ -1851,19 +1852,9 @@
                     <input id="er_razon" class="iet-in sm:col-span-2" placeholder="Razón Social"><input id="er_rut" class="iet-in" placeholder="RUT"><input id="er_rubro" class="iet-in" placeholder="Rubro">
                     <button type="button" onclick="crearEmpresa()" class="sm:col-span-4 justify-self-start inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm">Registrar</button>
                 </div>
-                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Adhesión a Organismo Administrador (Ley 16.744)</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                    <label class="text-xs text-gray-600 block">Mutualidad
-                        <select id="ad_mutual" class="iet-in"><option value="">Seleccione…</option>${_mutuales.map(m => `<option ${ad.mutual === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-                    <label class="text-xs text-gray-600 block">N° de Adherente (por RUT, se registra una vez)
-                        <input id="ad_num" value="${escM(ad.n_adherente)}" class="iet-in" placeholder="Ej: 123456"></label>
-                </div>
-                <button type="button" onclick="guardarAdhesion()" class="text-[11px] font-bold bg-primary text-white px-3 py-1.5 rounded mb-4"><i data-lucide="save" class="w-3.5 h-3.5 inline"></i> Guardar Mutual / N° adherente</button>
-                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Respaldos de inicio de actividades</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    ${cert('adhesion', 'Certificado de Adhesión')}
-                    ${cert('siniestralidad', 'Certificado de Siniestralidad')}
-                    ${cert('cotizaciones', 'Comprobante de Cotizaciones')}
+                <div class="border border-dashed border-primary/30 rounded-lg px-3 py-2.5 flex items-center gap-2 text-xs text-gray-600">
+                    <i data-lucide="heart-pulse" class="w-4 h-4 text-primary shrink-0"></i>
+                    <span>La gestión del <b>Organismo Administrador (Mutualidad)</b> y sus certificados vive ahora en <button type="button" onclick="mostrarVista('protocolos'); cargarProtocolos()" class="text-primary font-bold underline">Protocolos de Salud</button>. ${ad.cumple ? '<span class="text-green-600 font-bold">Adhesión: Cumple ✓</span>' : '<span class="text-amber-600 font-bold">Adhesión: pendiente</span>'}</span>
                 </div>`;
             if (window.lucide) lucide.createIcons();
         }
@@ -1879,7 +1870,7 @@
         async function guardarAdhesion() {
             const mutual = document.getElementById('ad_mutual').value, n_adherente = document.getElementById('ad_num').value;
             const r = await fetch('/api/empresa/adhesion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mutual, n_adherente }) });
-            if (r.ok) { const d = await r.json(); alert(d.cumple ? '✔ Adhesión completa: el ítem de la Matriz Legal quedó en Cumple.' : 'Guardado. Sube los 3 certificados para marcar Cumple.'); cargarEmpresaCard(); }
+            if (r.ok) { const d = await r.json(); alert(d.cumple ? '✔ Adhesión completa: el ítem de la Matriz Legal quedó en Cumple.' : 'Guardado. Sube los 3 certificados para marcar Cumple.'); cargarEmpresaCard(); if (typeof renderMutualCard === 'function') renderMutualCard(); }
         }
         async function subirCert(tipo, input) {
             if (!input.files.length) return;
@@ -1888,7 +1879,7 @@
             const d = await r.json().catch(() => ({}));
             if (!r.ok) { alert(d.error || 'No se pudo subir el certificado.'); return; }
             if (d.cumple) alert('✔ Los 3 certificados y datos están completos: Adhesión marcada como Cumple en la Matriz Legal.');
-            cargarEmpresaCard();
+            cargarEmpresaCard(); if (typeof renderMutualCard === 'function') renderMutualCard();
         }
 
         // ── Panel de Brechas unificado (Carpeta Pendiente + FUF No Cumple) ──
@@ -3173,7 +3164,34 @@
         }
 
         // ── Vista Protocolos de Salud (ingreso de datos) ──
+        // Organismo Administrador (Mutualidad) — GESTIÓN AISLADA a Protocolos de Salud (reubicada desde Mis Contratos)
+        async function renderMutualCard() {
+            const box = document.getElementById('protoMutual');
+            if (!box) return;
+            if (!_mutuales.length) { try { const r = await fetch('/api/mutuales'); if (r.ok) _mutuales = await r.json(); } catch (e) { } }
+            let ad = { mutual: '', n_adherente: '', docs: {}, cumple: false };
+            try { const r = await fetch('/api/empresa/adhesion'); if (r.ok) ad = await r.json(); } catch (e) { }
+            const cert = (t, label) => `<label class="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 text-xs cursor-pointer hover:border-primary"><span>${label} ${ad.docs && ad.docs[t] ? '<span class="text-green-600 font-bold">✓</span>' : '<span class="text-gray-400">(pendiente)</span>'}</span><span class="text-primary font-bold">${ad.docs && ad.docs[t] ? 'Reemplazar' : 'Subir'}<input type="file" class="hidden" onchange="subirCert('${t}', this)"></span></label>`;
+            box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-bold text-gray-900 flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-primary"></i> Organismo Administrador (Ley 16.744)</h3>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${ad.cumple ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">${ad.cumple ? 'Adhesión: Cumple' : 'Adhesión: pendiente'}</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <label class="text-xs text-gray-600 block">Mutualidad
+                        <select id="ad_mutual" class="iet-in"><option value="">Seleccione…</option>${_mutuales.map(m => `<option ${ad.mutual === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+                    <label class="text-xs text-gray-600 block">N° de Adherente
+                        <input id="ad_num" value="${escM(ad.n_adherente)}" class="iet-in" placeholder="Ej: 123456"></label>
+                </div>
+                <button type="button" onclick="guardarAdhesion()" class="text-[11px] font-bold bg-primary text-white px-3 py-1.5 rounded mb-4"><i data-lucide="save" class="w-3.5 h-3.5 inline"></i> Guardar Mutual / N° adherente</button>
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Respaldos / Certificados (aislados a este módulo)</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${cert('adhesion', 'Certificado de Adhesión')}${cert('siniestralidad', 'Certificado de Siniestralidad')}${cert('cotizaciones', 'Comprobante de Cotizaciones')}</div>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+
         async function cargarProtocolos() {
+            renderMutualCard();
             const el = document.getElementById('protocolosCards');
             const r = await fetch('/api/protocolos'); if (!r.ok) return;
             const protos = await r.json();
