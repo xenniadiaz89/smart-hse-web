@@ -15,7 +15,7 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
                     TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
-                    BibliotecaTarea, Vehiculo, ChecklistVehiculo)
+                    BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion)
 import iper
 
 
@@ -243,7 +243,119 @@ def crear_empresa(rut, razon_social, rut_empresa=None, mutual=None,
     sqla.session.add(e)
     _commit()
     seed_requisitos_core(e.id)          # Ronda 16: precarga la Capa Core (obligatoria)
+    seed_protocolos_salud(e.id)         # Dashboard DS44: protocolos MINSAL base
     return e.id
+
+
+# ── Protocolos de Salud (MINSAL) — Tarjeta 3 del Dashboard DS44 ──
+PROTOCOLOS_MINSAL_BASE = [
+    'PREXOR (Ruido)', 'PLANESI (Sílice)', 'RUV (Radiación UV)',
+    'Riesgo Psicosocial (CEAL-SM/SUSESO)', 'TMERT-EESS', 'MMC (Manejo Manual de Cargas)',
+]
+
+
+def seed_protocolos_salud(empresa_id):
+    """Siembra los 6 protocolos MINSAL base al crear la empresa. Idempotente."""
+    for i, nombre in enumerate(PROTOCOLOS_MINSAL_BASE):
+        if ProtocoloSalud.query.filter_by(empresa_id=empresa_id, nombre=nombre).first():
+            continue
+        sqla.session.add(ProtocoloSalud(empresa_id=empresa_id, nombre=nombre,
+                                        puestos_evaluados=0, puestos_totales=0, es_extra=0, orden=i))
+    _commit()
+
+
+def protocolos_de(empresa_id):
+    """Protocolos de la empresa (siembra base si faltara). Cada uno con pct = evaluados/totales."""
+    if not ProtocoloSalud.query.filter_by(empresa_id=empresa_id).first():
+        seed_protocolos_salud(empresa_id)
+    rows = (ProtocoloSalud.query.filter_by(empresa_id=empresa_id)
+            .order_by(ProtocoloSalud.orden, ProtocoloSalud.id).all())
+    out = []
+    for p in rows:
+        d = p.to_dict()
+        d['pct'] = round(100 * p.puestos_evaluados / p.puestos_totales) if p.puestos_totales else 0
+        out.append(d)
+    return out
+
+
+def protocolo_crear(empresa_id, nombre, puestos_totales=0):
+    orden = (sqla.session.query(sqla.func.max(ProtocoloSalud.orden))
+             .filter_by(empresa_id=empresa_id).scalar() or 0) + 1
+    p = ProtocoloSalud(empresa_id=empresa_id, nombre=nombre, puestos_evaluados=0,
+                       puestos_totales=int(puestos_totales or 0), es_extra=1, orden=orden)
+    sqla.session.add(p)
+    _commit()
+    return p.id
+
+
+def protocolo_actualizar(empresa_id, pid, evaluados=None, totales=None):
+    p = ProtocoloSalud.query.filter_by(id=pid, empresa_id=empresa_id).first()
+    if not p:
+        return False
+    if evaluados is not None:
+        p.puestos_evaluados = max(0, int(evaluados))
+    if totales is not None:
+        p.puestos_totales = max(0, int(totales))
+    _commit()
+    return True
+
+
+def protocolo_eliminar(empresa_id, pid):
+    p = ProtocoloSalud.query.filter_by(id=pid, empresa_id=empresa_id, es_extra=1).first()
+    if not p:
+        return False               # los base (es_extra=0) no se eliminan
+    sqla.session.delete(p)
+    _commit()
+    return True
+
+
+# ── Capacitaciones Legales por cargo — Tarjeta 5 del Dashboard DS44 ──
+def capacitaciones_de(empresa_id):
+    rows = (Capacitacion.query.filter_by(empresa_id=empresa_id)
+            .order_by(Capacitacion.id.desc()).all())
+    return [c.to_dict() for c in rows]
+
+
+def capacitacion_crear(empresa_id, curso, cargo, n_capacitados=0, n_requeridos=0):
+    c = Capacitacion(empresa_id=empresa_id, curso=curso, cargo=cargo,
+                     n_capacitados=int(n_capacitados or 0), n_requeridos=int(n_requeridos or 0),
+                     fecha=_hoy())
+    sqla.session.add(c)
+    _commit()
+    return c.id
+
+
+def capacitacion_eliminar(empresa_id, cid):
+    c = Capacitacion.query.filter_by(id=cid, empresa_id=empresa_id).first()
+    if not c:
+        return False
+    sqla.session.delete(c)
+    _commit()
+    return True
+
+
+def capacitaciones_resumen(empresa_id):
+    """% de cumplimiento de capacitación por CARGO (Σcapacitados/Σrequeridos), menor primero.
+    Incluye los cargos de los trabajadores aunque no tengan registros aún (0%)."""
+    agg = {}
+    for c in Capacitacion.query.filter_by(empresa_id=empresa_id).all():
+        a = agg.setdefault(c.cargo or 'Sin cargo', {'cap': 0, 'req': 0})
+        a['cap'] += c.n_capacitados or 0
+        a['req'] += c.n_requeridos or 0
+    for cargo in cargos_de(empresa_id):
+        agg.setdefault(cargo, {'cap': 0, 'req': 0})
+    out = [{'cargo': k, 'capacitados': v['cap'], 'requeridos': v['req'],
+            'pct': round(100 * v['cap'] / v['req']) if v['req'] else 0}
+           for k, v in agg.items()]
+    out.sort(key=lambda x: x['pct'])          # menor cumplimiento primero
+    return out
+
+
+def cargos_de(empresa_id):
+    """Cargos distintos de los trabajadores de la empresa (para el selector de Capacitaciones)."""
+    rows = (sqla.session.query(Trabajador.cargo).filter(Trabajador.empresa_id == empresa_id)
+            .filter(Trabajador.cargo.isnot(None)).distinct().all())
+    return sorted({(r[0] or '').strip() for r in rows if (r[0] or '').strip()})
 
 
 def seed_requisitos_core(empresa_id):

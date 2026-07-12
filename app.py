@@ -317,6 +317,115 @@ def api_plan():
                     'trabajadores': trabajadores, 'max_trabajadores': MAX_TRABAJADORES_BASICO})
 
 
+# ── Protocolos de Salud (MINSAL) — motor de datos de la Tarjeta 3 del Dashboard DS44 ──
+@app.route('/api/protocolos', methods=['GET'])
+@empresa_required
+def api_protocolos_get():
+    return jsonify(db.protocolos_de(_empresa_id()))
+
+
+@app.route('/api/protocolos', methods=['POST'])
+@empresa_required
+def api_protocolo_crear():
+    f = request.get_json(silent=True) or {}
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre del protocolo.'}), 400
+    db.protocolo_crear(_empresa_id(), nombre, f.get('puestos_totales') or 0)
+    return jsonify(db.protocolos_de(_empresa_id()))
+
+
+@app.route('/api/protocolos/<int:pid>', methods=['POST'])
+@empresa_required
+def api_protocolo_actualizar(pid):
+    f = request.get_json(silent=True) or {}
+    db.protocolo_actualizar(_empresa_id(), pid, evaluados=f.get('puestos_evaluados'),
+                            totales=f.get('puestos_totales'))
+    return jsonify(db.protocolos_de(_empresa_id()))
+
+
+@app.route('/api/protocolos/<int:pid>/eliminar', methods=['POST'])
+@empresa_required
+def api_protocolo_eliminar(pid):
+    db.protocolo_eliminar(_empresa_id(), pid)
+    return jsonify(db.protocolos_de(_empresa_id()))
+
+
+# ── Capacitaciones Legales por cargo — motor de datos de la Tarjeta 5 ──
+@app.route('/api/cargos', methods=['GET'])
+@empresa_required
+def api_cargos_get():
+    return jsonify(db.cargos_de(_empresa_id()))
+
+
+@app.route('/api/capacitaciones', methods=['GET'])
+@empresa_required
+def api_capacitaciones_get():
+    return jsonify({'registros': db.capacitaciones_de(_empresa_id()),
+                    'resumen': db.capacitaciones_resumen(_empresa_id()),
+                    'cargos': db.cargos_de(_empresa_id())})
+
+
+@app.route('/api/capacitaciones', methods=['POST'])
+@empresa_required
+def api_capacitacion_crear():
+    f = request.get_json(silent=True) or {}
+    curso = (f.get('curso') or '').strip()
+    cargo = (f.get('cargo') or '').strip()
+    if not curso or not cargo:
+        return jsonify({'error': 'Indica el curso y el cargo.'}), 400
+    db.capacitacion_crear(_empresa_id(), curso, cargo,
+                          f.get('n_capacitados') or 0, f.get('n_requeridos') or 0)
+    return jsonify(db.capacitaciones_resumen(_empresa_id()))
+
+
+@app.route('/api/capacitaciones/<int:cid>/eliminar', methods=['POST'])
+@empresa_required
+def api_capacitacion_eliminar(cid):
+    db.capacitacion_eliminar(_empresa_id(), cid)
+    return jsonify(db.capacitaciones_resumen(_empresa_id()))
+
+
+# ── Agregado del Dashboard Gerencial DS44 (todo en un JSON, sin hardcode) ──
+@app.route('/api/ds44/dashboard', methods=['GET'])
+@empresa_required
+def api_ds44_dashboard():
+    eid = _empresa_id()
+    # 1-2) FUF: conteos Cumple/No Cumple/N-A + % global de cumplimiento.
+    fuf = db.estados_fuf(eid)
+    cnt = {'si': 0, 'no': 0, 'na': 0}
+    for v in fuf.values():
+        e = (v.get('estado') or '').lower()
+        if e in cnt:
+            cnt[e] += 1
+    respondidos = cnt['si'] + cnt['no'] + cnt['na']
+    pct_global = round(100 * (cnt['si'] + cnt['na']) / FUF_TOTAL) if FUF_TOTAL else 0
+    # 4) Matriz Legal agrupada por área (capa) con % y lista de pendientes.
+    capa_label = {'core': 'Legal Core (DS 44 / Nacional)', 'mandante': 'Capa Mandante',
+                  'operativa': 'Capa Operativa'}
+    cumplido = ('auditado', 'cumple', 'cumplido', 'ok')
+    areas = {}
+    for r in db.matriz_legal(eid):
+        area = capa_label.get((r.get('capa') or 'operativa').lower(), (r.get('capa') or 'General').title())
+        a = areas.setdefault(area, {'total': 0, 'ok': 0, 'pendientes': []})
+        a['total'] += 1
+        if (r.get('estado_avance') or '').lower() in cumplido:
+            a['ok'] += 1
+        else:
+            a['pendientes'].append(r.get('requisito_legal') or r.get('id_requisito') or 'Ítem')
+    matriz_areas = [{'area': k, 'total': v['total'], 'ok': v['ok'],
+                     'pct': round(100 * v['ok'] / v['total']) if v['total'] else 0,
+                     'pendientes': v['pendientes'][:25]}
+                    for k, v in sorted(areas.items())]
+    return jsonify({
+        'fuf': {'si': cnt['si'], 'no': cnt['no'], 'na': cnt['na'],
+                'respondidos': respondidos, 'total': FUF_TOTAL, 'pct': pct_global},
+        'protocolos': db.protocolos_de(eid),
+        'matriz_areas': matriz_areas,
+        'capacitaciones': db.capacitaciones_resumen(eid),
+    })
+
+
 @app.route('/api/empresas', methods=['POST'])
 @login_required
 def api_empresa_crear():

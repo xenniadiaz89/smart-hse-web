@@ -458,3 +458,29 @@ class ChecklistVehiculo(_DictMixin, sqla.Model):
     conforme = sqla.Column(sqla.Integer, default=1)         # 0 si hay no conformidades / alerta
     observacion = sqla.Column(sqla.Text)
     creado_ts = sqla.Column(sqla.Text)
+
+
+class ProtocoloSalud(_DictMixin, sqla.Model):
+    """Protocolo de vigilancia de salud MINSAL por empresa (PREXOR, PLANESI, RUV, Psicosocial, TMERT,
+    MMC + extras). Alimenta la Tarjeta 3 del Dashboard DS44. %avance = evaluados/totales."""
+    __tablename__ = 'protocolo_salud'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    puestos_evaluados = sqla.Column(sqla.Integer, default=0)
+    puestos_totales = sqla.Column(sqla.Integer, default=0)
+    es_extra = sqla.Column(sqla.Integer, default=0)         # 1 = añadido por el usuario (eliminable)
+    orden = sqla.Column(sqla.Integer, default=0)
+
+
+class Capacitacion(_DictMixin, sqla.Model):
+    """Registro de capacitación legal por CARGO (cruce con Trabajador.cargo). Alimenta la Tarjeta 5
+    del Dashboard DS44. %cargo = Σcapacitados/Σrequeridos."""
+    __tablename__ = 'capacitacion'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    curso = sqla.Column(sqla.Text, nullable=False)
+    cargo = sqla.Column(sqla.Text, nullable=False)
+    n_capacitados = sqla.Column(sqla.Integer, default=0)
+    n_requeridos = sqla.Column(sqla.Integer, default=0)
+    fecha = sqla.Column(sqla.Text)
