@@ -363,7 +363,8 @@ def api_cargos_get():
 def api_capacitaciones_get():
     return jsonify({'registros': db.capacitaciones_de(_empresa_id()),
                     'resumen': db.capacitaciones_resumen(_empresa_id()),
-                    'cargos': db.cargos_de(_empresa_id())})
+                    'cargos': db.cargos_de(_empresa_id()),
+                    'catalogo': cumplimiento.CURSOS_LEGALES})
 
 
 @app.route('/api/capacitaciones', methods=['POST'])
@@ -374,9 +375,18 @@ def api_capacitacion_crear():
     cargo = (f.get('cargo') or '').strip()
     if not curso or not cargo:
         return jsonify({'error': 'Indica el curso y el cargo.'}), 400
-    db.capacitacion_crear(_empresa_id(), curso, cargo,
-                          f.get('n_capacitados') or 0, f.get('n_requeridos') or 0)
-    return jsonify(db.capacitaciones_resumen(_empresa_id()))
+    eid = _empresa_id()
+    db.capacitacion_crear(eid, curso, cargo, f.get('n_capacitados') or 0, f.get('n_requeridos') or 0)
+    # Sincronización cruzada: si el curso legal se completó (capacitados ≥ requeridos > 0), marca su
+    # requisito de la Matriz Legal como 'Cumple' de inmediato.
+    matriz_actualizada = None
+    try:
+        ncap, nreq = int(f.get('n_capacitados') or 0), int(f.get('n_requeridos') or 0)
+        if nreq > 0 and ncap >= nreq:
+            matriz_actualizada = db.sincronizar_capacitacion_matriz(eid, curso)
+    except (TypeError, ValueError):
+        pass
+    return jsonify({'resumen': db.capacitaciones_resumen(eid), 'matriz_actualizada': matriz_actualizada})
 
 
 @app.route('/api/capacitaciones/<int:cid>/eliminar', methods=['POST'])

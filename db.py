@@ -325,6 +325,34 @@ def capacitacion_crear(empresa_id, curso, cargo, n_capacitados=0, n_requeridos=0
     return c.id
 
 
+def sincronizar_capacitacion_matriz(empresa_id, curso, quien='Capacitaciones (auto)'):
+    """Sincronización cruzada: si `curso` es un curso legal del catálogo con requisito mapeado en la
+    Matriz Legal de la empresa, lo marca 'auditado' (Cumple) y registra la validación. Devuelve el
+    texto del requisito actualizado o None (si el curso no mapea o no existe el requisito)."""
+    from datetime import datetime as _dtn
+    match = cumplimiento.curso_legal_match(curso)
+    if not match:
+        return None
+    req = None
+    if match.get('req_idreq'):
+        req = RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=match['req_idreq']).first()
+    if not req and match.get('req_kw'):
+        req = (RequisitoLegal.query
+               .filter(RequisitoLegal.empresa_id == empresa_id,
+                       RequisitoLegal.requisito_legal.ilike(f"%{match['req_kw']}%")).first())
+    if not req:
+        return None
+    ahora = _dtn.now().isoformat(timespec='seconds')
+    sqla.session.add(ValidacionCumplimiento(
+        requisito_id=req.id, validado_por=quien, validado_en=ahora, estado='cumple',
+        comentario=f"Cumplido por capacitación {match['codigo']} — {match['nombre']}"))
+    req.estado_avance = 'auditado'
+    req.validado_por = quien
+    req.validado_en = ahora
+    _commit()
+    return req.requisito_legal or req.id_requisito
+
+
 def capacitacion_eliminar(empresa_id, cid):
     c = Capacitacion.query.filter_by(id=cid, empresa_id=empresa_id).first()
     if not c:

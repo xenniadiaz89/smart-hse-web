@@ -171,3 +171,34 @@ def estado_cumplimiento(fecha_vencimiento, dias_aviso=30, hoy=None):
     if dias <= dias_aviso:
         return 'por_vencer'
     return 'vigente'
+
+
+# ── Catálogo normativo de Capacitaciones Legales (FUF 44 + SST Chile) — marca blanca SMART HSE ──
+# Cada curso mapea (cuando aplica) a un requisito de la Matriz Legal: al completarse (evidencia de
+# aprobación) el sistema marca ese ítem como 'Cumple' de forma cruzada. `req_idreq` = código CORE exacto;
+# `req_kw` = palabra clave de respaldo para requisitos operativos/sectoriales.
+CURSOS_LEGALES = [
+    {'codigo': 'CAP-019', 'nombre': 'Capacitación teórica y práctica en EPP',
+     'base_legal': 'D.S. 44 / FUF P.19', 'req_idreq': 'CORE-05', 'req_kw': 'epp'},
+    {'codigo': 'CAP-018', 'nombre': 'Información de Riesgos Laborales / IRL (ODI)',
+     'base_legal': 'D.S. 44 Art. 16', 'req_idreq': 'CORE-04', 'req_kw': 'informar'},
+    {'codigo': 'CAP-023', 'nombre': 'Manejo Manual de Carga',
+     'base_legal': 'Ley 20.001 / D.S. 63', 'req_idreq': None, 'req_kw': 'manejo manual'},
+    {'codigo': 'CAP-024', 'nombre': 'Conducción a la defensiva y seguridad vial',
+     'base_legal': 'Programa FYS / riesgos del IRL', 'req_idreq': None, 'req_kw': 'conduc'},
+    {'codigo': 'CAP-025', 'nombre': 'Protocolo de Riesgo Psicosocial / CEAL-SM',
+     'base_legal': 'SUSESO (cuando aplique)', 'req_idreq': None, 'req_kw': 'psicosocial'},
+    {'codigo': 'CAP-021', 'nombre': 'Agentes físicos / PREXOR (Ruido)',
+     'base_legal': 'D.S. 594 / PREXOR', 'req_idreq': None, 'req_kw': 'ruido'},
+    {'codigo': 'CAP-022', 'nombre': 'Ley Karin (acoso y violencia laboral)',
+     'base_legal': 'Ley 21.643', 'req_idreq': 'CORE-07', 'req_kw': 'karin'},
+]
+
+
+def curso_legal_match(texto):
+    """Devuelve el curso del catálogo que corresponde al texto (por código o nombre), o None."""
+    cl = (texto or '').lower()
+    for c in CURSOS_LEGALES:
+        if c['codigo'].lower() in cl or c['nombre'].lower() in cl:
+            return c
+    return None

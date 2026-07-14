@@ -115,10 +115,10 @@
                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance general</span></button>
                    <button type="button" data-nav="contratos" onclick="mostrarVista('contratos'); cargarEmpresaCard()" class="nav-item">
                        <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis contratos</span></button>
-                   <button type="button" data-nav="ds44" onclick="mostrarVista('ds44'); cargarDS44()" class="nav-item">
-                       <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
                    <button type="button" data-nav="matriz" onclick="mostrarVista('matriz'); cargarMatriz()" class="nav-item">
                        <i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></button>
+                   <button type="button" data-nav="ds44" onclick="mostrarVista('ds44'); cargarDS44()" class="nav-item">
+                       <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
                    <button type="button" data-nav="miper" onclick="mostrarVista('miper'); cargarMIPER()" class="nav-item">
                        <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de riesgos</span></button>
                    <button type="button" data-nav="faena" onclick="mostrarVista('faena'); cargarFaena()" class="nav-item">
@@ -341,12 +341,14 @@
         <!-- VISTA: Capacitaciones Legales (ingreso de datos → Tarjeta 5 del Dashboard DS44) -->
         <section id="vista-capacitaciones" class="hidden">
             <h2 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2 mb-1"><i data-lucide="graduation-cap" class="w-6 h-6 text-primary"></i> Capacitaciones Legales</h2>
-            <p class="text-gray-600 mb-5 text-sm">Registra la asistencia por <b>cargo</b> (capacitados / requeridos). El backend calcula qué cargos tienen menor cumplimiento y alimenta la Tarjeta 5 del Panel DS 44.</p>
+            <p class="text-gray-600 mb-5 text-sm">Registra la asistencia por <b>cargo</b> (capacitados / requeridos). El backend calcula qué cargos tienen menor cumplimiento y alimenta la Tarjeta 5 del Panel DS 44. <b class="text-primary">Al completar un curso normativo (capacitados ≥ requeridos), su ítem en la Matriz Legal pasa a "Cumple" automáticamente.</b></p>
+            <div id="capacCatalogo" class="mb-5"></div>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 lg:col-span-1">
                     <h3 class="font-bold text-gray-900 mb-3">Registrar capacitación</h3>
-                    <label class="block text-xs font-semibold text-gray-600">Curso
-                        <input id="cap_curso" class="iet-in" placeholder="Ej: Uso de EPP"></label>
+                    <label class="block text-xs font-semibold text-gray-600">Curso (normativo o libre)
+                        <input id="cap_curso" list="cap_cursos_list" class="iet-in" placeholder="Elige un curso CAP-xxx o escribe">
+                        <datalist id="cap_cursos_list"></datalist></label>
                     <label class="block text-xs font-semibold text-gray-600 mt-2">Cargo
                         <input id="cap_cargo" list="cap_cargos_list" class="iet-in" placeholder="Ej: Ayudante">
                         <datalist id="cap_cargos_list"></datalist></label>
@@ -3232,6 +3234,14 @@
             const r = await fetch('/api/capacitaciones'); if (!r.ok) return;
             const d = await r.json();
             document.getElementById('cap_cargos_list').innerHTML = (d.cargos || []).map(c => `<option value="${c}">`).join('');
+            // Catálogo normativo (marca blanca SMART HSE) + datalist de cursos
+            const cat = d.catalogo || [];
+            document.getElementById('cap_cursos_list').innerHTML = cat.map(c => `<option value="${c.codigo} · ${c.nombre}">`).join('');
+            const catBox = document.getElementById('capacCatalogo');
+            if (catBox) catBox.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <h3 class="font-bold text-gray-900 mb-2 text-sm flex items-center gap-2"><i data-lucide="book-check" class="w-4 h-4 text-primary"></i> Cursos normativos exigidos (FUF 44 · SST Chile)</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">${cat.map(c => `<button type="button" onclick="document.getElementById('cap_curso').value='${c.codigo} · ${c.nombre}'" class="text-left border border-gray-100 rounded-lg px-3 py-1.5 hover:border-primary text-xs"><span class="font-bold text-primary">${c.codigo}</span> ${c.nombre} <span class="text-gray-400">· ${c.base_legal}</span>${c.req_idreq ? ' <span class="text-[10px] font-bold text-secondary">↔ Matriz Legal</span>' : ''}</button>`).join('')}</div>
+                <p class="text-[11px] text-gray-400 mt-2">Click en un curso para cargarlo en el formulario. Al completarlo (capacitados ≥ requeridos), el ítem ligado de la Matriz Legal pasa a “Cumple”.</p></div>`;
             const res = document.getElementById('capacResumen');
             res.innerHTML = (d.resumen || []).length ? d.resumen.map(c => {
                 const col = c.pct >= 80 ? 'bg-secondary' : (c.pct >= 40 ? 'bg-amber-500' : 'bg-orange-500');
@@ -3246,7 +3256,9 @@
             if (!body.curso || !body.cargo) { alert('Indica el curso y el cargo.'); return; }
             const r = await fetch('/api/capacitaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!r.ok) { alert('No se pudo registrar.'); return; }
+            const resp = await r.json().catch(() => ({}));
             document.getElementById('cap_curso').value = ''; document.getElementById('cap_ncap').value = ''; document.getElementById('cap_nreq').value = '';
+            if (resp.matriz_actualizada) { alert('✔ Sincronización cruzada: el requisito «' + resp.matriz_actualizada + '» de la Matriz Legal quedó en Cumple.'); if (typeof cargarMatriz === 'function') cargarMatriz(); }
             cargarCapacitaciones();
         }
         async function eliminarCapacitacion(id) {
