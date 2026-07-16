@@ -48,7 +48,8 @@ class Empresa(_DictMixin, sqla.Model):
     creado = sqla.Column(sqla.Text)
     datos_json = sqla.Column(sqla.Text)
     logo_doc_id = sqla.Column(sqla.Integer)               # Ronda 16: logo corporativo (blob en documento)
-    dotacion = sqla.Column(sqla.Integer)                  # N° de trabajadores: gatilla CORE-06 (CPHS) y CORE-08 (1%)
+    dotacion = sqla.Column(sqla.Integer)                  # N° de trabajadores DECLARADO en el onboarding
+    plan = sqla.Column(sqla.Text)                         # Ronda 26: tramo comercial (planes.PLANES); topa la nómina
 
 
 class Contrato(_DictMixin, sqla.Model):
@@ -142,13 +143,48 @@ class MappingReq(_DictMixin, sqla.Model):
 class Trabajador(_DictMixin, sqla.Model):
     __tablename__ = 'trabajador'
     id = sqla.Column(sqla.Integer, primary_key=True)
-    contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)  # 0 = sin faena asignada
     empresa_id = sqla.Column(sqla.Integer, index=True)   # Ronda 15: trabajador por empresa
     rut = sqla.Column(sqla.Text, nullable=False)
     nombre = sqla.Column(sqla.Text)
-    rol = sqla.Column(sqla.Text)
+    rol = sqla.Column(sqla.Text)                          # rol crítico (resso.ROLES_CRITICOS): gatilla sus requisitos
     cargo = sqla.Column(sqla.Text)                        # Ronda 15: cargo (ej. Analista Geofísico)
     fecha_ingreso = sqla.Column(sqla.Text)
+    # Ronda 26 — Desvinculación. La baja NO borra: un trabajador desvinculado conserva su historial
+    # de requisitos (exámenes rendidos, cursos) y su evidencia sigue siendo auditable.
+    estado = sqla.Column(sqla.Text, default='activo')     # 'activo'|'inactivo'
+    fecha_egreso = sqla.Column(sqla.Text)
+    motivo_egreso = sqla.Column(sqla.Text)
+
+
+class TrabajadorRequisito(_DictMixin, sqla.Model):
+    """Ronda 26 — Requisito exigible a UNA persona (capacitación, examen o documento), inyectado
+    automáticamente según su rol crítico (resso.REQUISITOS_POR_ROL).
+
+    Es el registro por persona que antes no existía: Capacitacion y ProtocoloSalud son contadores
+    agregados por cargo y no permiten saber QUIÉN está capacitado.
+
+    El vencimiento se calcula con las mismas funciones que gobiernan los documentos legales
+    (cumplimiento.calcular_vencimiento / estado_cumplimiento).
+    """
+    __tablename__ = 'trabajador_requisito'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    trabajador_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'),
+                                index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    codigo = sqla.Column(sqla.Text, nullable=False)       # llave estable del catálogo (ej. 'EX-PSICO')
+    nombre = sqla.Column(sqla.Text)
+    tipo = sqla.Column(sqla.Text)                         # 'capacitacion'|'examen'|'documento'
+    origen = sqla.Column(sqla.Text)                       # 'todos'|'rol:conductor'|'rol_anterior'
+    carpeta_item = sqla.Column(sqla.Integer)              # ítem de la Carpeta de Arranque que lo pide
+    responsable_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'))  # nombre+RUT reales
+    fecha_emision = sqla.Column(sqla.Text)
+    vigencia_meses = sqla.Column(sqla.Integer)
+    fecha_vencimiento = sqla.Column(sqla.Text)
+    estado_cumplimiento = sqla.Column(sqla.Text)          # 'vigente'|'por_vencer'|'pendiente_actualizacion'
+    doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))   # evidencia (blob)
+    creado = sqla.Column(sqla.Text)
+    __table_args__ = (sqla.UniqueConstraint('trabajador_id', 'codigo'),)
 
 
 class AuditoriaEstado(_DictMixin, sqla.Model):

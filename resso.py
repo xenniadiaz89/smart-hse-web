@@ -188,32 +188,59 @@ def aplicabilidad_lista():
 
 # ── Requisitos por rol (Formulario de Trabajadores) ──
 # Cada rol exige capacitaciones/exámenes; se cruzan con ítems de la Carpeta.
+# Ronda 26: el catálogo pasa de referencia muerta a motor (db.inyectar_requisitos_de_rol).
+# Cada entrada gana `codigo` (llave estable, no cambia aunque se edite el texto), `tipo` y
+# `vigencia_meses` (None = no vence; el vencimiento se calcula con cumplimiento.calcular_vencimiento).
 REQUISITOS_POR_ROL = {
     'todos': [
-        {'req': 'Contrato de trabajo vigente', 'carpeta': 5},
-        {'req': 'Examen preocupacional', 'carpeta': 7},
-        {'req': 'Examen de drogas y alcohol', 'carpeta': 8},
-        {'req': 'ODI e inducción', 'carpeta': 12},
-        {'req': 'Recepción RIOHS', 'carpeta': 10},
+        {'codigo': 'DOC-CONTRATO', 'req': 'Contrato de trabajo vigente',
+         'carpeta': 5, 'tipo': 'documento', 'vigencia_meses': None},
+        {'codigo': 'EX-PREOCUP', 'req': 'Examen preocupacional',
+         'carpeta': 7, 'tipo': 'examen', 'vigencia_meses': 12},
+        {'codigo': 'EX-DROGAS', 'req': 'Examen de drogas y alcohol',
+         'carpeta': 8, 'tipo': 'examen', 'vigencia_meses': 12},
+        {'codigo': 'CAP-ODI', 'req': 'ODI e inducción',
+         'carpeta': 12, 'tipo': 'capacitacion', 'vigencia_meses': 12},
+        {'codigo': 'DOC-RIOHS', 'req': 'Recepción RIOHS',
+         'carpeta': 10, 'tipo': 'documento', 'vigencia_meses': None},
     ],
     'supervisor': [
-        {'req': 'Curso prevención de riesgos supervisores (8 h)', 'carpeta': 6},
+        {'codigo': 'CAP-SUP8H', 'req': 'Curso prevención de riesgos supervisores (8 h)',
+         'carpeta': 6, 'tipo': 'capacitacion', 'vigencia_meses': 24},
     ],
     'conductor': [
-        {'req': 'Licencia interna/municipal vigente', 'carpeta': 13},
-        {'req': 'Examen psicosensotécnico riguroso vigente', 'carpeta': 13},
+        {'codigo': 'DOC-LICENCIA', 'req': 'Licencia interna/municipal vigente',
+         'carpeta': 13, 'tipo': 'documento', 'vigencia_meses': 12},
+        {'codigo': 'EX-PSICO', 'req': 'Examen psicosensotécnico riguroso vigente',
+         'carpeta': 13, 'tipo': 'examen', 'vigencia_meses': 12},
     ],
     'operador': [
-        {'req': 'Certificación de competencias del equipo', 'carpeta': 11},
+        {'codigo': 'CERT-EQUIPO', 'req': 'Certificación de competencias del equipo',
+         'carpeta': 11, 'tipo': 'capacitacion', 'vigencia_meses': 24},
     ],
+}
+
+# Roles críticos del <select> del alta. La llave debe coincidir con las de REQUISITOS_POR_ROL
+# (el match de requisitos_de_rol() es por substring sobre el rol). 'trabajador' no añade extras:
+# recibe solo los comunes de 'todos'.
+ROLES_CRITICOS = {
+    'trabajador': 'Trabajador',
+    'supervisor': 'Supervisor',
+    'conductor': 'Conductor',
+    'operador': 'Operador de equipos',
 }
 
 
 def requisitos_de_rol(rol):
-    """Requisitos aplicables a un rol = comunes ('todos') + los propios del rol."""
+    """Requisitos aplicables a un rol = comunes ('todos') + los propios del rol.
+
+    El match es por substring, así que 'Supervisor de Terreno' matchea 'supervisor'. Cada requisito
+    sale con `origen` ('todos' o 'rol:<clave>') para poder distinguir, cuando alguien cambia de rol,
+    cuáles dejaron de aplicarle (ver db.inyectar_requisitos_de_rol).
+    """
     rol_key = (rol or '').strip().lower()
-    reqs = list(REQUISITOS_POR_ROL['todos'])
+    reqs = [{**r, 'origen': 'todos'} for r in REQUISITOS_POR_ROL['todos']]
     for k, extra in REQUISITOS_POR_ROL.items():
         if k != 'todos' and k in rol_key:
-            reqs += extra
+            reqs += [{**r, 'origen': f'rol:{k}'} for r in extra]
     return reqs

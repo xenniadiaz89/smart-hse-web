@@ -15,8 +15,11 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
                     TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
-                    BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion)
+                    BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion,
+                    TrabajadorRequisito)
 import iper
+import planes
+import resso as _resso
 
 
 def _hoy():
@@ -78,6 +81,11 @@ _COLUMNAS_NUEVAS = [
     # Ronda 24 — Onboarding obligatorio + Pilares de la Matriz Legal
     ('empresa', 'dotacion', 'INTEGER'),
     ('requisito_legal', 'pilar', 'TEXT'),
+    # Ronda 26 — Nómina viva: tramo comercial + desvinculación
+    ('empresa', 'plan', 'TEXT'),
+    ('trabajador', 'estado', "TEXT DEFAULT 'activo'"),
+    ('trabajador', 'fecha_egreso', 'TEXT'),
+    ('trabajador', 'motivo_egreso', 'TEXT'),
     # Ronda 25 — IPER: GEMA, Puesto, riesgo residual y herencia de controles
     ('riesgo_item', 'gema', 'TEXT'),
     ('riesgo_item', 'probabilidad_residual', 'INTEGER'),
@@ -526,9 +534,130 @@ def _core01_auto_cumple(empresa_id):
     aplicar_herencia_controles(empresa_id, requisito_id=row.id)   # CORE-01 cumple → valida su control
 
 
+def _aplicar_vencimiento_req(r):
+    """Recalcula vencimiento y estado del requisito con las MISMAS reglas que los documentos
+    legales (cumplimiento.calcular_vencimiento / estado_cumplimiento). Sin fecha de emisión no
+    hay vencimiento: el requisito simplemente está pendiente de evidencia."""
+    if not r.fecha_emision:
+        r.fecha_vencimiento, r.estado_cumplimiento = None, 'pendiente'
+        return
+    if not r.vigencia_meses:
+        r.fecha_vencimiento, r.estado_cumplimiento = None, 'vigente'   # no vence (ej. contrato)
+        return
+    r.fecha_vencimiento = cumplimiento.calcular_vencimiento(r.fecha_emision, r.vigencia_meses)
+    r.estado_cumplimiento = cumplimiento.estado_cumplimiento(r.fecha_vencimiento)
+
+
+def inyectar_requisitos_de_rol(trabajador_id, responsable_id=None):
+    """Inyecta los requisitos que exige el rol crítico del trabajador (resso.REQUISITOS_POR_ROL).
+
+    Vive en db.py y no en nomina/service.py a propósito: la dispara el alta de un trabajador y,
+    si viviera dentro del módulo, un fallo del módulo rompería el alta. Mismo criterio que
+    aplicar_reglas_dotacion y aplicar_herencia_controles.
+
+    Idempotente por (trabajador_id, codigo). NUNCA borra ni pisa evidencia: si el trabajador cambia
+    de rol, los requisitos que dejan de aplicarle se marcan origen='rol_anterior' en vez de
+    eliminarse — un examen ya rendido es historial auditable, no basura. Devuelve los códigos nuevos.
+    """
+    t = Trabajador.query.get(trabajador_id)
+    if not t:
+        return []
+    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol)}
+    existentes = {r.codigo: r for r in
+                  TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id).all()}
+    nuevos = []
+    for cod, c in catalogo.items():
+        r = existentes.get(cod)
+        if r:
+            if r.origen == 'rol_anterior':      # vuelve a aplicarle: se reactiva, con su evidencia
+                r.origen = c['origen']
+            continue
+        r = TrabajadorRequisito(
+            trabajador_id=trabajador_id, empresa_id=t.empresa_id, codigo=cod,
+            nombre=c['req'], tipo=c['tipo'], origen=c['origen'], carpeta_item=c.get('carpeta'),
+            vigencia_meses=c.get('vigencia_meses'), responsable_id=responsable_id,
+            estado_cumplimiento='pendiente', creado=_hoy())
+        sqla.session.add(r)
+        nuevos.append(cod)
+    # Los que ya no aplican al rol actual: se conservan marcados, nunca se borran.
+    for cod, r in existentes.items():
+        if cod not in catalogo and r.origen != 'rol_anterior':
+            r.origen = 'rol_anterior'
+    _commit()
+    return nuevos
+
+
+def requisitos_de_trabajador(trabajador_id):
+    filas = (TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id)
+             .order_by(TrabajadorRequisito.tipo, TrabajadorRequisito.codigo).all())
+    out = []
+    for r in filas:
+        d = r.to_dict()
+        resp = Trabajador.query.get(r.responsable_id) if r.responsable_id else None
+        d['responsable_nombre'] = resp.nombre if resp else None
+        d['responsable_rut'] = resp.rut if resp else None
+        out.append(d)
+    return out
+
+
+def requisito_trab_guardar(req_id, empresa_id, data):
+    """Edita un requisito de una persona (fecha de emisión, responsable, evidencia) y recalcula
+    su vencimiento. Solo acepta los campos de gestión: el catálogo (código, tipo, vigencia) no se
+    edita desde aquí."""
+    r = TrabajadorRequisito.query.filter_by(id=req_id, empresa_id=empresa_id).first()
+    if not r:
+        return None
+    for k in ('fecha_emision', 'responsable_id', 'doc_id'):
+        if k in data:
+            v = data[k] or None
+            setattr(r, k, int(v) if v and k.endswith('_id') else v)
+    _aplicar_vencimiento_req(r)
+    _commit()
+    return r.to_dict()
+
+
+def refrescar_vencimientos_requisitos(empresa_id):
+    """Recalcula el estado de todos los requisitos de la empresa (el tiempo pasa: lo que ayer
+    estaba 'por_vencer' hoy puede estar vencido). Idempotente."""
+    for r in TrabajadorRequisito.query.filter_by(empresa_id=empresa_id).all():
+        _aplicar_vencimiento_req(r)
+    _commit()
+
+
+def trabajadores_activos_count(empresa_id):
+    return Trabajador.query.filter(Trabajador.empresa_id == empresa_id,
+                                   (Trabajador.estado == 'activo') | (Trabajador.estado.is_(None))).count()
+
+
+def dotacion_efectiva(empresa_id):
+    """La dotación que usa el motor legal = max(declarada en el onboarding, activos en la nómina).
+
+    El máximo, y no el conteo a secas, porque NUNCA debe sub-contar:
+    - Declaras 150 y cargaste 12 nombres → la ley te sigue exigiendo CPHS y el 1%. Contar la
+      nómina los apagaría.
+    - Declaras 20 pero tienes 26 activos → la ley aplica a 26. Quedarse con lo declarado los apagaría.
+
+    Consecuencia buscada: la nómina SUBE la exigencia, nunca la baja. Una desvinculación no
+    desactiva sola el CPHS; para eso hay que corregir el número declarado (el panel avisa cuando
+    declarada y activos difieren). Misma lógica que el 'no aplica fósil' de aplicar_reglas_dotacion.
+    """
+    e = Empresa.query.get(empresa_id)
+    if not e:
+        return 0
+    try:
+        declarada = int(e.dotacion or 0)
+    except (TypeError, ValueError):
+        declarada = 0
+    return max(declarada, trabajadores_activos_count(empresa_id))
+
+
 def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
-    """Cruce automático: la dotación declarada determina si CORE-06 (CPHS, desde 25) y CORE-08
+    """Cruce automático: la dotación EFECTIVA determina si CORE-06 (CPHS, desde 25) y CORE-08
     (reserva 1%, desde 100) son exigibles. Deja rastro en la bitácora ValidacionCumplimiento.
+
+    Ronda 26: usa dotacion_efectiva() —max(declarada, activos)— en vez de la declarada a secas, así
+    la nómina real también gatilla la exigencia. El tramo comercial contratado NO influye: topa
+    cuántos nombres se registran, nunca lo que la ley exige.
 
     Es bidireccional a propósito: si la dotación sube y cruza el umbral, el requisito vuelve a
     'pendiente'. Sin esa vuelta quedaría un 'no aplica' fósil y la empresa creería estar cumpliendo
@@ -536,11 +665,10 @@ def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
     evidencia real gana sobre la regla. Idempotente: solo escribe cuando el estado cambia."""
     from datetime import datetime as _dtn
     e = Empresa.query.get(empresa_id)
-    if not e or not e.dotacion:
+    if not e:
         return []
-    try:
-        n = int(e.dotacion)
-    except (TypeError, ValueError):
+    n = dotacion_efectiva(empresa_id)
+    if not n:
         return []
     ahora, tocados = _dtn.now().isoformat(timespec='seconds'), []
     for regla in cumplimiento.REGLAS_DOTACION:
@@ -1734,17 +1862,66 @@ def pts_de_tarea(tarea_id):
 
 
 # ── Trabajadores y sus Tareas asignadas ──
-def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=None):
+def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=None,
+                     responsable_id=None):
     t = Trabajador(empresa_id=empresa_id, contrato_id=contrato_id or 0, rut=rut, nombre=nombre,
-                   cargo=cargo, rol=rol, fecha_ingreso=_hoy())
+                   cargo=cargo, rol=rol, fecha_ingreso=_hoy(), estado='activo')
     sqla.session.add(t)
     _commit()
+    inyectar_requisitos_de_rol(t.id, responsable_id=responsable_id)   # cargo crítico → sus exigencias
+    aplicar_reglas_dotacion(empresa_id)          # un activo más puede cruzar el umbral del CPHS
     return t.id
 
 
-def trabajadores_de(empresa_id):
-    return [t.to_dict() for t in
-            Trabajador.query.filter_by(empresa_id=empresa_id).order_by(Trabajador.nombre).all()]
+def trabajadores_de(empresa_id, solo_activos=False):
+    q = Trabajador.query.filter_by(empresa_id=empresa_id)
+    if solo_activos:
+        q = q.filter((Trabajador.estado == 'activo') | (Trabajador.estado.is_(None)))
+    return [t.to_dict() for t in q.order_by(Trabajador.nombre).all()]
+
+
+def trabajador_set_estado(trabajador_id, empresa_id, estado, fecha_egreso=None, motivo=None):
+    """Desvincula o reactiva. NO borra: el historial de requisitos del trabajador (exámenes
+    rendidos, cursos) sigue siendo auditable y su RUT sigue trazable en los checklists ya firmados.
+    Al cambiar la dotación activa, re-evalúa las obligaciones legales."""
+    t = Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).first()
+    if not t or estado not in ('activo', 'inactivo'):
+        return None
+    t.estado = estado
+    if estado == 'inactivo':
+        t.fecha_egreso = fecha_egreso or _hoy()
+        t.motivo_egreso = motivo
+    else:
+        t.fecha_egreso, t.motivo_egreso = None, None
+    _commit()
+    aplicar_reglas_dotacion(empresa_id)
+    return t.to_dict()
+
+
+def trabajador_set_rol(trabajador_id, empresa_id, rol, cargo=None):
+    """Cambia el rol crítico y re-inyecta. Los requisitos del rol anterior no se borran."""
+    t = Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).first()
+    if not t:
+        return None
+    t.rol = rol
+    if cargo is not None:
+        t.cargo = cargo
+    _commit()
+    inyectar_requisitos_de_rol(trabajador_id)
+    return t.to_dict()
+
+
+def trabajadores_asignar_contrato(empresa_id, trabajador_ids, contrato_id):
+    """Asignación masiva a una faena/contrato. Puebla Trabajador.contrato_id, que hasta la Ronda 26
+    valía 0 en todos: ningún trabajador estaba ligado a una faena. contrato_id=0 los desasigna."""
+    ids = [int(i) for i in (trabajador_ids or [])]
+    if not ids:
+        return 0
+    n = (Trabajador.query
+         .filter(Trabajador.empresa_id == empresa_id, Trabajador.id.in_(ids))
+         .update({Trabajador.contrato_id: int(contrato_id or 0)}, synchronize_session=False))
+    _commit()
+    return n
 
 
 def trabajador_de(empresa_id, trabajador_id):

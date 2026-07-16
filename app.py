@@ -17,6 +17,7 @@ from core_auth import (normalizar_rut, rut_valido, login_required,      # noqa: 
 import db
 import fuf
 import normativa
+import planes
 import resso
 import ia
 import correccion
@@ -291,20 +292,23 @@ def api_empresas_get():
                     'activa': session.get('empresa_id')})
 
 
-# ── Límites del Plan Básico del Asesor (Ronda 20) ──
+# ── Límites del Plan del Asesor (Ronda 20; tramos por empresa en planes.py desde la Ronda 26) ──
 MAX_EMPRESAS_BASICO = 30
-MAX_TRABAJADORES_BASICO = 20      # sobre 20 → plan de 25-50; más arriba, otro pack
 
 
 @app.route('/api/plan', methods=['GET'])
 @login_required
 def api_plan():
-    """Uso del Plan Básico: empresas de la cuenta y trabajadores de la empresa activa."""
+    """Uso del plan: empresas de la cuenta y cupo de nómina de la empresa activa (por tramo)."""
     empresas = db.empresas_de(session['rut'])
     eid = session.get('empresa_id')
-    trabajadores = len(db.trabajadores_de(eid)) if eid else 0
-    return jsonify({'plan': 'Básico', 'empresas': len(empresas), 'max_empresas': MAX_EMPRESAS_BASICO,
-                    'trabajadores': trabajadores, 'max_trabajadores': MAX_TRABAJADORES_BASICO})
+    emp = db.empresa_de(session['rut'], eid) if eid else None
+    activos = db.trabajadores_activos_count(eid) if eid else 0
+    cupo = planes.cupo((emp or {}).get('plan'), activos)
+    return jsonify({'empresas': len(empresas), 'max_empresas': MAX_EMPRESAS_BASICO,
+                    'cupo': cupo, 'tramos': planes.PLANES,
+                    'dotacion_declarada': (emp or {}).get('dotacion'),
+                    'dotacion_efectiva': db.dotacion_efectiva(eid) if eid else 0})
 
 
 # ── Protocolos de Salud (MINSAL) — motor de datos de la Tarjeta 3 del Dashboard DS44 ──
@@ -1220,15 +1224,21 @@ def api_trabajador_crear():
         return jsonify({'error': 'Indica RUT y nombre del trabajador.'}), 400
     if not rut_valido(rut):
         return jsonify({'error': 'El RUT del trabajador no es válido.'}), 400
-    if len(db.trabajadores_de(_empresa_id())) >= MAX_TRABAJADORES_BASICO:
-        return jsonify({'error': 'limite_trabajadores',
-                        'mensaje': f'Alcanzaste el tope del Plan Básico ({MAX_TRABAJADORES_BASICO} '
-                                   'trabajadores por empresa). Migra a un plan superior (25-50 '
-                                   'trabajadores) para agregar más.'}), 403
-    db.trabajador_crear(_empresa_id(), normalizar_rut(rut), nombre,
+    eid = _empresa_id()
+    emp = db.empresa_de(session['rut'], eid) or {}
+    # El tope es por tramo comercial y solo cuenta ACTIVOS: un desvinculado no consume cupo.
+    activos = db.trabajadores_activos_count(eid)
+    if not planes.cabe(emp.get('plan'), activos):
+        info = planes.cupo(emp.get('plan'), activos)
+        sug = planes.plan_de(info['sugerido'])
+        return jsonify({'error': 'limite_trabajadores', 'cupo': info,
+                        'mensaje': f"Tu {info['nombre']} contempla hasta {info['tope']} trabajadores "
+                                   f"y ya tienes {activos} activos. Para agregar más necesitas el "
+                                   f"{sug['nombre']}."}), 403
+    db.trabajador_crear(eid, normalizar_rut(rut), nombre,
                         cargo=(f.get('cargo') or '').strip() or None,
                         rol=(f.get('rol') or '').strip() or None)
-    return jsonify(db.trabajadores_de(_empresa_id()))
+    return jsonify(db.trabajadores_de(eid))
 
 
 @app.route('/api/trabajadores/<int:tid>/eliminar', methods=['POST'])
