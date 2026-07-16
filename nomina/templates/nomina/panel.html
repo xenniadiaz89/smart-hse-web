@@ -221,8 +221,10 @@
         function filaReq(t, r) {
             const [txt, cls] = EST_REQ[r.estado_cumplimiento] || EST_REQ.pendiente;
             const viejo = r.origen === 'rol_anterior';
-            const resps = _trabs.filter(x => (x.estado || 'activo') === 'activo')
-                .map(x => `<option value="${x.id}" ${String(r.responsable_id) === String(x.id) ? 'selected' : ''}>${esc(x.nombre)} · ${esc(x.rut)}</option>`).join('');
+            // Solo se puede elegir a alguien activo, pero el responsable actual se incluye aunque
+            // esté desvinculado: si no, el select saldría vacío y parecería que no tiene responsable.
+            const resps = _trabs.filter(x => (x.estado || 'activo') === 'activo' || String(r.responsable_id) === String(x.id))
+                .map(x => `<option value="${x.id}" ${String(r.responsable_id) === String(x.id) ? 'selected' : ''}>${esc(x.nombre)} · ${esc(x.rut)}${(x.estado || 'activo') !== 'activo' ? ' (ya no labora)' : ''}</option>`).join('');
             return `<tr class="${viejo ? 'opacity-50' : ''}">
                 <td class="pl-8 text-[10px] font-mono text-gray-400">${esc(r.codigo)}</td>
                 <td class="text-gray-700">${esc(r.nombre)}
@@ -232,7 +234,8 @@
                 <td><input type="date" value="${esc(r.fecha_emision)}" onchange="guardarReq(${t.id},${r.id},'fecha_emision',this.value)" class="cel"></td>
                 <td class="text-[10px] text-gray-500">${r.fecha_vencimiento ? esc(r.fecha_vencimiento) : (r.vigencia_meses ? '—' : 'no vence')}</td>
                 <td><span class="badge ${cls}">${txt}</span></td>
-                <td><select onchange="guardarReq(${t.id},${r.id},'responsable_id',this.value)" class="cel"><option value="">— responsable —</option>${resps}</select></td>
+                <td><select onchange="guardarReq(${t.id},${r.id},'responsable_id',this.value)" class="cel ${r.responsable_inactivo ? 'border-amber-400' : ''}"><option value="">— responsable —</option>${resps}</select>
+                    ${r.responsable_inactivo ? `<span class="block text-[9px] text-amber-700 font-bold mt-0.5" title="Ya no labora en la empresa: nadie responde por este requisito">⚠ ${esc(r.responsable_nombre)} ya no labora — reasigna</span>` : ''}</td>
             </tr>`;
         }
 

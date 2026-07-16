@@ -596,6 +596,9 @@ def requisitos_de_trabajador(trabajador_id):
         resp = Trabajador.query.get(r.responsable_id) if r.responsable_id else None
         d['responsable_nombre'] = resp.nombre if resp else None
         d['responsable_rut'] = resp.rut if resp else None
+        # Un responsable desvinculado sigue figurando: hay que avisarlo, no esconderlo. Nadie
+        # responde por el seguimiento de ese requisito hasta que se reasigne.
+        d['responsable_inactivo'] = bool(resp and (resp.estado or 'activo') != 'activo')
         out.append(d)
     return out
 
@@ -1930,9 +1933,24 @@ def trabajador_de(empresa_id, trabajador_id):
 
 
 def trabajador_eliminar(empresa_id, trabajador_id):
+    """Borrado REAL. Solo para corregir un alta errónea: para una baja está trabajador_set_estado
+    ('inactivo'), que conserva el historial.
+
+    Limpia todo lo que cuelga del trabajador y re-evalúa las obligaciones, porque al bajar los
+    activos puede cambiar la dotación efectiva. Antes dejaba huérfanas las filas de
+    trabajador_requisito y los responsable_id apuntando al borrado, y no re-aplicaba las reglas:
+    el CPHS quedaba marcado exigible con una dotación que ya no lo exigía."""
+    if not Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).first():
+        return False
     TrabajadorTarea.query.filter_by(trabajador_id=trabajador_id).delete()
+    TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id).delete()
+    # Los requisitos de OTROS que lo tenían como responsable quedan sin responsable, no colgando.
+    (TrabajadorRequisito.query.filter_by(responsable_id=trabajador_id)
+     .update({TrabajadorRequisito.responsable_id: None}, synchronize_session=False))
     Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).delete()
     _commit()
+    aplicar_reglas_dotacion(empresa_id)
+    return True
 
 
 def trabajador_set_tareas(trabajador_id, tarea_ids):
