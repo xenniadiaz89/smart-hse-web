@@ -111,7 +111,7 @@
                 <div class="overflow-x-auto mt-5">
                     <table class="tbl w-full text-xs min-w-[1400px]">
                         <thead><tr>
-                            <th class="w-16">GEMA</th><th class="w-1/12">Peligro</th><th class="w-1/12">Riesgo</th>
+                            <th class="w-14">Cód.</th><th class="w-16">GEMA</th><th class="w-1/12">Peligro</th><th class="w-1/12">Riesgo</th>
                             <th class="w-10">P</th><th class="w-10">C</th><th class="w-12">VEP</th><th>Magnitud</th>
                             <th class="w-1/6">Medida de control</th><th class="w-24">Jerarquía</th>
                             <th class="w-32">Residual</th><th class="w-40">Control</th><th class="w-8"></th>
@@ -143,11 +143,40 @@
                         <select id="t_rutinaria" class="iet-in"><option value="rutinaria">Rutinaria</option><option value="no_rutinaria">No rutinaria</option></select></div>
                 </div>
                 <hr class="my-2">
+
+                <!-- Riesgos Estándar Transversales: catálogo oficial Anexo 2 (57, con código) -->
+                <div class="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-[11px] font-bold text-primary uppercase flex items-center gap-1.5">
+                            <i data-lucide="list-plus" class="w-3.5 h-3.5"></i> Riesgo estándar (Anexo 2 · Guía ISP)
+                        </label>
+                        {% if biblioteca %}
+                        <select id="r_biblio" onchange="usarBiblioteca(this.value)" class="cel text-[11px] py-1">
+                            <option value="">— Usar de mi biblioteca —</option>
+                            {% for b in biblioteca %}<option value="{{ b.id }}">{{ b.nombre }}{% if b.peligro %} · {{ b.peligro[:28] }}{% endif %}</option>{% endfor %}
+                        </select>
+                        {% endif %}
+                    </div>
+                    <select id="r_catalogo" onchange="usarCatalogo(this.value)" class="iet-in mt-0">
+                        <option value="">— Elegir del catálogo oficial (o dejar en blanco y escribirlo abajo) —</option>
+                        {% for g in catalogo %}
+                        <optgroup label="{{ tipos_riesgo[g.tipo] }} · {{ g.familia }}">
+                            {% for r in g.riesgos %}
+                            <option value="{{ r.codigo }}">[{{ r.codigo }}] {{ r.riesgo }}{% if r.codigo in con_control %} ✓ con control{% endif %}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endfor %}
+                    </select>
+                    <p id="catAviso" class="text-[11px] text-gray-500">
+                        Al elegir un riesgo, su <b>familia define sola</b> la evaluación (Seguridad · Higiénicos · Psicosociales · Músculo-esqueléticos).
+                    </p>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
-                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">GEMA</label>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">GEMA <span class="text-gray-400 normal-case font-normal">(Anexo 3)</span></label>
                         <select id="r_gema" class="iet-in">
                             <option value="">—</option>
-                            {% for k, v in gema.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}
+                            {% for k, v in gema.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
                         </select></div>
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">Jerarquía del control</label>
                         <select id="r_tipo" class="iet-in">
@@ -164,10 +193,17 @@
                         <select id="r_c" class="iet-in">{% for k, v in escala_c.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}</select></div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-bold text-gray-500 uppercase">Medida de control</label>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">
+                        Medida de control <span class="text-red-600">*</span>
+                    </label>
                     <textarea id="r_medida" class="iet-in" rows="3" placeholder="Una acción por línea:&#10;Instalar guarda fija&#10;Verificar en cada turno"></textarea>
-                    <p class="text-[11px] text-gray-500 mt-1">Se guarda como lista numerada (1. 2. 3.), una acción por línea.</p>
+                    <p id="medAviso" class="text-[11px] text-gray-500 mt-1">
+                        Se guarda como lista numerada (1. 2. 3.), una acción por línea.
+                    </p>
                 </div>
+                <label class="flex items-center gap-2 text-[12px] text-gray-600">
+                    <input type="checkbox" id="r_guardar_biblio" class="accent-primary"> Guardar en mi biblioteca para reusarlo
+                </label>
                 <div class="flex justify-end gap-2 pt-1">
                     <button type="button" onclick="cerrarNuevaTarea()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
                     <button type="button" onclick="guardarNuevaTarea()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
@@ -211,6 +247,8 @@
                    ${badgeMag(r.nivel_riesgo_residual)}
                    ${validado && r.vep_residual < r.vep ? `<span class="block text-[9px] text-green-700 font-bold">▼ desde ${r.vep}</span>` : ''}`;
             return `<tr class="${r.es_critico ? 'bg-red-50/40' : ''}">
+                <td class="font-mono text-[10px] text-gray-400">${r.riesgo_codigo ? esc(r.riesgo_codigo) : '—'}
+                    ${r.tipo_riesgo ? `<span class="block text-[8px] text-gray-300">${esc(r.tipo_riesgo)}</span>` : ''}</td>
                 <td><select onchange="editar(${r.id},'gema',this.value)" class="cel">${opts(GEMA, r.gema)}</select></td>
                 <td class="text-gray-800">${esc(r.peligro)}</td>
                 <td class="text-gray-800">${esc(r.riesgo)}</td>
@@ -237,14 +275,14 @@
             });
             const claves = Object.keys(porProceso).sort((a, b) =>
                 (a === 'Sin proceso asignado') - (b === 'Sin proceso asignado') || a.localeCompare(b));
-            if (!claves.length) { body.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-gray-400">Sin tareas aún. Usa “Nueva Tarea”.</td></tr>'; return; }
+            if (!claves.length) { body.innerHTML = '<tr><td colspan="13" class="p-6 text-center text-gray-400">Sin tareas aún. Usa “Nueva Tarea”.</td></tr>'; return; }
             body.innerHTML = claves.map(p => `
                 <tr class="bg-sidebar/5 border-t-2 border-primary/20">
-                    <td colspan="12" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">
+                    <td colspan="13" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">
                         <i data-lucide="workflow" class="w-3.5 h-3.5 inline"></i> Proceso · ${esc(p)}</td>
                 </tr>` + porProceso[p].map(t => `
                 <tr class="bg-gray-50">
-                    <td colspan="12" class="px-2 py-1.5 text-[11px]">
+                    <td colspan="13" class="px-2 py-1.5 text-[11px]">
                         <span class="font-bold text-gray-700">${esc(t.nombre)}</span>
                         ${t.puesto ? `<span class="ml-2 text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Puesto: ${esc(t.puesto)}</span>` : ''}
                         ${t.responsable ? `<span class="ml-2 text-[10px] text-gray-400">${esc(t.responsable)}</span>` : ''}
@@ -280,11 +318,61 @@
         }
         function abrirNuevaTarea() { document.getElementById('tareaOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
         function cerrarNuevaTarea() { document.getElementById('tareaOverlay').classList.add('hidden'); }
+
+        // Elegir un riesgo del Anexo 2: rellena riesgo y código, y su FAMILIA fija la evaluación.
+        // El control solo se carga si ese riesgo tiene una medida validada; nunca se inventa.
+        async function usarCatalogo(codigo) {
+            const av = document.getElementById('catAviso');
+            const med = document.getElementById('medAviso');
+            if (!codigo) { av.textContent = 'Al elegir un riesgo, su familia define sola la evaluación.'; return; }
+            let d = {};
+            try { const r = await fetch(`/api/miper/catalogo?q=${encodeURIComponent(codigo)}`); if (r.ok) d = await r.json(); } catch (e) { }
+            const x = (d.riesgos || []).find(r => r.codigo === codigo);
+            if (!x) return;
+            document.getElementById('r_riesgo').value = x.riesgo;
+            av.innerHTML = `<b>[${x.codigo}]</b> ${esc(x.familia)} → evaluación <b>${esc(d.tipos[x.tipo])}</b>` +
+                (x.definicion ? `<span class="block text-gray-400 mt-0.5">${esc(x.definicion)}</span>` : '');
+            if (x.control) {
+                // Riesgo del grupo con control validado: se carga su medida real.
+                document.getElementById('r_peligro').value = x.control.peligro || '';
+                document.getElementById('r_medida').value = x.control.medida_control || '';
+                if (x.control.probabilidad) document.getElementById('r_p').value = x.control.probabilidad;
+                if (x.control.consecuencia) document.getElementById('r_c').value = x.control.consecuencia;
+                med.innerHTML = '<span class="text-green-700 font-semibold">✓ Control validado cargado.</span> Revísalo y ajústalo a tu faena.';
+            } else {
+                // Los otros 52 del Anexo 2: el control lo escribe el prevencionista. Prohibido inventarlo.
+                document.getElementById('r_medida').value = '';
+                med.innerHTML = '<span class="text-amber-700 font-semibold">⚠ Este riesgo no trae control normativo: debes escribirlo tú.</span> ' +
+                    'El sistema no genera medidas de control — son tuyas y tienen peso legal.';
+            }
+        }
+
+        async function usarBiblioteca(bid) {
+            if (!bid) return;
+            let lista = [];
+            try { const r = await fetch('/api/biblioteca'); if (r.ok) lista = await r.json(); } catch (e) { }
+            const b = lista.find(x => String(x.id) === String(bid));
+            if (!b) return;
+            const set = (id, v) => { if (v != null && v !== '') document.getElementById(id).value = v; };
+            set('t_nombre', b.nombre); set('r_peligro', b.peligro); set('r_riesgo', b.riesgo);
+            set('r_medida', b.medida_control); set('r_p', b.probabilidad); set('r_c', b.consecuencia);
+            document.getElementById('medAviso').innerHTML = '<span class="text-green-700 font-semibold">✓ Cargado desde tu biblioteca.</span>';
+        }
+
         async function guardarNuevaTarea() {
             const v = id => document.getElementById(id).value.trim();
             if (!v('t_nombre')) { alert('Indica el nombre de la tarea.'); return; }
-            const riesgo = v('r_peligro') || v('r_riesgo') ? [{
+            const hayRiesgo = v('r_peligro') || v('r_riesgo') || v('r_catalogo');
+            // El control es obligatorio. El servidor lo revalida: esto es solo cortesía.
+            if (hayRiesgo && !document.getElementById('r_medida').value.trim()) {
+                alert('La medida de control es obligatoria y debe escribirla el prevencionista.\n\n' +
+                      'El sistema no genera medidas de control: son tuyas y tienen peso legal.');
+                document.getElementById('r_medida').focus();
+                return;
+            }
+            const riesgo = hayRiesgo ? [{
                 peligro: v('r_peligro'), riesgo: v('r_riesgo'),
+                riesgo_codigo: v('r_catalogo') || null,
                 medida_control: document.getElementById('r_medida').value,
                 probabilidad: v('r_p'), consecuencia: v('r_c'),
                 tipo_control: v('r_tipo') || null, gema: v('r_gema') || null
@@ -293,7 +381,8 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nombre: v('t_nombre'), proceso: v('t_proceso'), puesto: v('t_puesto'),
-                    responsable: v('t_resp'), rutinaria: v('t_rutinaria'), riesgos: riesgo
+                    responsable: v('t_resp'), rutinaria: v('t_rutinaria'), riesgos: riesgo,
+                    guardar_biblioteca: document.getElementById('r_guardar_biblio').checked ? 1 : 0
                 })
             });
             const d = await r.json().catch(() => ({}));

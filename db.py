@@ -38,6 +38,11 @@ def init_db():
     sqla.create_all()
     _migrar_columnas()
     seed_mapping()
+    try:
+        migrar_escala_iper()      # Ronda 27: VEP guardados → escala oficial 1/2/4. Idempotente.
+    except Exception:
+        import traceback
+        traceback.print_exc()     # el arranque nunca se cae por una migración de datos
 
 
 # Columnas añadidas después del primer despliegue. create_all() NO altera tablas
@@ -81,6 +86,9 @@ _COLUMNAS_NUEVAS = [
     # Ronda 24 — Onboarding obligatorio + Pilares de la Matriz Legal
     ('empresa', 'dotacion', 'INTEGER'),
     ('requisito_legal', 'pilar', 'TEXT'),
+    # Ronda 27 — catálogo oficial de riesgos (Anexo 2)
+    ('riesgo_item', 'riesgo_codigo', 'TEXT'),
+    ('riesgo_item', 'tipo_riesgo', 'TEXT'),
     # Ronda 26 — Nómina viva: tramo comercial + desvinculación
     ('empresa', 'plan', 'TEXT'),
     ('trabajador', 'estado', "TEXT DEFAULT 'activo'"),
@@ -1330,6 +1338,32 @@ def seed_tareas_base(matriz_id, empresa_id):
     _commit()
 
 
+def migrar_escala_iper():
+    """Ronda 27 — pasa los riesgos guardados a la escala OFICIAL del formato (Baja 1 · Media 2 ·
+    Alta 4). Antes usábamos Alta=3, así que un riesgo grabado como 'VEP 9 Intolerable' llevaba un
+    número que no existe en la tabla de valoración del DS 44.
+
+    Idempotente y con guarda: solo toca las filas cuyo VEP NO esté en la tabla oficial
+    {1,2,4,8,16}. Re-ejecutarla no hace nada, así que puede correr en cada arranque.
+
+    Solo remapea 3 → 4 (el único valor de la escala vieja que desaparece); 1 y 2 significan lo
+    mismo en ambas. Luego recalcula VEP, magnitud y residual con las funciones nuevas.
+    """
+    filas = [r for r in RiesgoItem.query.all()
+             if r.vep is not None and r.vep not in iper.VEP_VALIDOS]
+    if not filas:
+        return 0
+    for r in filas:
+        if r.probabilidad == 3:
+            r.probabilidad = 4
+        if r.consecuencia == 3:
+            r.consecuencia = 4
+        _aplicar_vep(r, r.probabilidad, r.consecuencia)      # recalcula VEP, nivel y residual
+    _commit()
+    print(f'[Smart HSE] Escala IPER migrada a la oficial 1/2/4: {len(filas)} riesgos.', flush=True)
+    return len(filas)
+
+
 def _aplicar_residual(it):
     """Recalcula el riesgo residual del ítem desde su inherente, su jerarquía de control y si el
     control está validado. Si NO está validado, el residual queda igual al inherente.
@@ -1360,15 +1394,15 @@ def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None
                    consecuencia=None, nivel_riesgo=None, tipo_control=None, mandante_key=None,
                    es_critico=0, requisito_legal_id=None, evidencia_doc_id=None,
                    metodo_correcto=None, contrato_id=None, ecf_punto=None, mfl=None, bowtie=None,
-                   gema=None, tarea_id=None):
+                   gema=None, tarea_id=None, riesgo_codigo=None, tipo_riesgo=None):
     it = RiesgoItem(matriz_id=matriz_id, peligro=peligro, riesgo=riesgo,
                     medida_control=medida_control, tipo_control=tipo_control,
                     metodo_correcto=metodo_correcto, mandante_key=mandante_key,
                     es_critico=1 if es_critico else 0, requisito_legal_id=requisito_legal_id,
                     evidencia_doc_id=evidencia_doc_id, contrato_id=contrato_id,
                     ecf_punto=ecf_punto, mfl=mfl, bowtie=bowtie,
-                    gema=gema, tarea_id=tarea_id,
-                    estado_control='vigente', fecha=_hoy())
+                    gema=gema, tarea_id=tarea_id, riesgo_codigo=riesgo_codigo,
+                    tipo_riesgo=tipo_riesgo, estado_control='vigente', fecha=_hoy())
     _aplicar_vep(it, probabilidad, consecuencia)
     if nivel_riesgo and it.nivel_riesgo is None:
         it.nivel_riesgo = nivel_riesgo
@@ -1432,7 +1466,7 @@ def aplicar_herencia_controles(empresa_id, requisito_id=None, quien='Sistema (Ma
 # Campos editables en línea del ítem de riesgo (recalcula VEP si cambian P/C).
 _RIESGO_CAMPOS = ('peligro', 'riesgo', 'medida_control', 'metodo_correcto', 'tipo_control',
                   'probabilidad', 'consecuencia', 'es_critico', 'contrato_id',
-                  'ecf_punto', 'mfl', 'bowtie', 'gema')
+                  'ecf_punto', 'mfl', 'bowtie', 'gema', 'riesgo_codigo', 'tipo_riesgo')
 # Cambios en estos campos disparan la cascada al IRL (Art. 15 DS 44).
 _RIESGO_CAMPOS_IRL = ('medida_control', 'metodo_correcto', 'riesgo', 'peligro')
 

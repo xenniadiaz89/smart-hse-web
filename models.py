@@ -365,8 +365,13 @@ class RiesgoItem(_DictMixin, sqla.Model):
     consecuencia_residual = sqla.Column(sqla.Integer)
     vep_residual = sqla.Column(sqla.Integer)
     nivel_riesgo_residual = sqla.Column(sqla.Text)
-    # Ronda 25 — GEMA: Gente / Equipos / Materiales / Ambiente (columna H del SIGO-F-006)
-    gema = sqla.Column(sqla.Text)                           # 'G'|'E'|'M'|'A'
+    # Ronda 25 — factores de riesgo GEMA (columna H del SIGO-F-006). Valores: iper.GEMA
+    gema = sqla.Column(sqla.Text)
+    # Ronda 27 — catálogo oficial Anexo 2 del formato IPER (Guía ISP 3 V3.3)
+    riesgo_codigo = sqla.Column(sqla.Text)                 # 'A3', 'P1'… (riesgos_isp.INDEX)
+    tipo_riesgo = sqla.Column(sqla.Text)                   # seguridad|higienico|psicosocial|musculo
+    #   ↑ lo dicta la familia del catálogo, no lo elige el usuario. Deja el terreno listo para las
+    #     4 evaluaciones por fila (cols H-S del formato), que van en su propio turno.
     # Ronda 17 — capa minera condicional (por faena); null = base DS 44 pura
     contrato_id = sqla.Column(sqla.Integer, sqla.ForeignKey('contrato.id'))  # faena minera ligada
     ecf_punto = sqla.Column(sqla.Text)                    # subpunto ECF (22.1/22.3/22.4)

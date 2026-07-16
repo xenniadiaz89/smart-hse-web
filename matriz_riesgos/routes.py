@@ -12,6 +12,7 @@ import db
 import docgen
 import iper
 import cumplimiento
+import riesgos_isp
 from core_auth import empresa_required, onboarding_required, empresa_id
 from formato import normalizar_control_operativo
 from models import sqla, RiesgoItem, RequisitoLegal
@@ -22,6 +23,35 @@ bp = Blueprint('matriz_riesgos', __name__, template_folder='templates')
 
 # Campos cuyo texto se normaliza a lista numerada '1.\n2.\n' al guardarse.
 _CAMPOS_LISTA = ('medida_control', 'metodo_correcto')
+
+
+def _desde_catalogo(r):
+    """Aplica el riesgo elegido del Anexo 2 sobre el payload: fija el código y deriva el TIPO de
+    evaluación desde la familia del catálogo — no lo elige el usuario, lo dicta el Anexo 2.
+    Devuelve (payload, error)."""
+    cod = (r.get('riesgo_codigo') or '').strip().upper()
+    if not cod:
+        return r, None
+    cat = riesgos_isp.INDEX.get(cod)
+    if not cat:
+        return r, f'El código de riesgo «{cod}» no existe en el Anexo 2.'
+    r['riesgo_codigo'] = cod
+    r['tipo_riesgo'] = cat['tipo']            # familia → evaluación, automático
+    r.setdefault('riesgo', cat['riesgo'])
+    return r, None
+
+
+def _exige_control(r):
+    """El control operacional es obligatorio y lo escribe el prevencionista. El sistema tiene
+    prohibido generarlo o inferirlo: son medidas con peso legal.
+
+    Server-side además del formulario: el <select> del navegador no es garantía."""
+    if not (r.get('medida_control') or '').strip():
+        cod = (r.get('riesgo_codigo') or '').strip().upper()
+        cual = f' para «{riesgos_isp.INDEX[cod]["riesgo"]}»' if cod in riesgos_isp.INDEX else ''
+        return (f'Indica la medida de control{cual}. Es obligatoria y debe escribirla el '
+                'prevencionista: el sistema no genera medidas de control.')
+    return None
 
 
 @bp.route('/matriz-riesgos')
@@ -35,6 +65,9 @@ def panel():
                            empresa=db.empresa_de(session.get('rut'), eid),
                            gema=iper.GEMA, tipos_control=iper.TIPOS_CONTROL,
                            escala_p=iper.PROBABILIDAD, escala_c=iper.CONSECUENCIA,
+                           catalogo=riesgos_isp.agrupado(), tipos_riesgo=riesgos_isp.TIPOS,
+                           con_control=sorted(iper.CONTROLES_VALIDADOS),
+                           biblioteca=db.biblioteca_listar(eid),
                            **datos)
 
 
@@ -68,21 +101,33 @@ def api_miper_tarea():
     if not nombre:
         return jsonify({'error': 'Indica el nombre de la tarea.'}), 400
     eid = empresa_id()
+    # Validar TODO antes de crear nada: si un riesgo viene sin control, no se crea la tarea huérfana.
+    riesgos = []
+    for r in (f.get('riesgos') or []):
+        r, err = _desde_catalogo(dict(r))
+        if err:
+            return jsonify({'error': err}), 400
+        err = _exige_control(r)
+        if err:
+            return jsonify({'error': err}), 400
+        riesgos.append(r)
+
     m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
     mid = m['id'] if isinstance(m, dict) else m
     tid = db.tarea_crear(mid, nombre, proceso=(f.get('proceso') or '').strip() or None,
                          responsable=(f.get('responsable') or '').strip() or None,
                          rutinaria=(f.get('rutinaria') or '').strip() or None,
                          puesto=(f.get('puesto') or '').strip() or None)
-    for r in (f.get('riesgos') or []):
-        rid = db.riesgo_agregar(mid, r.get('peligro'), r.get('riesgo'),
-                                normalizar_control_operativo(r.get('medida_control')),
-                                probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
-                                metodo_correcto=normalizar_control_operativo(r.get('metodo_correcto')),
-                                tipo_control=r.get('tipo_control'), gema=r.get('gema'),
-                                contrato_id=r.get('contrato_id') or None,
-                                ecf_punto=r.get('ecf_punto'), mfl=r.get('mfl'), bowtie=r.get('bowtie'),
-                                tarea_id=tid)
+    for r in riesgos:
+        db.riesgo_agregar(mid, r.get('peligro'), r.get('riesgo'),
+                          normalizar_control_operativo(r.get('medida_control')),
+                          probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
+                          metodo_correcto=normalizar_control_operativo(r.get('metodo_correcto')),
+                          tipo_control=r.get('tipo_control'), gema=r.get('gema'),
+                          contrato_id=r.get('contrato_id') or None,
+                          ecf_punto=r.get('ecf_punto'), mfl=r.get('mfl'), bowtie=r.get('bowtie'),
+                          tarea_id=tid, riesgo_codigo=r.get('riesgo_codigo'),
+                          tipo_riesgo=r.get('tipo_riesgo'))
     sqla.session.commit()
     # auto-aprendizaje: guardar en biblioteca personalizada
     if f.get('guardar_biblioteca'):
@@ -93,6 +138,20 @@ def api_miper_tarea():
                                 probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'))
     db.aplicar_herencia_controles(eid)
     return jsonify({'ok': True, 'tarea_id': tid})
+
+
+@bp.route('/api/miper/catalogo', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_miper_catalogo():
+    """Catálogo oficial del Anexo 2 (57 riesgos con código), agrupado por familia. `?q=` busca.
+
+    `control` viene con la medida validada SOLO para los 5 riesgos que la tienen escrita y
+    revisada; para el resto es null y lo escribe el prevencionista."""
+    q = (request.args.get('q') or '').strip()
+    filas = riesgos_isp.buscar(q) if q else riesgos_isp.RIESGOS
+    return jsonify({'riesgos': [{**r, 'control': iper.control_validado(r['codigo'])} for r in filas],
+                    'agrupado': riesgos_isp.agrupado(), 'tipos': riesgos_isp.TIPOS})
 
 
 @bp.route('/api/miper/sugerencia', methods=['GET'])
@@ -152,12 +211,19 @@ def api_miper_riesgo_add():
     m = db.matriz_riesgo_vigente(eid)
     if not (m and tid):
         return jsonify({'error': 'Falta matriz o tarea.'}), 400
+    f, err = _desde_catalogo(dict(f))
+    if err:
+        return jsonify({'error': err}), 400
+    err = _exige_control(f)
+    if err:
+        return jsonify({'error': err}), 400
     rid = db.riesgo_agregar(m['id'], f.get('peligro'), f.get('riesgo'),
                             normalizar_control_operativo(f.get('medida_control')),
                             probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'),
                             metodo_correcto=normalizar_control_operativo(f.get('metodo_correcto')),
                             tipo_control=f.get('tipo_control'), gema=f.get('gema'),
-                            contrato_id=f.get('contrato_id') or None, tarea_id=int(tid))
+                            contrato_id=f.get('contrato_id') or None, tarea_id=int(tid),
+                            riesgo_codigo=f.get('riesgo_codigo'), tipo_riesgo=f.get('tipo_riesgo'))
     db.aplicar_herencia_controles(eid)
     return jsonify({'ok': True, 'riesgo_id': rid,
                     'riesgo': RiesgoItem.query.get(rid).to_dict()})
