@@ -1918,4 +1918,6 @@ def api_ver_logo(cid):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Solo desarrollo local (en Render arranca gunicorn, no este bloque).
+    # Puerto 5001 por defecto: en macOS el 5000 lo ocupa AirPlay Receiver (responde 403).
+    app.run(debug=True, port=int(os.environ.get('PORT', 5001)))
