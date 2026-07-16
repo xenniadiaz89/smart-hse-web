@@ -4,7 +4,7 @@ import cumplimiento
 import db
 from models import sqla, RequisitoLegal
 
-from .formato import normalizar_control_operativo
+from formato import normalizar_control_operativo
 
 _ORDEN_PILARES = ('P1', 'P2', 'P3', 'OTROS')
 

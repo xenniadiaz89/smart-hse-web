@@ -7,9 +7,47 @@ como blob en `documento`. Reutiliza el patrón de `carta_na_html`/`_logo_data_ur
 
 No introduce dependencias nuevas: usa `flask.render_template` (Jinja) sobre `templates/irl.html`.
 """
+import base64
 from datetime import date
 
 from flask import render_template
+
+
+# ── Logo de la empresa (Ronda 25: movido desde app.py) ──
+# Vive aquí y no en app.py para que los módulos aislados puedan generar documentos con logo sin
+# importar app.py (import circular). Reciben `db` por parámetro, como el resto de este módulo.
+def logo_doc(db, cid):
+    """Documento-logo (tipo='logo') más reciente del contrato, o None."""
+    logos = [d for d in db.documentos_de(cid) if d.get('tipo') == 'logo']
+    return logos[0] if logos else None
+
+
+def logo_data_uri(db, rut, cid):
+    """Data URI del logo del contrato (leído desde la BD), o None."""
+    doc = logo_doc(db, cid)
+    if not doc:
+        return None
+    blob = db.documento_contenido(rut, doc['id'])
+    if not blob:
+        return None
+    contenido, mimetype, _ = blob
+    return f"data:{mimetype or 'image/png'};base64,{base64.b64encode(contenido).decode()}"
+
+
+def logo_empresa(db, rut, empresa_id):
+    """Logo de la empresa: primero el corporativo (empresa.logo_doc_id); si no, el de cualquiera
+    de sus contratos. Devuelve un data URI, o None."""
+    emp = db.empresa_de(rut, empresa_id) or {}
+    if emp.get('logo_doc_id'):
+        blob = db.documento_contenido(rut, emp['logo_doc_id'])
+        if blob:
+            contenido, mimetype, _ = blob
+            return f"data:{mimetype or 'image/png'};base64,{base64.b64encode(contenido).decode()}"
+    for c in db.listar_contratos(rut, empresa_id):
+        uri = logo_data_uri(db, rut, c['id'])
+        if uri:
+            return uri
+    return None
 
 
 def recolectar_irl(db, empresa, trabajador):

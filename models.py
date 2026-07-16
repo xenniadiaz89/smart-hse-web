@@ -318,8 +318,19 @@ class RiesgoItem(_DictMixin, sqla.Model):
     es_critico = sqla.Column(sqla.Integer, default=0)
     # Lazo Riesgos → Legal: si el control es una norma legal, verifica su cumplimiento.
     requisito_legal_id = sqla.Column(sqla.Integer, sqla.ForeignKey('requisito_legal.id'))
-    estado_control = sqla.Column(sqla.Text, default='vigente')  # 'vigente'|'en_revision'
+    estado_control = sqla.Column(sqla.Text, default='vigente')  # 'vigente'|'en_revision'|'validado_sistema'
     evidencia_doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))  # control en terreno
+    # Ronda 25 — Herencia de controles: el requisito legal ligado, al quedar 'auditado', valida el
+    # control y rebaja el riesgo. Se revierte si deja de estar auditado (ver db.aplicar_herencia_controles).
+    control_validado_por = sqla.Column(sqla.Text)           # 'Sistema (Matriz Legal)'
+    control_validado_en = sqla.Column(sqla.Text)            # ISO timestamp
+    # Ronda 25 — Riesgo residual (post-control). Si el control no está validado, = al inherente.
+    probabilidad_residual = sqla.Column(sqla.Integer)
+    consecuencia_residual = sqla.Column(sqla.Integer)
+    vep_residual = sqla.Column(sqla.Integer)
+    nivel_riesgo_residual = sqla.Column(sqla.Text)
+    # Ronda 25 — GEMA: Gente / Equipos / Materiales / Ambiente (columna H del SIGO-F-006)
+    gema = sqla.Column(sqla.Text)                           # 'G'|'E'|'M'|'A'
     # Ronda 17 — capa minera condicional (por faena); null = base DS 44 pura
     contrato_id = sqla.Column(sqla.Integer, sqla.ForeignKey('contrato.id'))  # faena minera ligada
     ecf_punto = sqla.Column(sqla.Text)                    # subpunto ECF (22.1/22.3/22.4)
@@ -347,6 +358,7 @@ class TareaIPER(_DictMixin, sqla.Model):
     matriz_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'), index=True, nullable=False)
     proceso = sqla.Column(sqla.Text)
     nombre = sqla.Column(sqla.Text, nullable=False)         # la Tarea (ej. 'Análisis de leyes en ripios')
+    puesto = sqla.Column(sqla.Text)                         # Ronda 25: Puesto de Trabajo (columna E del SIGO-F-006)
     rutinaria = sqla.Column(sqla.Text)                      # 'rutinaria'|'no_rutinaria'
     responsable = sqla.Column(sqla.Text)
     fecha_evaluacion = sqla.Column(sqla.Text)

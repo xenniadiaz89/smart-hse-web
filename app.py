@@ -131,6 +131,7 @@ def _registrar(nombre, ruta_modulo, attr='bp'):
 
 _registrar('onboarding', 'onboarding')
 _registrar('matriz_legal', 'matriz_legal')
+_registrar('matriz_riesgos', 'matriz_riesgos')
 
 # Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
 # sin la pantalla donde desbloquearse.
@@ -576,24 +577,14 @@ def _datos(contrato):
     return {}
 
 
+# Los helpers de logo viven en docgen.py (Ronda 25) para que los módulos aislados generen
+# documentos con logo sin importar app.py. Aquí quedan como envoltorios con la firma de siempre.
 def _logo_doc(cid):
-    """Devuelve el documento-logo (tipo='logo') más reciente del contrato, o None."""
-    logos = [d for d in db.documentos_de(cid) if d.get('tipo') == 'logo']
-    return logos[0] if logos else None
+    return docgen.logo_doc(db, cid)
 
 
 def _logo_data_uri(rut, cid):
-    """Data URI del logo de la empresa (leído desde la BD), o None."""
-    doc = _logo_doc(cid)
-    if not doc:
-        return None
-    blob = db.documento_contenido(rut, doc['id'])
-    if not blob:
-        return None
-    import base64
-    contenido, mimetype, _ = blob
-    b64 = base64.b64encode(contenido).decode()
-    return f"data:{mimetype or 'image/png'};base64,{b64}"
+    return docgen.logo_data_uri(db, rut, cid)
 
 
 def carta_na_html(rut, contrato, datos, item, fundamento):
@@ -1174,20 +1165,7 @@ def api_regla_editar(rid):
 
 # ══════════════ Ronda 15 — Motor Documental: Trabajadores / Tareas / EPP / PTS / IRL ═════════
 def _logo_empresa(rut, empresa_id):
-    """Logo de la empresa: primero el logo corporativo (empresa.logo_doc_id); si no, el de
-    cualquiera de sus contratos. Devuelve un data URI, o None."""
-    emp = db.empresa_de(rut, empresa_id) or {}
-    if emp.get('logo_doc_id'):
-        blob = db.documento_contenido(rut, emp['logo_doc_id'])
-        if blob:
-            import base64
-            contenido, mimetype, _ = blob
-            return f"data:{mimetype or 'image/png'};base64,{base64.b64encode(contenido).decode()}"
-    for c in db.listar_contratos(rut, empresa_id):
-        uri = _logo_data_uri(rut, c['id'])
-        if uri:
-            return uri
-    return None
+    return docgen.logo_empresa(db, rut, empresa_id)
 
 
 @app.route('/api/empresa/logo', methods=['POST'])
@@ -1401,180 +1379,15 @@ def api_trabajador_irls(tid):
     return jsonify(db.irls_de_trabajador(tid))
 
 
-# ══════════════ Ronda 17 — Consola MIPER (VEP DS 44) + biblioteca + cascada IRL ══════════
-@app.route('/api/miper', methods=['GET'])
-@empresa_required
-@onboarding_required
-def api_miper():
-    """Matriz de riesgos vigente: tareas → riesgos (con VEP/magnitud/método) + contexto minero."""
-    eid = _empresa_id()
-    m = db.matriz_riesgo_vigente(eid)
-    if not m:
-        m = {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
-        m = db.matriz_riesgo_vigente(eid)
-    tareas = db.tareas_de_matriz(m['id'])
-    for t in tareas:
-        t['riesgos'] = db.riesgos_de_tarea(t['id'])
-        t['trabajadores'] = [x['id'] for x in db.trabajadores_de_tarea(t['id'])]
-    return jsonify({'matriz': m, 'tareas': tareas,
-                    'mineros': db.contratos_mineros_de(eid), 'ecf_puntos': iper.ECF_PUNTOS,
-                    'escala': {'probabilidad': iper.PROBABILIDAD, 'consecuencia': iper.CONSECUENCIA}})
-
-
-@app.route('/api/miper/tareas', methods=['POST'])
-@empresa_required
-def api_miper_tarea():
-    """Crea una tarea manual con sus riesgos. Si guardar_biblioteca=1, la persiste para reuso."""
-    f = request.get_json(silent=True) or {}
-    nombre = (f.get('nombre') or '').strip()
-    if not nombre:
-        return jsonify({'error': 'Indica el nombre de la tarea.'}), 400
-    eid = _empresa_id()
-    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
-    mid = m['id'] if isinstance(m, dict) else m
-    tid = db.tarea_crear(mid, nombre, proceso=(f.get('proceso') or '').strip() or None,
-                         responsable=(f.get('responsable') or '').strip() or None,
-                         rutinaria=(f.get('rutinaria') or '').strip() or None)
-    from models import RiesgoItem
-    for r in (f.get('riesgos') or []):
-        rid = db.riesgo_agregar(mid, r.get('peligro'), r.get('riesgo'), r.get('medida_control'),
-                                probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
-                                metodo_correcto=r.get('metodo_correcto'),
-                                contrato_id=r.get('contrato_id') or None,
-                                ecf_punto=r.get('ecf_punto'), mfl=r.get('mfl'), bowtie=r.get('bowtie'))
-        it = RiesgoItem.query.get(rid)
-        if it:
-            it.tarea_id = tid
-    sqla.session.commit()
-    # auto-aprendizaje: guardar en biblioteca personalizada
-    if f.get('guardar_biblioteca'):
-        for r in (f.get('riesgos') or [{}]):
-            db.biblioteca_crear(eid, nombre, peligro=r.get('peligro'), riesgo=r.get('riesgo'),
-                                medida_control=r.get('medida_control'),
-                                metodo_correcto=r.get('metodo_correcto'),
-                                probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'))
-    return jsonify({'ok': True, 'tarea_id': tid})
-
-
+# Las rutas /api/miper* y la vista /matriz-riesgos viven en el módulo aislado matriz_riesgos/
+# (Blueprint, mismas URLs). /api/iper/tareas, /api/epp, /api/pts y /api/mutuales se quedan
+# aquí: los consume la vista Trabajadores/IRL y la tarjeta de Mutual, que son del núcleo.
 @app.route('/api/mutuales', methods=['GET'])
 @login_required
 def api_mutuales():
     return jsonify(iper.MUTUALES)
 
 
-@app.route('/api/miper/sugerencia', methods=['GET'])
-@empresa_required
-def api_miper_sugerencia():
-    """Sugiere el requisito legal aplicable a una actividad/peligro/riesgo (MIPER → Legal)."""
-    s = iper.sugerir_requisito(request.args.get('texto', ''))
-    return jsonify({'sugerencia': s})
-
-
-@app.route('/api/miper/riesgo/<int:rid>/vincular-legal', methods=['POST'])
-@empresa_required
-def api_miper_vincular_legal(rid):
-    """Vincula el riesgo con el requisito legal sugerido (creándolo en la Matriz Legal si falta)."""
-    f = request.get_json(silent=True) or {}
-    eid = _empresa_id()
-    s = f.get('sugerencia') or iper.sugerir_requisito(f.get('texto', ''))
-    if not s:
-        return jsonify({'error': 'Sin requisito sugerido.'}), 400
-    req_row = db.asegurar_requisito_sugerido(eid, s)
-    db.vincular_riesgo_requisito(rid, req_row)
-    return jsonify({'ok': True, 'requisito_row_id': req_row, 'cuerpo_legal': s.get('cuerpo_legal')})
-
-
-@app.route('/api/miper/desde-requisito', methods=['POST'])
-@empresa_required
-def api_miper_desde_requisito():
-    """Legal → MIPER: crea una tarea/riesgo en la MIPER a partir de un requisito legal, ya vinculado."""
-    f = request.get_json(silent=True) or {}
-    from models import RequisitoLegal, RiesgoItem
-    req = RequisitoLegal.query.filter_by(id=f.get('requisito_id'), empresa_id=_empresa_id()).first()
-    if not req:
-        return jsonify({'error': 'Requisito no encontrado.'}), 404
-    eid = _empresa_id()
-    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
-    mid = m['id'] if isinstance(m, dict) else m
-    nombre = (req.requisito_legal or req.cuerpo_normativo or 'Actividad legal')[:60]
-    tid = db.tarea_crear(mid, nombre, proceso='Legal')
-    rid = db.riesgo_agregar(mid, req.riesgo_asociado or '', req.requisito_legal or '',
-                            req.control_operativo or '', probabilidad=2, consecuencia=2)
-    it = RiesgoItem.query.get(rid)
-    if it:
-        it.tarea_id = tid
-        it.requisito_legal_id = req.id
-        sqla.session.commit()
-    return jsonify({'ok': True, 'tarea_id': tid, 'riesgo_id': rid})
-
-
-@app.route('/api/miper/riesgo', methods=['POST'])
-@empresa_required
-def api_miper_riesgo_add():
-    """Agrega un riesgo a una tarea existente."""
-    f = request.get_json(silent=True) or {}
-    tid = f.get('tarea_id')
-    eid = _empresa_id()
-    m = db.matriz_riesgo_vigente(eid)
-    if not (m and tid):
-        return jsonify({'error': 'Falta matriz o tarea.'}), 400
-    rid = db.riesgo_agregar(m['id'], f.get('peligro'), f.get('riesgo'), f.get('medida_control'),
-                            probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'),
-                            metodo_correcto=f.get('metodo_correcto'),
-                            contrato_id=f.get('contrato_id') or None)
-    from models import RiesgoItem
-    it = RiesgoItem.query.get(rid)
-    if it:
-        it.tarea_id = int(tid)
-        sqla.session.commit()
-    return jsonify({'ok': True, 'riesgo_id': rid})
-
-
-@app.route('/api/miper/riesgo/<int:rid>/campo', methods=['POST'])
-@empresa_required
-def api_miper_riesgo_campo(rid):
-    """Edita en línea un campo del riesgo (recalcula VEP). Si cambia una medida/método/peligro/riesgo,
-    dispara la cascada al IRL (Art. 15 DS 44): regenera los IRL de los trabajadores afectados con
-    aviso de que requieren nueva firma."""
-    f = request.get_json(silent=True) or {}
-    campo, valor = f.get('campo'), f.get('valor')
-    it, afecta_irl = db.riesgo_editar(rid, campo, valor)
-    if it is None:
-        return jsonify({'error': 'Campo no editable o riesgo no encontrado.'}), 400
-    resp = {'ok': True, 'riesgo': it, 'irls_actualizados': []}
-    if afecta_irl and it.get('tarea_id'):
-        rut, eid = session['rut'], _empresa_id()
-        empresa = db.empresa_de(rut, eid)
-        logo = _logo_empresa(rut, eid)
-        afectados = docgen.regenerar_irls_de_tarea(
-            db, empresa, it['tarea_id'], session.get('nombre') or rut, logo_data_uri=logo,
-            motivo=f'Cambio en “{campo}” de la Matriz IPER')
-        resp['irls_actualizados'] = afectados
-    return jsonify(resp)
-
-
-@app.route('/api/miper/riesgo/<int:rid>/eliminar', methods=['POST'])
-@empresa_required
-def api_miper_riesgo_del(rid):
-    from models import RiesgoItem
-    it = RiesgoItem.query.get(rid)
-    m = db.matriz_riesgo_vigente(_empresa_id())
-    if it and m and it.matriz_id == m['id']:
-        sqla.session.delete(it)
-        sqla.session.commit()
-    return jsonify({'ok': True})
-
-
-@app.route('/api/miper/versionar', methods=['POST'])
-@empresa_required
-def api_miper_versionar():
-    f = request.get_json(silent=True) or {}
-    motivo = (f.get('motivo') or 'Revisión periódica').strip()
-    nueva = db.bloquear_y_versionar(_empresa_id(), motivo, session.get('nombre'))
-    return jsonify({'ok': True, 'matriz': nueva})
-
-
-# ══════════════ Fase 2 — Gestión de faena (precarga por contrato) ══════════════
 @app.route('/api/faena/<int:cid>', methods=['GET'])
 @empresa_required
 def api_faena_get(cid):

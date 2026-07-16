@@ -13,6 +13,8 @@ import json
 import os
 from io import BytesIO
 
+import iper
+
 import openpyxl
 
 _TPL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plantillas')
@@ -66,22 +68,28 @@ def build_miper_xlsx(contrato, riesgos):
     r = _FILA_DATOS
     for x in riesgos:
         tarea = x.get('tarea') or ''
-        proceso = tarea.split('·')[0].strip() if '·' in tarea else (tarea or 'Faena')
+        proceso = x.get('proceso') or (tarea.split('·')[0].strip() if '·' in tarea else (tarea or 'Faena'))
         codigo = ' · '.join(p for p in [x.get('ecf_punto'), x.get('riesgo')] if p)
         ws.cell(r, 2, proceso)                       # B PROCESO
         ws.cell(r, 3, tarea)                         # C ACTIVIDAD / TRABAJO
         ws.cell(r, 4, tarea)                         # D TAREA
-        # E PUESTO, F N° PERSONAS → en blanco
+        ws.cell(r, 5, x.get('puesto'))               # E PUESTO (Ronda 25: TareaIPER.puesto)
+        # F N° PERSONAS → en blanco (dotación por puesto no modelada)
         ws.cell(r, 7, x.get('peligro'))              # G IDENTIFICACIÓN DE PELIGROS
-        # H CATEGORÍA → en blanco (no modelada aún)
+        ws.cell(r, 8, iper.GEMA.get(x.get('gema'), ''))   # H CATEGORÍA (Ronda 25: GEMA)
         ws.cell(r, 9, codigo)                        # I CÓDIGO - RIESGO ESPECÍFICO
         ws.cell(r, 10, x.get('probabilidad'))        # J PROBABILIDAD (inherente)
         ws.cell(r, 11, x.get('consecuencia'))        # K CONSECUENCIA
         ws.cell(r, 12, x.get('vep'))                 # L VEP / MAGNITUD
         ws.cell(r, 13, x.get('nivel_riesgo'))        # M NIVEL DE RIESGO
         ws.cell(r, 14, x.get('medida_control'))      # N MEDIDAS PREVENTIVAS
-        ws.cell(r, 15, x.get('tipo_control'))        # O PRELACIÓN DE CONTROLES
-        # P..S EVALUACIÓN RESIDUAL, T RESPONSABLE → en blanco (los completa el asesor)
+        ws.cell(r, 15, iper.TIPOS_CONTROL.get(x.get('tipo_control'), x.get('tipo_control')))  # O PRELACIÓN
+        # P..S EVALUACIÓN RESIDUAL (Ronda 25) — el residual que deja el control validado
+        ws.cell(r, 16, x.get('probabilidad_residual'))    # P PROBABILIDAD residual
+        ws.cell(r, 17, x.get('consecuencia_residual'))    # Q CONSECUENCIA residual
+        ws.cell(r, 18, x.get('vep_residual'))             # R VEP residual
+        ws.cell(r, 19, x.get('nivel_riesgo_residual'))    # S NIVEL DE RIESGO residual
+        # T RESPONSABLE → en blanco (lo completa el asesor)
         r += 1
 
     out = BytesIO()

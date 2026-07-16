@@ -13,7 +13,7 @@ import fuf
 from core_auth import login_required, empresa_required, onboarding_required, empresa_id
 
 from . import service
-from .formato import normalizar_control_operativo
+from formato import normalizar_control_operativo
 
 bp = Blueprint('matriz_legal', __name__, template_folder='templates')
 

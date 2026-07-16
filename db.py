@@ -78,6 +78,15 @@ _COLUMNAS_NUEVAS = [
     # Ronda 24 — Onboarding obligatorio + Pilares de la Matriz Legal
     ('empresa', 'dotacion', 'INTEGER'),
     ('requisito_legal', 'pilar', 'TEXT'),
+    # Ronda 25 — IPER: GEMA, Puesto, riesgo residual y herencia de controles
+    ('riesgo_item', 'gema', 'TEXT'),
+    ('riesgo_item', 'probabilidad_residual', 'INTEGER'),
+    ('riesgo_item', 'consecuencia_residual', 'INTEGER'),
+    ('riesgo_item', 'vep_residual', 'INTEGER'),
+    ('riesgo_item', 'nivel_riesgo_residual', 'TEXT'),
+    ('riesgo_item', 'control_validado_por', 'TEXT'),
+    ('riesgo_item', 'control_validado_en', 'TEXT'),
+    ('tarea_iper', 'puesto', 'TEXT'),
 ]
 
 
@@ -353,6 +362,8 @@ def sincronizar_capacitacion_matriz(empresa_id, curso, quien='Capacitaciones (au
     req.validado_por = quien
     req.validado_en = ahora
     _commit()
+    # La capacitación cumplida valida sola el control del riesgo ligado a ese requisito.
+    aplicar_herencia_controles(empresa_id, requisito_id=req.id)
     return req.requisito_legal or req.id_requisito
 
 
@@ -512,6 +523,7 @@ def _core01_auto_cumple(empresa_id):
                                'Certificados de Adhesión, Siniestralidad y Cotizaciones cargados.')
         row.fecha_actualizacion = _hoy()
     _commit()
+    aplicar_herencia_controles(empresa_id, requisito_id=row.id)   # CORE-01 cumple → valida su control
 
 
 def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
@@ -553,6 +565,8 @@ def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
         row.fecha_actualizacion = _hoy()
         tocados.append(row.id_requisito)
     _commit()
+    if tocados:
+        aplicar_herencia_controles(empresa_id)   # el cambio de exigibilidad se propaga a la IPER
     return tocados
 
 
@@ -1070,6 +1084,7 @@ def requisito_guardar(empresa_id, data):
             setattr(row, k, data[k])
     row.fecha = _hoy()
     _commit()
+    aplicar_herencia_controles(empresa_id, requisito_id=row.id)   # Legal → IPER (Ronda 25)
     return row.to_dict()
 
 
@@ -1184,27 +1199,44 @@ def seed_tareas_base(matriz_id, empresa_id):
     _commit()
 
 
+def _aplicar_residual(it):
+    """Recalcula el riesgo residual del ítem desde su inherente, su jerarquía de control y si el
+    control está validado. Si NO está validado, el residual queda igual al inherente.
+
+    Se llama desde _aplicar_vep para que residual e inherente nunca queden desincronizados."""
+    validado = (it.estado_control == 'validado_sistema')
+    res = iper.calcular_residual(it.probabilidad, it.consecuencia, it.tipo_control, validado)
+    it.probabilidad_residual = res['probabilidad']
+    it.consecuencia_residual = res['consecuencia']
+    it.vep_residual = res['vep']
+    it.nivel_riesgo_residual = res['magnitud']
+
+
 def _aplicar_vep(it, probabilidad, consecuencia):
-    """Calcula VEP y magnitud (Guía ISP 3, 3×3) y los asigna al ítem."""
+    """Calcula VEP y magnitud (Guía ISP 3, 3×3) y los asigna al ítem, más el residual."""
     if probabilidad is None or consecuencia is None:
+        _aplicar_residual(it)          # sin inherente no hay residual: se limpia, no se inventa
         return
     ev = iper.calcular_vep(probabilidad, consecuencia)
     it.probabilidad = ev['probabilidad']
     it.consecuencia = ev['consecuencia']
     it.vep = ev['vep']
     it.nivel_riesgo = ev['magnitud']
+    _aplicar_residual(it)
 
 
 def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None,
                    consecuencia=None, nivel_riesgo=None, tipo_control=None, mandante_key=None,
                    es_critico=0, requisito_legal_id=None, evidencia_doc_id=None,
-                   metodo_correcto=None, contrato_id=None, ecf_punto=None, mfl=None, bowtie=None):
+                   metodo_correcto=None, contrato_id=None, ecf_punto=None, mfl=None, bowtie=None,
+                   gema=None, tarea_id=None):
     it = RiesgoItem(matriz_id=matriz_id, peligro=peligro, riesgo=riesgo,
                     medida_control=medida_control, tipo_control=tipo_control,
                     metodo_correcto=metodo_correcto, mandante_key=mandante_key,
                     es_critico=1 if es_critico else 0, requisito_legal_id=requisito_legal_id,
                     evidencia_doc_id=evidencia_doc_id, contrato_id=contrato_id,
                     ecf_punto=ecf_punto, mfl=mfl, bowtie=bowtie,
+                    gema=gema, tarea_id=tarea_id,
                     estado_control='vigente', fecha=_hoy())
     _aplicar_vep(it, probabilidad, consecuencia)
     if nivel_riesgo and it.nivel_riesgo is None:
@@ -1219,10 +1251,57 @@ def riesgo_items(matriz_id):
             RiesgoItem.query.filter_by(matriz_id=matriz_id).order_by(RiesgoItem.id).all()]
 
 
+def aplicar_herencia_controles(empresa_id, requisito_id=None, quien='Sistema (Matriz Legal)'):
+    """Herencia de controles Matriz Legal → IPER.
+
+    Cuando el requisito legal ligado a un riesgo queda 'auditado' (Cumple), su control operacional
+    en la IPER se valida solo ('Vigente y Validado por Sistema') y el riesgo residual baja según la
+    jerarquía del control (iper.REBAJA_POR_CONTROL). Sin que el prevencionista reescriba nada.
+
+    Vive en db.py y no en matriz_riesgos/service.py a propósito: la dispara el guardado de la
+    Matriz Legal, y si viviera dentro del módulo, un fallo de ese módulo rompería el Módulo 1.
+    Mismo criterio que aplicar_reglas_dotacion.
+
+    Es BIDIRECCIONAL: si el requisito deja de estar auditado, el control se des-valida y el
+    residual vuelve a subir. Un residual fósil haría creer que un riesgo intolerable está
+    controlado — el peor error posible en esta app.
+
+    No toca los ítems en 'en_revision': ese estado lo pone un humano o riesgo_editar_control
+    porque el control cambió y necesita re-verificación; auto-validarlo sería pisar esa señal.
+
+    Idempotente: solo escribe cuando el estado cambia. Devuelve los ids de riesgo tocados.
+    """
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if not m:
+        return []
+    q = RiesgoItem.query.filter(RiesgoItem.matriz_id == m.id,
+                                RiesgoItem.requisito_legal_id.isnot(None))
+    if requisito_id:
+        q = q.filter(RiesgoItem.requisito_legal_id == requisito_id)
+    ahora, tocados = _dt.now().isoformat(timespec='seconds'), []
+    for it in q.all():
+        if it.estado_control == 'en_revision':
+            continue
+        req = RequisitoLegal.query.get(it.requisito_legal_id)
+        cumple = bool(req) and req.estado_avance == 'auditado'
+        nuevo = 'validado_sistema' if cumple else 'vigente'
+        if it.estado_control == nuevo:
+            continue
+        it.estado_control = nuevo
+        it.control_validado_por = quien if cumple else None
+        it.control_validado_en = ahora if cumple else None
+        _aplicar_residual(it)                 # valida → baja; des-valida → vuelve al inherente
+        it.fecha = _hoy()
+        tocados.append(it.id)
+    if tocados:
+        _commit()
+    return tocados
+
+
 # Campos editables en línea del ítem de riesgo (recalcula VEP si cambian P/C).
 _RIESGO_CAMPOS = ('peligro', 'riesgo', 'medida_control', 'metodo_correcto', 'tipo_control',
                   'probabilidad', 'consecuencia', 'es_critico', 'contrato_id',
-                  'ecf_punto', 'mfl', 'bowtie')
+                  'ecf_punto', 'mfl', 'bowtie', 'gema')
 # Cambios en estos campos disparan la cascada al IRL (Art. 15 DS 44).
 _RIESGO_CAMPOS_IRL = ('medida_control', 'metodo_correcto', 'riesgo', 'peligro')
 
@@ -1239,11 +1318,18 @@ def riesgo_editar(item_id, campo, valor):
             return it.to_dict(), False
         p = v if campo == 'probabilidad' else it.probabilidad
         c = v if campo == 'consecuencia' else it.consecuencia
-        _aplicar_vep(it, p if p is not None else v, c if c is not None else v)
+        # Se guarda el campo editado aunque el otro falte; _aplicar_vep no calcula si falta uno.
+        # No se rellena el que falta con el valor del otro: antes, editar solo la Consecuencia con
+        # la Probabilidad nula daba VEP = C² (un riesgo inventado).
+        setattr(it, campo, v)
+        _aplicar_vep(it, p, c)
     elif campo == 'es_critico':
         it.es_critico = 1 if str(valor) in ('1', 'true', 'True', 'si') else 0
     else:
         setattr(it, campo, valor)
+        if campo == 'tipo_control':
+            # Cambia la jerarquía del control ⇒ cambia cuánto rebaja el residual.
+            _aplicar_residual(it)
     it.fecha = _hoy()
     _commit()
     return it.to_dict(), (campo in _RIESGO_CAMPOS_IRL)
@@ -1312,14 +1398,16 @@ def contratos_mineros_de(empresa_id):
 
 # ── Fase 2: Gestión de faena — precarga por contrato desde la Carpeta de Arranque ──
 def riesgos_de_contrato(empresa_id, contrato_id):
-    """Ítems de riesgo (MIPER) ligados a un contrato/faena, con el nombre de su tarea."""
-    rows = (sqla.session.query(RiesgoItem, TareaIPER.nombre)
+    """Ítems de riesgo (MIPER) ligados a un contrato/faena, con el nombre de su tarea, su proceso
+    y su puesto (los tres alimentan el SIGO-F-006)."""
+    rows = (sqla.session.query(RiesgoItem, TareaIPER.nombre, TareaIPER.proceso, TareaIPER.puesto)
             .join(MatrizRiesgo, MatrizRiesgo.id == RiesgoItem.matriz_id)
             .outerjoin(TareaIPER, TareaIPER.id == RiesgoItem.tarea_id)
             .filter(MatrizRiesgo.empresa_id == empresa_id,
                     RiesgoItem.contrato_id == contrato_id)
             .order_by(RiesgoItem.id).all())
-    return [{**it.to_dict(), 'tarea': nombre} for it, nombre in rows]
+    return [{**it.to_dict(), 'tarea': nombre, 'proceso': proceso, 'puesto': puesto}
+            for it, nombre, proceso, puesto in rows]
 
 
 def tareas_de_contrato(empresa_id, contrato_id):
@@ -1478,7 +1566,13 @@ def biblioteca_eliminar(empresa_id, bid):
 
 def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
     """Genera una Revisión V2: bloquea la matriz vigente y crea una nueva versión (N+1) vigente,
-    clonando sus ítems y conservando el histórico (version_previa_id). Devuelve la nueva matriz."""
+    clonando sus TAREAS y sus ítems, y conservando el histórico (version_previa_id).
+
+    Las tareas se clonan y el tarea_id de cada riesgo se remapea a la tarea nueva. Antes solo se
+    clonaban los ítems, con el tarea_id apuntando a las tareas de la matriz vieja: como
+    tareas_de_matriz() filtra por matriz_id, la V2 salía sin tareas y con los riesgos huérfanos
+    — el asesor versionaba y parecía haber perdido todo.
+    """
     actual = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
     if not actual:
         nueva_id = crear_matriz_riesgo(empresa_id, creado_por)
@@ -1489,16 +1583,31 @@ def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
                          creado_por=creado_por, creado_en=_hoy())
     sqla.session.add(nueva)
     sqla.session.flush()          # asigna nueva.id antes de clonar
+
+    mapa_tareas = {}              # tarea_id viejo -> tarea_id nuevo
+    for t in TareaIPER.query.filter_by(matriz_id=actual.id).all():
+        clon = TareaIPER(matriz_id=nueva.id, proceso=t.proceso, nombre=t.nombre, puesto=t.puesto,
+                         rutinaria=t.rutinaria, responsable=t.responsable,
+                         fecha_evaluacion=t.fecha_evaluacion, estado_avance=t.estado_avance)
+        sqla.session.add(clon)
+        sqla.session.flush()
+        mapa_tareas[t.id] = clon.id
+
     for it in RiesgoItem.query.filter_by(matriz_id=actual.id).all():
         sqla.session.add(RiesgoItem(
-            matriz_id=nueva.id, tarea_id=it.tarea_id, peligro=it.peligro, riesgo=it.riesgo,
-            probabilidad=it.probabilidad, consecuencia=it.consecuencia, vep=it.vep,
-            nivel_riesgo=it.nivel_riesgo, medida_control=it.medida_control,
+            matriz_id=nueva.id, tarea_id=mapa_tareas.get(it.tarea_id), peligro=it.peligro,
+            riesgo=it.riesgo, probabilidad=it.probabilidad, consecuencia=it.consecuencia,
+            vep=it.vep, nivel_riesgo=it.nivel_riesgo, medida_control=it.medida_control,
             metodo_correcto=it.metodo_correcto, tipo_control=it.tipo_control,
             mandante_key=it.mandante_key, es_critico=it.es_critico,
             requisito_legal_id=it.requisito_legal_id, estado_control=it.estado_control,
             evidencia_doc_id=it.evidencia_doc_id, contrato_id=it.contrato_id,
-            ecf_punto=it.ecf_punto, mfl=it.mfl, bowtie=it.bowtie, fecha=_hoy()))
+            ecf_punto=it.ecf_punto, mfl=it.mfl, bowtie=it.bowtie, fecha=_hoy(),
+            gema=it.gema, control_validado_por=it.control_validado_por,
+            control_validado_en=it.control_validado_en,
+            probabilidad_residual=it.probabilidad_residual,
+            consecuencia_residual=it.consecuencia_residual,
+            vep_residual=it.vep_residual, nivel_riesgo_residual=it.nivel_riesgo_residual))
     _commit()
     return nueva.to_dict()
 
@@ -1552,10 +1661,10 @@ def registrar_requerimiento(afecta, empresa_id, datos, creado_por=None):
 # ══════════════ Ronda 15 — Motor Documental: Tareas / EPP / PTS / Trabajadores / IRL ══════════
 # ── Tareas de la Matriz IPER (agrupan riesgos) ──
 def tarea_crear(matriz_id, nombre, proceso=None, rutinaria=None, responsable=None,
-                fecha_evaluacion=None, estado_avance='Pendiente'):
+                fecha_evaluacion=None, estado_avance='Pendiente', puesto=None):
     t = TareaIPER(matriz_id=matriz_id, nombre=nombre, proceso=proceso, rutinaria=rutinaria,
                   responsable=responsable, fecha_evaluacion=fecha_evaluacion,
-                  estado_avance=estado_avance)
+                  estado_avance=estado_avance, puesto=puesto)
     sqla.session.add(t)
     _commit()
     return t.id

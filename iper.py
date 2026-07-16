@@ -37,6 +37,50 @@ def calcular_vep(probabilidad, consecuencia):
     return {'vep': vep, 'magnitud': magnitud, 'color': color, 'probabilidad': p, 'consecuencia': c}
 
 
+# ── GEMA: categorización del peligro (columna H del SIGO-F-006) ──
+GEMA = {'G': 'Gente', 'E': 'Equipos', 'M': 'Materiales', 'A': 'Ambiente'}
+
+
+# ── Riesgo residual (Ronda 25) ──
+# Cuánto baja la PROBABILIDAD un control validado, según su jerarquía. Honra la prelación del
+# DS 44 (Art. 12) — la misma que exige el ítem 13 del FUF: privilegiar la protección colectiva
+# por sobre el EPP. Un control de ingeniería vale más que un casco, y el residual debe reflejarlo.
+REBAJA_POR_CONTROL = {
+    'eliminacion': 2, 'sustitucion': 2, 'ingenieria': 2,
+    'administrativo': 1, 'senaletica': 1, 'epp': 1,
+}
+# Etiquetas para la UI (el orden es el de la prelación, de mayor a menor eficacia).
+TIPOS_CONTROL = {
+    'eliminacion': 'Eliminación', 'sustitucion': 'Sustitución', 'ingenieria': 'Ingeniería',
+    'administrativo': 'Administrativo', 'senaletica': 'Señalética / Advertencia', 'epp': 'EPP',
+}
+
+
+def calcular_residual(probabilidad, consecuencia, tipo_control=None, validado=False):
+    """Riesgo residual = el que queda DESPUÉS del control, cuando ese control está validado.
+
+    Devuelve {probabilidad, consecuencia, vep, magnitud, color} o vep=None si falta P o C.
+
+    Tres reglas, en este orden:
+    1. Si el control NO está validado, el residual es IGUAL al inherente. Sin excepción: un
+       control que no se ha verificado no reduce nada.
+    2. La rebaja se aplica solo sobre la Probabilidad. La Consecuencia no baja: un control
+       reduce cuán probable es el accidente, no cuán grave sería si ocurre.
+    3. La Probabilidad nunca baja de 1. No existe el riesgo cero.
+    """
+    base = calcular_vep(probabilidad, consecuencia)
+    if base['vep'] is None:
+        return {'probabilidad': None, 'consecuencia': None, 'vep': None, 'magnitud': None, 'color': ''}
+    if not validado:
+        return {'probabilidad': base['probabilidad'], 'consecuencia': base['consecuencia'],
+                'vep': base['vep'], 'magnitud': base['magnitud'], 'color': base['color']}
+    rebaja = REBAJA_POR_CONTROL.get((tipo_control or '').strip().lower(), 1)
+    p_res = max(1, base['probabilidad'] - rebaja)
+    res = calcular_vep(p_res, base['consecuencia'])
+    return {'probabilidad': res['probabilidad'], 'consecuencia': res['consecuencia'],
+            'vep': res['vep'], 'magnitud': res['magnitud'], 'color': res['color']}
+
+
 # ── Catálogo base transversal (se precarga al inicializar la matriz de una empresa) ──
 # Cada entrada: tarea + (peligro, riesgo, medida preventiva, método correcto, P, C).
 CATALOGO_TAREAS_BASE = [

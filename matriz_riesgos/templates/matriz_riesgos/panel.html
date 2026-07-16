@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Matriz de Riesgos (IPER)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: {
+            primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60'
+        } } } }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .nav-item { display:flex; align-items:center; gap:.6rem; padding:.62rem .8rem; border-radius:.6rem; font-size:.82rem; font-weight:600; color:#bcd0e0; transition:all .15s; white-space:nowrap; }
+        .nav-item i { color:#8fb2cd; }
+        .nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .nav-item:hover i { color:#fff; }
+        .nav-item.nav-on { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 3px 0 0 #7ab038; }
+        .nav-item.nav-on i { color:#7ab038; }
+        .badge { display:inline-flex; align-items:center; gap:.25rem; padding:.2rem .45rem; border-radius:.25rem; font-weight:700; font-size:.65rem; white-space:nowrap; }
+        .tbl th { background:#F1F3F5; color:#0B3B60; font-weight:600; font-size:.62rem; text-transform:uppercase; letter-spacing:.03em; }
+        .tbl td, .tbl th { padding:.5rem .5rem; text-align:left; border-bottom:1px solid #E0E0E0; vertical-align:top; }
+        .cel { border:1px solid #e5e7eb; border-radius:.25rem; padding:.15rem .25rem; font-size:.68rem; outline:none; width:100%; }
+        .cel:focus { border-color:#006a9b; }
+    </style>
+</head>
+<body class="bg-[#F8F9FA] text-[#333] font-sans min-h-screen">
+
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+            <div class="hidden md:flex items-center gap-3 border-l pl-4">
+                <div class="flex flex-col leading-tight">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Matriz de Riesgos · IPER</span>
+                    <span class="text-sm font-extrabold text-primary inline-flex items-center gap-1">
+                        <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir"><i data-lucide="log-out" class="w-5 h-5"></i></a>
+    </nav>
+
+    <main class="max-w-[1500px] mx-auto px-6 py-8">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+        <aside class="w-full lg:w-56 shrink-0 lg:sticky lg:top-24">
+            <div class="bg-sidebar rounded-2xl shadow-lg overflow-hidden">
+                <div class="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-white/10">
+                    <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Smart HSE" class="h-9 w-auto brightness-0 invert">
+                    <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
+                </div>
+                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la Consola</span></a>
+                    <a href="/matriz-legal" class="nav-item"><i data-lucide="scale" class="w-5 h-5"></i> <span>Cerebro Legal</span></a>
+                    <a href="/matriz-riesgos" class="nav-item nav-on"><i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de Riesgos</span></a>
+                </nav>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-w-0 w-full">
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-sidebar flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="w-5 h-5"></i> Matriz de Riesgos (IPER)
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-1 max-w-4xl">
+                            Identificación de Peligros y Evaluación de Riesgos — D.S. 44 / Guía ISP.
+                            Proceso → Tarea → Puesto, con categorización GEMA y <b>VEP = Probabilidad × Consecuencia</b>.
+                            El riesgo <b>residual</b> se recalcula solo cuando el requisito legal del control queda Cumple en el
+                            <a href="/matriz-legal" class="text-primary font-semibold hover:underline">Cerebro Legal</a>.
+                            Matriz <b>V{{ matriz.version }}</b> ({{ matriz.estado }}).
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="abrirNuevaTarea()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-lg font-bold text-sm">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Nueva Tarea</button>
+                        <button type="button" onclick="versionar()" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm" title="Bloquea la matriz vigente y abre una revisión V{{ matriz.version + 1 }}">
+                            <i data-lucide="git-branch" class="w-4 h-4"></i> Versionar</button>
+                        <a href="/api/faena/0/miper.xlsx" onclick="return descargarSigo(event)" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm">
+                            <i data-lucide="download" class="w-4 h-4"></i> SIGO-F-006</a>
+                    </div>
+                </div>
+
+                <!-- Resumen por magnitud RESIDUAL -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+                    <div class="bg-sidebar text-white rounded-lg p-3">
+                        <p class="text-[10px] uppercase tracking-wide text-white/60 font-bold">Riesgos evaluados</p>
+                        <p class="text-2xl font-extrabold">{{ resumen.total }}</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-green-700">Controles validados</p>
+                        <p class="text-2xl font-extrabold text-green-700">{{ resumen.validados }}</p>
+                        <p class="text-[10px] text-green-700/70">por la Matriz Legal</p>
+                    </div>
+                    <div class="bg-red-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-red-700">Críticos (residual)</p>
+                        <p class="text-2xl font-extrabold text-red-700">{{ resumen.criticos }}</p>
+                        <p class="text-[10px] text-red-700/70">Importante o Intolerable</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-gray-600">Procesos</p>
+                        <p class="text-2xl font-extrabold text-gray-700">{{ procesos | length }}</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="tbl w-full text-xs min-w-[1400px]">
+                        <thead><tr>
+                            <th class="w-16">GEMA</th><th class="w-1/12">Peligro</th><th class="w-1/12">Riesgo</th>
+                            <th class="w-10">P</th><th class="w-10">C</th><th class="w-12">VEP</th><th>Magnitud</th>
+                            <th class="w-1/6">Medida de control</th><th class="w-24">Jerarquía</th>
+                            <th class="w-32">Residual</th><th class="w-40">Control</th><th class="w-8"></th>
+                        </tr></thead>
+                        <tbody id="miperBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Modal: Nueva Tarea -->
+    <div id="tareaOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-10">
+            <div class="border-b px-6 py-4 flex items-center justify-between">
+                <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Nueva Tarea con su riesgo</h3>
+                <button type="button" onclick="cerrarNuevaTarea()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Proceso</label><input id="t_proceso" class="iet-in" placeholder="Ej. Conducción"></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Puesto de trabajo</label><input id="t_puesto" class="iet-in" placeholder="Ej. Conductor"></div>
+                </div>
+                <div><label class="text-[11px] font-bold text-gray-500 uppercase">Tarea</label><input id="t_nombre" class="iet-in" placeholder="Ej. Traslado a faena"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Responsable</label><input id="t_resp" class="iet-in"></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Tipo</label>
+                        <select id="t_rutinaria" class="iet-in"><option value="rutinaria">Rutinaria</option><option value="no_rutinaria">No rutinaria</option></select></div>
+                </div>
+                <hr class="my-2">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">GEMA</label>
+                        <select id="r_gema" class="iet-in">
+                            <option value="">—</option>
+                            {% for k, v in gema.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}
+                        </select></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Jerarquía del control</label>
+                        <select id="r_tipo" class="iet-in">
+                            <option value="">—</option>
+                            {% for k, v in tipos_control.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                        </select></div>
+                </div>
+                <div><label class="text-[11px] font-bold text-gray-500 uppercase">Peligro</label><input id="r_peligro" class="iet-in"></div>
+                <div><label class="text-[11px] font-bold text-gray-500 uppercase">Riesgo</label><input id="r_riesgo" class="iet-in"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Probabilidad</label>
+                        <select id="r_p" class="iet-in">{% for k, v in escala_p.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}</select></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Consecuencia</label>
+                        <select id="r_c" class="iet-in">{% for k, v in escala_c.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}</select></div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">Medida de control</label>
+                    <textarea id="r_medida" class="iet-in" rows="3" placeholder="Una acción por línea:&#10;Instalar guarda fija&#10;Verificar en cada turno"></textarea>
+                    <p class="text-[11px] text-gray-500 mt-1">Se guarda como lista numerada (1. 2. 3.), una acción por línea.</p>
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="cerrarNuevaTarea()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                    <button type="button" onclick="guardarNuevaTarea()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GEMA = {{ gema | tojson }};
+        const TIPOS = {{ tipos_control | tojson }};
+        const ESC_P = {{ escala_p | tojson }};
+        const ESC_C = {{ escala_c | tojson }};
+        const MAG_COLOR = {
+            'Trivial': 'bg-gray-100 text-gray-600', 'Tolerable': 'bg-green-100 text-green-700',
+            'Moderado': 'bg-yellow-100 text-yellow-700', 'Importante': 'bg-amber-100 text-amber-700',
+            'Intolerable': 'bg-red-100 text-red-700'
+        };
+        function esc(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+        function opts(mapa, sel) {
+            return '<option value=""></option>' + Object.entries(mapa).map(([k, v]) =>
+                `<option value="${k}" ${String(sel) === String(k) ? 'selected' : ''}>${esc(v)}</option>`).join('');
+        }
+        function badgeMag(m) {
+            if (!m) return '<span class="text-gray-300">—</span>';
+            return `<span class="badge ${MAG_COLOR[m] || 'bg-gray-100 text-gray-600'}">${esc(m)}</span>`;
+        }
+
+        function filaHTML(r) {
+            const val = (validado = r.estado_control === 'validado_sistema');
+            const ctrl = validado
+                ? `<span class="badge bg-green-100 text-green-700"><i data-lucide="shield-check" class="w-3 h-3"></i> Vigente y Validado por Sistema</span>
+                   <span class="block text-[9px] text-gray-400 mt-0.5">${esc(r.control_validado_por || '')}</span>`
+                : (r.estado_control === 'en_revision'
+                    ? '<span class="badge bg-amber-100 text-amber-700"><i data-lucide="alert-circle" class="w-3 h-3"></i> En revisión legal</span>'
+                    : (r.requisito_legal_id
+                        ? '<span class="badge bg-gray-100 text-gray-500">Ligado · requisito no cumple</span>'
+                        : '<span class="text-[10px] text-gray-300">sin requisito legal</span>'));
+            const resid = r.vep_residual == null ? '<span class="text-gray-300">—</span>'
+                : `<span class="font-mono font-bold">${r.probabilidad_residual}×${r.consecuencia_residual}=${r.vep_residual}</span>
+                   ${badgeMag(r.nivel_riesgo_residual)}
+                   ${validado && r.vep_residual < r.vep ? `<span class="block text-[9px] text-green-700 font-bold">▼ desde ${r.vep}</span>` : ''}`;
+            return `<tr class="${r.es_critico ? 'bg-red-50/40' : ''}">
+                <td><select onchange="editar(${r.id},'gema',this.value)" class="cel">${opts(GEMA, r.gema)}</select></td>
+                <td class="text-gray-800">${esc(r.peligro)}</td>
+                <td class="text-gray-800">${esc(r.riesgo)}</td>
+                <td><select onchange="editar(${r.id},'probabilidad',this.value)" class="cel">${opts(ESC_P, r.probabilidad)}</select></td>
+                <td><select onchange="editar(${r.id},'consecuencia',this.value)" class="cel">${opts(ESC_C, r.consecuencia)}</select></td>
+                <td class="font-mono font-bold text-center">${r.vep == null ? '—' : r.vep}</td>
+                <td>${badgeMag(r.nivel_riesgo)}</td>
+                <td class="text-gray-600 whitespace-pre-line text-[11px] leading-relaxed">${esc(r.medida_control)}</td>
+                <td><select onchange="editar(${r.id},'tipo_control',this.value)" class="cel">${opts(TIPOS, r.tipo_control)}</select></td>
+                <td>${resid}</td>
+                <td>${ctrl}</td>
+                <td class="text-right"><button type="button" onclick="eliminar(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+            </tr>`;
+        }
+
+        async function cargar() {
+            let d = { tareas: [] };
+            try { const r = await fetch('/api/miper'); if (r.ok) d = await r.json(); } catch (e) { }
+            const body = document.getElementById('miperBody');
+            const porProceso = {};
+            (d.tareas || []).forEach(t => {
+                const p = (t.proceso || '').trim() || 'Sin proceso asignado';
+                (porProceso[p] = porProceso[p] || []).push(t);
+            });
+            const claves = Object.keys(porProceso).sort((a, b) =>
+                (a === 'Sin proceso asignado') - (b === 'Sin proceso asignado') || a.localeCompare(b));
+            if (!claves.length) { body.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-gray-400">Sin tareas aún. Usa “Nueva Tarea”.</td></tr>'; return; }
+            body.innerHTML = claves.map(p => `
+                <tr class="bg-sidebar/5 border-t-2 border-primary/20">
+                    <td colspan="12" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">
+                        <i data-lucide="workflow" class="w-3.5 h-3.5 inline"></i> Proceso · ${esc(p)}</td>
+                </tr>` + porProceso[p].map(t => `
+                <tr class="bg-gray-50">
+                    <td colspan="12" class="px-2 py-1.5 text-[11px]">
+                        <span class="font-bold text-gray-700">${esc(t.nombre)}</span>
+                        ${t.puesto ? `<span class="ml-2 text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Puesto: ${esc(t.puesto)}</span>` : ''}
+                        ${t.responsable ? `<span class="ml-2 text-[10px] text-gray-400">${esc(t.responsable)}</span>` : ''}
+                        ${t.rutinaria ? `<span class="ml-2 text-[10px] text-gray-400">${esc(t.rutinaria.replace('_', ' '))}</span>` : ''}
+                    </td>
+                </tr>` + (t.riesgos || []).map(filaHTML).join('')).join('')).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function editar(rid, campo, valor) {
+            const r = await fetch(`/api/miper/riesgo/${rid}/campo`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ campo, valor })
+            });
+            const d = await r.json().catch(() => ({}));
+            if (d.irls_actualizados && d.irls_actualizados.length)
+                alert(`⚠ ${d.irls_actualizados.length} IRL regenerado(s): requieren nueva firma (Art. 15 DS 44).`);
+            cargar();   // repinta VEP, magnitud y residual
+        }
+        async function eliminar(rid) {
+            if (!confirm('¿Eliminar este riesgo?')) return;
+            await fetch(`/api/miper/riesgo/${rid}/eliminar`, { method: 'POST' });
+            cargar();
+        }
+        async function versionar() {
+            const motivo = prompt('Motivo de la nueva revisión:', 'Revisión periódica');
+            if (!motivo) return;
+            const r = await fetch('/api/miper/versionar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motivo })
+            });
+            if (r.ok) location.reload();
+        }
+        function abrirNuevaTarea() { document.getElementById('tareaOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
+        function cerrarNuevaTarea() { document.getElementById('tareaOverlay').classList.add('hidden'); }
+        async function guardarNuevaTarea() {
+            const v = id => document.getElementById(id).value.trim();
+            if (!v('t_nombre')) { alert('Indica el nombre de la tarea.'); return; }
+            const riesgo = v('r_peligro') || v('r_riesgo') ? [{
+                peligro: v('r_peligro'), riesgo: v('r_riesgo'),
+                medida_control: document.getElementById('r_medida').value,
+                probabilidad: v('r_p'), consecuencia: v('r_c'),
+                tipo_control: v('r_tipo') || null, gema: v('r_gema') || null
+            }] : [];
+            const r = await fetch('/api/miper/tareas', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nombre: v('t_nombre'), proceso: v('t_proceso'), puesto: v('t_puesto'),
+                    responsable: v('t_resp'), rutinaria: v('t_rutinaria'), riesgos: riesgo
+                })
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo crear.'); return; }
+            ['t_proceso', 't_puesto', 't_nombre', 't_resp', 'r_peligro', 'r_riesgo', 'r_medida'].forEach(i => document.getElementById(i).value = '');
+            cerrarNuevaTarea(); location.reload();
+        }
+        function descargarSigo(e) {
+            e.preventDefault();
+            const m = {{ mineros | tojson }};
+            if (!m.length) { alert('El export SIGO-F-006 es el formato de Codelco: requiere un contrato minero registrado en “Mis contratos”.'); return false; }
+            location.href = `/api/faena/${m[0].id}/miper.xlsx`;
+            return false;
+        }
+
+        cargar();
+        if (window.lucide) lucide.createIcons();
+    </script>
+</body>
+</html>
