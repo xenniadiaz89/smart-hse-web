@@ -59,9 +59,25 @@
                 <div>
                     <label class="lbl" for="ob_dotacion">Dotación de trabajadores</label>
                     <input id="ob_dotacion" type="number" min="1" class="iet-in" placeholder="Ej. 18"
-                           value="{{ empresa.dotacion if empresa and empresa.dotacion else '' }}">
+                           value="{{ empresa.dotacion if empresa and empresa.dotacion else '' }}"
+                           oninput="sugerirPlan()">
                     <p class="text-[11px] text-gray-500 mt-1">Define si te aplican el Comité Paritario (desde 25) y la reserva del 1% (desde 100).</p>
                 </div>
+            </div>
+
+            <div>
+                <label class="lbl" for="ob_plan">Plan contratado</label>
+                <select id="ob_plan" class="iet-in">
+                    {% for t in tramos %}
+                    <option value="{{ t.codigo }}" {% if empresa and empresa.plan == t.codigo %}selected{% endif %}>
+                        {{ t.nombre }} — hasta {{ t.max_trabajadores or 'sin tope' }}{% if t.max_trabajadores %} trabajadores{% endif %} en la nómina
+                    </option>
+                    {% endfor %}
+                </select>
+                <p id="planAviso" class="text-[11px] text-gray-500 mt-1">
+                    El plan limita cuántos trabajadores registras en la nómina. <b>No limita tus obligaciones legales</b>:
+                    el Comité Paritario se exige desde 25 trabajadores sin importar el plan.
+                </p>
             </div>
 
             <!-- Adhesión Ley 16.744: se captura aquí una vez; su GESTIÓN vive en Protocolos de Salud -->
@@ -117,7 +133,8 @@
                         rut_empresa: document.getElementById('ob_rut').value,
                         dotacion: document.getElementById('ob_dotacion').value,
                         mutual: document.getElementById('ob_mutual').value,
-                        n_adherente: document.getElementById('ob_adherente').value
+                        n_adherente: document.getElementById('ob_adherente').value,
+                        plan: document.getElementById('ob_plan').value
                     })
                 });
                 const d = await r.json().catch(() => ({}));
@@ -131,6 +148,21 @@
                 btn.disabled = false; btn.classList.remove('opacity-60');
             }
         }
+        const TRAMOS = {{ tramos | tojson }};
+        function sugerirPlan() {
+            const n = parseInt(document.getElementById('ob_dotacion').value || '0', 10);
+            if (!n) return;
+            // El tramo que le corresponde a esa dotación (mismo criterio que planes.plan_sugerido).
+            const sug = [...TRAMOS].reverse().find(t => n >= t.desde) || TRAMOS[0];
+            const sel = document.getElementById('ob_plan');
+            const av = document.getElementById('planAviso');
+            if (sel.value !== sug.codigo) {
+                sel.value = sug.codigo;
+                av.innerHTML = `Con <b>${n} trabajadores</b> te corresponde el <b>${sug.nombre}</b>. ` +
+                    'El plan limita cuántos registras en la nómina, no tus obligaciones legales.';
+            }
+        }
+        sugerirPlan();
         if (window.lucide) lucide.createIcons();
     </script>
 </body>

@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, jsonify, session
 
 import db
 import iper
+import planes
 from core_auth import login_required, onboarding_completo
 
 from . import service
@@ -18,7 +19,7 @@ bp = Blueprint('onboarding', __name__, template_folder='templates')
 def panel():
     emp = db.empresa_de(session.get('rut'), session.get('empresa_id'))   # None si aún no hay empresa
     return render_template('onboarding/panel.html', empresa=emp, mutuales=iper.MUTUALES,
-                           completo=onboarding_completo(emp))
+                           tramos=planes.PLANES, completo=onboarding_completo(emp))
 
 
 @bp.route('/api/onboarding', methods=['POST'])

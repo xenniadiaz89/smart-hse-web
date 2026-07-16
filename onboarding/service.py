@@ -2,6 +2,7 @@
 — nunca de app.py ni del módulo matriz_legal (aislamiento por carpeta)."""
 import db
 import iper
+import planes
 from core_auth import normalizar_rut, rut_valido
 from models import sqla, Empresa
 
@@ -33,17 +34,28 @@ def validar(f):
     if not n_adh:
         return False, None, 'Indica el N° de Adherente entregado por tu Organismo Administrador.'
 
+    # El tramo topa la nómina, no las obligaciones legales. Si no viene, se deriva de la dotación.
+    plan = (f.get('plan') or '').strip().lower()
+    if plan and plan not in {p['codigo'] for p in planes.PLANES}:
+        return False, None, 'Selecciona un plan válido de la lista.'
+    plan = plan or planes.plan_sugerido(dotacion)['codigo']
+
     return True, {'razon_social': razon, 'rut_empresa': normalizar_rut(rut_emp),
-                  'dotacion': dotacion, 'mutual': mutual, 'n_adherente': n_adh}, None
+                  'dotacion': dotacion, 'mutual': mutual, 'n_adherente': n_adh,
+                  'plan': plan}, None
 
 
 def persistir(rut_asesor, empresa_id, datos):
     """Crea la empresa o actualiza la que está en foco. Devuelve el empresa_id."""
     e = Empresa.query.filter_by(id=empresa_id, rut_asesor=rut_asesor).first() if empresa_id else None
     if e is None:
-        return db.crear_empresa(rut_asesor, datos['razon_social'],
-                                rut_empresa=datos['rut_empresa'], mutual=datos['mutual'],
-                                n_adherente=datos['n_adherente'], dotacion=datos['dotacion'])
+        eid = db.crear_empresa(rut_asesor, datos['razon_social'],
+                               rut_empresa=datos['rut_empresa'], mutual=datos['mutual'],
+                               n_adherente=datos['n_adherente'], dotacion=datos['dotacion'])
+        e = Empresa.query.get(eid)
+        e.plan = datos['plan']
+        sqla.session.commit()
+        return eid
     for k, v in datos.items():
         setattr(e, k, v)
     sqla.session.commit()

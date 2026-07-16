@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Nómina y Smart Checker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: {
+            primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60'
+        } } } }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .nav-item { display:flex; align-items:center; gap:.6rem; padding:.62rem .8rem; border-radius:.6rem; font-size:.82rem; font-weight:600; color:#bcd0e0; transition:all .15s; white-space:nowrap; }
+        .nav-item i { color:#8fb2cd; }
+        .nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .nav-item:hover i { color:#fff; }
+        .nav-item.nav-on { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 3px 0 0 #7ab038; }
+        .nav-item.nav-on i { color:#7ab038; }
+        .badge { display:inline-flex; align-items:center; gap:.2rem; padding:.15rem .4rem; border-radius:.25rem; font-weight:700; font-size:.65rem; white-space:nowrap; }
+        .tbl th { background:#F1F3F5; color:#0B3B60; font-weight:600; font-size:.62rem; text-transform:uppercase; letter-spacing:.03em; }
+        .tbl td, .tbl th { padding:.5rem; text-align:left; border-bottom:1px solid #E0E0E0; vertical-align:top; }
+        .cel { border:1px solid #e5e7eb; border-radius:.25rem; padding:.15rem .25rem; font-size:.68rem; outline:none; }
+        .cel:focus { border-color:#006a9b; }
+    </style>
+</head>
+<body class="bg-[#F8F9FA] text-[#333] font-sans min-h-screen">
+
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+            <div class="hidden md:flex items-center gap-3 border-l pl-4">
+                <div class="flex flex-col leading-tight">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Nómina · Smart Checker</span>
+                    <span class="text-sm font-extrabold text-primary inline-flex items-center gap-1">
+                        <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir"><i data-lucide="log-out" class="w-5 h-5"></i></a>
+    </nav>
+
+    <main class="max-w-[1500px] mx-auto px-6 py-8">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+        <aside class="w-full lg:w-56 shrink-0 lg:sticky lg:top-24">
+            <div class="bg-sidebar rounded-2xl shadow-lg overflow-hidden">
+                <div class="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-white/10">
+                    <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Smart HSE" class="h-9 w-auto brightness-0 invert">
+                    <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
+                </div>
+                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la Consola</span></a>
+                    <a href="/matriz-legal" class="nav-item"><i data-lucide="scale" class="w-5 h-5"></i> <span>Cerebro Legal</span></a>
+                    <a href="/matriz-riesgos" class="nav-item"><i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de Riesgos</span></a>
+                    <a href="/nomina" class="nav-item nav-on"><i data-lucide="users" class="w-5 h-5"></i> <span>Nómina</span></a>
+                </nav>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-w-0 w-full">
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-sidebar flex items-center gap-2">
+                            <i data-lucide="users" class="w-5 h-5"></i> Nómina y Smart Checker
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-1 max-w-4xl">
+                            Un cargo crítico inyecta solo sus capacitaciones y exámenes obligatorios.
+                            La dotación activa recalcula las obligaciones legales en el
+                            <a href="/matriz-legal" class="text-primary font-semibold hover:underline">Cerebro Legal</a>.
+                        </p>
+                    </div>
+                    <button type="button" onclick="abrirNuevo()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-lg font-bold text-sm shrink-0">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i> Nuevo trabajador</button>
+                </div>
+
+                <!-- Dotación: declarada vs activos vs efectiva -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-gray-500">Declarada</p>
+                        <p class="text-2xl font-extrabold text-gray-700">{{ dotacion.declarada }}</p>
+                        <p class="text-[10px] text-gray-400">en el Onboarding</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-green-700">Activos</p>
+                        <p class="text-2xl font-extrabold text-green-700">{{ dotacion.activos }}</p>
+                        <p class="text-[10px] text-green-700/70">{{ resumen.inactivos }} desvinculado(s)</p>
+                    </div>
+                    <div class="bg-sidebar text-white rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-white/60">Efectiva</p>
+                        <p class="text-2xl font-extrabold">{{ dotacion.efectiva }}</p>
+                        <p class="text-[10px] text-white/60">la que exige la ley</p>
+                    </div>
+                    <div class="bg-red-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-red-700">Con brechas</p>
+                        <p class="text-2xl font-extrabold text-red-700">{{ resumen.con_brechas }}</p>
+                        <p class="text-[10px] text-red-700/70">requisitos vencidos o sin evidencia</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-[10px] uppercase font-bold text-gray-500">Cupo del plan</p>
+                        <p class="text-2xl font-extrabold text-gray-700">{{ dotacion.cupo.usados }}<span class="text-sm text-gray-400">/{{ dotacion.cupo.tope or '∞' }}</span></p>
+                        <p class="text-[10px] text-gray-400">{{ dotacion.cupo.nombre }}</p>
+                    </div>
+                </div>
+
+                {% if dotacion.discrepancia %}
+                <div class="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-[12px] text-amber-800">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 inline"></i>
+                    Tienes <b>{{ dotacion.activos }} trabajadores activos</b> pero declaraste <b>{{ dotacion.declarada }}</b> en el Onboarding.
+                    Las obligaciones legales ya se calculan sobre {{ dotacion.efectiva }}, así que nada se incumple —
+                    pero conviene <a href="/onboarding" class="font-bold underline">corregir la dotación declarada</a>.
+                </div>
+                {% endif %}
+
+                <!-- Barra de asignación masiva -->
+                <div id="barraSel" class="hidden mt-4 bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5 flex flex-wrap items-center gap-3">
+                    <span class="text-[12px] font-bold text-primary"><span id="nSel">0</span> seleccionado(s)</span>
+                    <span class="text-[12px] text-gray-600">Asignar a faena:</span>
+                    <select id="selFaena" class="cel text-xs py-1.5">
+                        <option value="0">— Sin faena asignada —</option>
+                        {% for c in contratos %}
+                        <option value="{{ c.id }}">{{ c.faena or c.numero }}{% if c.mandante %} · {{ c.mandante }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="asignarMasivo()" class="inline-flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-lg font-bold text-xs">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i> Asignar</button>
+                    <button type="button" onclick="limpiarSel()" class="text-gray-500 text-xs font-bold">Cancelar</button>
+                </div>
+
+                <div class="overflow-x-auto mt-4">
+                    <table class="tbl w-full text-xs min-w-[1100px]">
+                        <thead><tr>
+                            <th class="w-8"><input type="checkbox" id="selTodos" onchange="marcarTodos(this)" class="accent-primary"></th>
+                            <th>RUT</th><th>Nombre</th><th class="w-32">Rol crítico</th><th>Cargo</th>
+                            <th class="w-40">Faena</th><th class="w-24">Estado</th>
+                            <th class="w-52">Smart Checker</th><th class="w-8"></th>
+                        </tr></thead>
+                        <tbody id="nominaBody"></tbody>
+                    </table>
+                </div>
+                {% if not trabajadores %}
+                <p class="text-center text-gray-400 text-sm py-8">Sin trabajadores aún. Usa “Nuevo trabajador”.</p>
+                {% endif %}
+            </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Modal: nuevo trabajador -->
+    <div id="nuevoOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
+            <div class="border-b px-6 py-4 flex items-center justify-between">
+                <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="user-plus" class="w-5 h-5 text-primary"></i> Nuevo trabajador</h3>
+                <button type="button" onclick="cerrarNuevo()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">RUT</label><input id="n_rut" class="iet-in" placeholder="12.345.678-5"></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Nombre</label><input id="n_nombre" class="iet-in"></div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">Rol crítico</label>
+                    <select id="n_rol" class="iet-in">
+                        {% for k, v in roles.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                    </select>
+                    <p class="text-[11px] text-gray-500 mt-1">Define qué capacitaciones y exámenes se inyectan automáticamente.</p>
+                </div>
+                <div><label class="text-[11px] font-bold text-gray-500 uppercase">Cargo</label><input id="n_cargo" class="iet-in" placeholder="Ej. Operador de camión aljibe"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Faena</label>
+                        <select id="n_contrato" class="iet-in">
+                            <option value="0">— Sin asignar —</option>
+                            {% for c in contratos %}<option value="{{ c.id }}">{{ c.faena or c.numero }}</option>{% endfor %}
+                        </select></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Responsable</label>
+                        <select id="n_resp" class="iet-in">
+                            <option value="">— Sin responsable —</option>
+                            {% for t in trabajadores if (t.estado or 'activo') == 'activo' %}
+                            <option value="{{ t.id }}">{{ t.nombre }} · {{ t.rut }}</option>{% endfor %}
+                        </select></div>
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="cerrarNuevo()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                    <button type="button" onclick="guardarNuevo()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ROLES = {{ roles | tojson }};
+        const FAENAS = {{ faenas | tojson }};
+        let _trabs = [];
+        const sel = new Set();
+        function esc(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+        function badgeSem(s) {
+            if (!s.total) return '<span class="text-[10px] text-gray-300">sin requisitos</span>';
+            const p = [];
+            if (s.vigentes) p.push(`<span class="badge bg-green-100 text-green-700">${s.vigentes} vigente${s.vigentes > 1 ? 's' : ''}</span>`);
+            if (s.por_vencer) p.push(`<span class="badge bg-amber-100 text-amber-700">${s.por_vencer} por vencer</span>`);
+            if (s.vencidos) p.push(`<span class="badge bg-red-100 text-red-700">${s.vencidos} vencido${s.vencidos > 1 ? 's' : ''}</span>`);
+            if (s.pendientes) p.push(`<span class="badge bg-gray-100 text-gray-600">${s.pendientes} sin evidencia</span>`);
+            return p.join(' ');
+        }
+        function opts(mapa, v) {
+            return Object.entries(mapa).map(([k, n]) => `<option value="${k}" ${String(v) === String(k) ? 'selected' : ''}>${esc(n)}</option>`).join('');
+        }
+        const EST_REQ = {
+            vigente: ['Vigente', 'bg-green-100 text-green-700'],
+            por_vencer: ['Por vencer', 'bg-amber-100 text-amber-700'],
+            pendiente_actualizacion: ['Vencido', 'bg-red-100 text-red-700'],
+            pendiente: ['Sin evidencia', 'bg-gray-100 text-gray-600'],
+        };
+
+        function filaReq(t, r) {
+            const [txt, cls] = EST_REQ[r.estado_cumplimiento] || EST_REQ.pendiente;
+            const viejo = r.origen === 'rol_anterior';
+            const resps = _trabs.filter(x => (x.estado || 'activo') === 'activo')
+                .map(x => `<option value="${x.id}" ${String(r.responsable_id) === String(x.id) ? 'selected' : ''}>${esc(x.nombre)} · ${esc(x.rut)}</option>`).join('');
+            return `<tr class="${viejo ? 'opacity-50' : ''}">
+                <td class="pl-8 text-[10px] font-mono text-gray-400">${esc(r.codigo)}</td>
+                <td class="text-gray-700">${esc(r.nombre)}
+                    ${viejo ? '<span class="badge bg-gray-100 text-gray-500 ml-1">rol anterior · historial</span>' : ''}
+                    ${r.carpeta_item ? `<span class="text-[9px] text-gray-400 ml-1">Carpeta ${r.carpeta_item}</span>` : ''}</td>
+                <td><span class="badge bg-gray-100 text-gray-600">${esc(r.tipo)}</span></td>
+                <td><input type="date" value="${esc(r.fecha_emision)}" onchange="guardarReq(${t.id},${r.id},'fecha_emision',this.value)" class="cel"></td>
+                <td class="text-[10px] text-gray-500">${r.fecha_vencimiento ? esc(r.fecha_vencimiento) : (r.vigencia_meses ? '—' : 'no vence')}</td>
+                <td><span class="badge ${cls}">${txt}</span></td>
+                <td><select onchange="guardarReq(${t.id},${r.id},'responsable_id',this.value)" class="cel"><option value="">— responsable —</option>${resps}</select></td>
+            </tr>`;
+        }
+
+        function render() {
+            const body = document.getElementById('nominaBody');
+            body.innerHTML = _trabs.map(t => {
+                const activo = (t.estado || 'activo') === 'activo';
+                const faena = t.contrato_id ? (FAENAS[t.contrato_id] || `Contrato ${t.contrato_id}`) : '';
+                return `<tr class="${activo ? '' : 'bg-gray-50 opacity-60'}">
+                    <td><input type="checkbox" class="accent-primary chk" value="${t.id}" ${sel.has(t.id) ? 'checked' : ''} onchange="marcar(${t.id},this.checked)"></td>
+                    <td class="font-mono text-[10px] text-gray-500">${esc(t.rut)}</td>
+                    <td class="font-semibold text-gray-800">${esc(t.nombre)}
+                        ${!activo && t.fecha_egreso ? `<span class="block text-[9px] text-gray-400">egreso ${esc(t.fecha_egreso)}${t.motivo_egreso ? ' · ' + esc(t.motivo_egreso) : ''}</span>` : ''}</td>
+                    <td><select onchange="cambiarRol(${t.id},this.value)" class="cel" ${activo ? '' : 'disabled'}>${opts(ROLES, t.rol || 'trabajador')}</select></td>
+                    <td class="text-gray-600">${esc(t.cargo)}</td>
+                    <td class="text-gray-600">${faena ? esc(faena) : '<span class="text-[10px] text-amber-600">sin faena</span>'}</td>
+                    <td>${activo
+                        ? `<button onclick="desvincular(${t.id})" class="badge bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700" title="Marcar: ya no labora en la empresa">Activo</button>`
+                        : `<button onclick="reactivar(${t.id})" class="badge bg-gray-200 text-gray-600 hover:bg-green-100 hover:text-green-700" title="Reactivar">Ya no labora</button>`}</td>
+                    <td>${badgeSem(t.semaforo)}</td>
+                    <td class="text-right">
+                        <button onclick="toggleReq(${t.id})" class="text-gray-300 hover:text-primary" title="Ver requisitos"><i data-lucide="chevron-down" class="w-4 h-4"></i></button></td>
+                </tr>
+                <tr id="req_${t.id}" class="hidden"><td colspan="9" class="bg-gray-50 p-0">
+                    <table class="w-full text-xs"><tbody>${(t.requisitos || []).map(r => filaReq(t, r)).join('')}</tbody></table>
+                </td></tr>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function cargar() {
+            try { const r = await fetch('/api/trabajadores'); if (r.ok) _trabs = await r.json(); } catch (e) { }
+            render();
+        }
+        function toggleReq(id) { document.getElementById('req_' + id).classList.toggle('hidden'); if (window.lucide) lucide.createIcons(); }
+        function marcar(id, on) { on ? sel.add(id) : sel.delete(id); barra(); }
+        function marcarTodos(el) {
+            sel.clear();
+            if (el.checked) _trabs.forEach(t => { if ((t.estado || 'activo') === 'activo') sel.add(t.id); });
+            render(); barra();
+        }
+        function limpiarSel() { sel.clear(); document.getElementById('selTodos').checked = false; render(); barra(); }
+        function barra() {
+            document.getElementById('nSel').textContent = sel.size;
+            document.getElementById('barraSel').classList.toggle('hidden', sel.size === 0);
+        }
+        async function asignarMasivo() {
+            const cid = document.getElementById('selFaena').value;
+            const r = await fetch('/api/nomina/asignar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trabajador_ids: [...sel], contrato_id: cid })
+            });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok) { alert(`✔ ${d.asignados} trabajador(es) asignado(s).`); sel.clear(); location.reload(); }
+        }
+        async function cambiarRol(id, rol) {
+            await fetch(`/api/trabajadores/${id}/rol`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rol })
+            });
+            cargar();   // el rol re-inyecta requisitos
+        }
+        async function desvincular(id) {
+            const motivo = prompt('Motivo de la desvinculación (queda registrado):', 'Término de faena');
+            if (motivo === null) return;
+            const r = await fetch(`/api/trabajadores/${id}/estado`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: 'inactivo', motivo })
+            });
+            if (r.ok) location.reload();   // cambia la dotación activa → recalcula obligaciones
+        }
+        async function reactivar(id) {
+            const r = await fetch(`/api/trabajadores/${id}/estado`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: 'activo' })
+            });
+            if (r.ok) location.reload();
+        }
+        async function guardarReq(tid, rid, campo, valor) {
+            const r = await fetch(`/api/trabajadores/${tid}/requisitos/${rid}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [campo]: valor })
+            });
+            if (r.ok) cargar();
+        }
+        function abrirNuevo() { document.getElementById('nuevoOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
+        function cerrarNuevo() { document.getElementById('nuevoOverlay').classList.add('hidden'); }
+        async function guardarNuevo() {
+            const v = id => document.getElementById(id).value.trim();
+            if (!v('n_rut') || !v('n_nombre')) { alert('Indica RUT y nombre.'); return; }
+            const r = await fetch('/api/trabajadores', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rut: v('n_rut'), nombre: v('n_nombre'), rol: v('n_rol'), cargo: v('n_cargo'),
+                    contrato_id: v('n_contrato'), responsable_id: v('n_resp') || null
+                })
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.mensaje || d.error || 'No se pudo agregar.'); return; }
+            cerrarNuevo(); location.reload();
+        }
+
+        cargar();
+        if (window.lucide) lucide.createIcons();
+    </script>
+</body>
+</html>

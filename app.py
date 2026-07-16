@@ -133,6 +133,7 @@ def _registrar(nombre, ruta_modulo, attr='bp'):
 _registrar('onboarding', 'onboarding')
 _registrar('matriz_legal', 'matriz_legal')
 _registrar('matriz_riesgos', 'matriz_riesgos')
+_registrar('nomina', 'nomina')
 
 # Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
 # sin la pantalla donde desbloquearse.
@@ -1201,64 +1202,8 @@ def api_empresa_logo_get():
                     'razon_social': emp.get('razon_social')})
 
 
-# ── Trabajadores ──
-@app.route('/api/trabajadores', methods=['GET'])
-@empresa_required
-@onboarding_required
-def api_trabajadores():
-    out = []
-    for t in db.trabajadores_de(_empresa_id()):
-        t['tareas'] = [x['id'] for x in db.tareas_de_trabajador(t['id'])]
-        t['irls'] = db.irls_de_trabajador(t['id'])
-        out.append(t)
-    return jsonify(out)
-
-
-@app.route('/api/trabajadores', methods=['POST'])
-@empresa_required
-def api_trabajador_crear():
-    f = request.get_json(silent=True) or request.form
-    rut = (f.get('rut') or '').strip()
-    nombre = (f.get('nombre') or '').strip()
-    if not (rut and nombre):
-        return jsonify({'error': 'Indica RUT y nombre del trabajador.'}), 400
-    if not rut_valido(rut):
-        return jsonify({'error': 'El RUT del trabajador no es válido.'}), 400
-    eid = _empresa_id()
-    emp = db.empresa_de(session['rut'], eid) or {}
-    # El tope es por tramo comercial y solo cuenta ACTIVOS: un desvinculado no consume cupo.
-    activos = db.trabajadores_activos_count(eid)
-    if not planes.cabe(emp.get('plan'), activos):
-        info = planes.cupo(emp.get('plan'), activos)
-        sug = planes.plan_de(info['sugerido'])
-        return jsonify({'error': 'limite_trabajadores', 'cupo': info,
-                        'mensaje': f"Tu {info['nombre']} contempla hasta {info['tope']} trabajadores "
-                                   f"y ya tienes {activos} activos. Para agregar más necesitas el "
-                                   f"{sug['nombre']}."}), 403
-    db.trabajador_crear(eid, normalizar_rut(rut), nombre,
-                        cargo=(f.get('cargo') or '').strip() or None,
-                        rol=(f.get('rol') or '').strip() or None)
-    return jsonify(db.trabajadores_de(eid))
-
-
-@app.route('/api/trabajadores/<int:tid>/eliminar', methods=['POST'])
-@empresa_required
-def api_trabajador_eliminar(tid):
-    db.trabajador_eliminar(_empresa_id(), tid)
-    return jsonify(db.trabajadores_de(_empresa_id()))
-
-
-@app.route('/api/trabajadores/<int:tid>/tareas', methods=['POST'])
-@empresa_required
-def api_trabajador_tareas(tid):
-    if not db.trabajador_de(_empresa_id(), tid):
-        return jsonify({'error': 'Trabajador no encontrado.'}), 404
-    f = request.get_json(silent=True) or {}
-    db.trabajador_set_tareas(tid, f.get('tarea_ids') or [])
-    return jsonify({'ok': True, 'tareas': [x['id'] for x in db.tareas_de_trabajador(tid)]})
-
-
-# ── Tareas / EPP / PTS de la Matriz IPER ──
+# Las rutas /api/trabajadores*, /api/irl/generar y la vista /nomina viven en el módulo
+# aislado nomina/ (Blueprint, mismas URLs).
 @app.route('/api/iper/tareas', methods=['GET'])
 @empresa_required
 @onboarding_required
@@ -1367,31 +1312,6 @@ def api_tarea_link_pts(tid):
 
 
 # ── IRL: generar / actualizar / listar ──
-@app.route('/api/irl/generar', methods=['POST'])
-@empresa_required
-def api_irl_generar():
-    f = request.get_json(silent=True) or request.form
-    rut, eid = session['rut'], _empresa_id()
-    trab = db.trabajador_de(eid, int(f.get('trabajador_id')))
-    if not trab:
-        return jsonify({'error': 'Trabajador no encontrado.'}), 404
-    empresa = db.empresa_de(rut, eid)
-    logo = _logo_empresa(rut, eid)
-    res = docgen.generar_irl(db, empresa, trab, session.get('nombre') or rut, logo_data_uri=logo)
-    return jsonify({'ok': True, 'doc_id': res['doc_id'], 'audit_id': res['audit_id'],
-                    'matriz_version': res['matriz_version'],
-                    'preview_url': f"/api/doc/{res['doc_id']}"})
-
-
-@app.route('/api/trabajadores/<int:tid>/irl', methods=['GET'])
-@empresa_required
-def api_trabajador_irls(tid):
-    return jsonify(db.irls_de_trabajador(tid))
-
-
-# Las rutas /api/miper* y la vista /matriz-riesgos viven en el módulo aislado matriz_riesgos/
-# (Blueprint, mismas URLs). /api/iper/tareas, /api/epp, /api/pts y /api/mutuales se quedan
-# aquí: los consume la vista Trabajadores/IRL y la tarjeta de Mutual, que son del núcleo.
 @app.route('/api/mutuales', methods=['GET'])
 @login_required
 def api_mutuales():
