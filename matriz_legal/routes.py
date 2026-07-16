@@ -9,6 +9,7 @@ from flask import Blueprint, render_template, request, jsonify, session
 
 import db
 import cumplimiento
+import fuf
 from core_auth import login_required, empresa_required, onboarding_required, empresa_id
 
 from . import service
@@ -21,11 +22,18 @@ bp = Blueprint('matriz_legal', __name__, template_folder='templates')
 @empresa_required
 @onboarding_required
 def panel():
+    """Cerebro Legal: Matriz Legal editable + trazabilidad del FUF 44 (solo lectura; el FUF se
+    responde en el modal del dashboard, que es donde vive su edición)."""
     eid = empresa_id()
     service.asegurar_core(eid)
+    estados = db.estados_fuf(eid)
     return render_template('matriz_legal/panel.html',
                            empresa=db.empresa_de(session.get('rut'), eid),
-                           pilares=cumplimiento.PILARES)
+                           pilares=cumplimiento.PILARES,
+                           pilares_cortos=cumplimiento.PILARES_CORTOS,
+                           fuf_secciones=fuf.SECCIONES,
+                           fuf_estados=estados,
+                           fuf_resumen=fuf.resumen(estados))
 
 
 @bp.route('/api/matriz-legal', methods=['GET'])

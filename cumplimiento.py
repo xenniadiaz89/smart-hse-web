@@ -109,6 +109,14 @@ PILARES = {
     'OTROS': 'Otros requisitos Core',
 }
 
+# Etiqueta breve del pilar, para la columna "Categoría" de la Matriz (el nombre largo no cabe).
+PILARES_CORTOS = {
+    'P1': 'Gestión Preventiva',
+    'P2': 'Condiciones Sanitarias',
+    'P3': 'Ley Karin',
+    'OTROS': 'Otros',
+}
+
 # ── Matriz Legal — Capa Core (requisitos transversales VIGENTES, precarga obligatoria) ──
 # Se inyectan al crear la empresa con is_mandatory=1 (bloqueados en Requisito/Cuerpo_Legal;
 # editables en Estado_Avance, Evidencia_Notas, Responsable y Fecha_Vencimiento).

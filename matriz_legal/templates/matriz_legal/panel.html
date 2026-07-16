@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMART HSE | Matriz Legal D.S. 44</title>
+    <title>SMART HSE | Cerebro Legal & Panel FUF 44</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60' } } } }
+        tailwind.config = { theme: { extend: { colors: {
+            primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60',
+            ok: '#2E7D32', okbg: '#E8F5E9', warn: '#E65100', warnbg: '#FFF3E0',
+            na: '#455A64', nabg: '#ECEFF1'
+        } } } }
     </script>
     <style>
         .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
@@ -18,9 +22,19 @@
         .nav-item:hover i { color:#fff; }
         .nav-item.nav-on { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 3px 0 0 #7ab038; }
         .nav-item.nav-on i { color:#7ab038; }
+        /* Badges de estatus (mismo criterio de color en Matriz Legal y FUF) */
+        .badge { display:inline-flex; align-items:center; gap:.25rem; padding:.25rem .5rem; border-radius:.25rem; font-weight:600; font-size:.7rem; white-space:nowrap; }
+        .b-ok   { background:#E8F5E9; color:#2E7D32; }
+        .b-warn { background:#FFF3E0; color:#E65100; }
+        .b-na   { background:#ECEFF1; color:#455A64; }
+        .b-no   { background:#FFEBEE; color:#C62828; }
+        /* Select de estado: se pinta como badge pero sigue siendo editable */
+        .sel-estado { border:0; border-radius:.25rem; padding:.25rem .4rem; font-weight:600; font-size:.7rem; outline:none; cursor:pointer; }
+        .tbl th { background:#F1F3F5; color:#0B3B60; font-weight:600; font-size:.65rem; text-transform:uppercase; letter-spacing:.03em; }
+        .tbl td, .tbl th { padding:.6rem .6rem; text-align:left; border-bottom:1px solid #E0E0E0; }
     </style>
 </head>
-<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+<body class="bg-[#F8F9FA] text-[#333] font-sans min-h-screen">
 
     <!-- ── Header ── -->
     <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
@@ -51,39 +65,117 @@
                     <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
                 </div>
                 <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
-                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la consola</span></a>
-                    <a href="/matriz-legal" class="nav-item nav-on"><i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></a>
+                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la Consola</span></a>
+                    <a href="/matriz-legal" class="nav-item nav-on"><i data-lucide="scale" class="w-5 h-5"></i> <span>Cerebro Legal</span></a>
+                    <a href="#bloque-fuf" class="nav-item"><i data-lucide="clipboard-list" class="w-5 h-5"></i> <span>Panel FUF 44</span></a>
                 </nav>
             </div>
         </aside>
 
-        <section class="flex-1 min-w-0 w-full">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="table-2" class="w-5 h-5 text-primary"></i>
-                    <h2 class="text-xl font-extrabold text-gray-900">Matriz Legal</h2>
+        <section class="flex-1 min-w-0 w-full space-y-8">
+
+            <!-- ══════════ CEREBRO LEGAL — Matriz Legal ══════════ -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-sidebar flex items-center gap-2">
+                            <i data-lucide="scale" class="w-5 h-5"></i> Cerebro Legal & Panel FUF 44
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-1 max-w-3xl">
+                            Trazabilidad en tiempo real del cumplimiento normativo (D.S. 44, D.S. 594, Ley Karin).
+                            {% if empresa and empresa.dotacion %}
+                            Automatización por dotación activa: <strong>{{ empresa.dotacion }} Trabajadores</strong>.
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="abrirNuevoReq()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-lg font-bold text-sm">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Agregar Requisito</button>
+                        <label class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm cursor-pointer">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Importar
+                            <input type="file" accept=".xlsx,.xlsm" class="hidden" onchange="importarMatriz(this)">
+                        </label>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" onclick="abrirNuevoReq()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm">
-                        <i data-lucide="plus" class="w-4 h-4"></i> Agregar Requisito</button>
-                    <label class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl font-bold text-sm cursor-pointer">
-                        <i data-lucide="upload" class="w-4 h-4"></i> Importar
-                        <input type="file" accept=".xlsx,.xlsm" class="hidden" onchange="importarMatriz(this)">
-                    </label>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="tbl w-full text-xs min-w-[1050px]">
+                        <thead><tr>
+                            <th>ID</th><th>Categoría</th><th>Cuerpo Legal</th><th>Art.</th>
+                            <th class="w-1/5">Requisito Normativo</th><th class="w-1/5">Control Operativo</th>
+                            <th>Estatus</th><th>Evidencia / Notas</th><th>Responsable</th><th>Vence</th><th></th>
+                        </tr></thead>
+                        <tbody id="matrizBody"></tbody>
+                    </table>
                 </div>
             </div>
-            <p class="text-gray-600 text-sm mb-4"><b>Capa Core</b> (obligatoria, precargada 🔒): pilares normativos vigentes — editables solo en Estado, Evidencia y Fechas. <b>Capa Operativa</b>: requisitos propios de mandantes o sectoriales, con edición y borrado.</p>
 
-            <div class="overflow-x-auto bg-white rounded-2xl shadow-sm border border-gray-100">
-                <table class="w-full text-left text-xs min-w-[1050px]">
-                    <thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                        <th class="p-2">ID</th><th class="p-2">Cuerpo Legal</th><th class="p-2">Art.</th>
-                        <th class="p-2 w-1/5">Requisito</th><th class="p-2 w-1/5">Control Operativo</th>
-                        <th class="p-2">Estado</th><th class="p-2">Evidencia / Notas</th>
-                        <th class="p-2">Responsable</th><th class="p-2">Vence</th><th class="p-2"></th>
-                    </tr></thead>
-                    <tbody id="matrizBody"></tbody>
-                </table>
+            <!-- ══════════ PANEL FUF 44 — trazabilidad (solo lectura) ══════════ -->
+            <div id="bloque-fuf" class="bg-white rounded-lg shadow-sm p-6 scroll-mt-24">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-sidebar flex items-center gap-2">
+                            <i data-lucide="clipboard-list" class="w-5 h-5"></i> Panel FUF 44
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-1">
+                            Formulario Único de Fiscalización del D.S. 44 — {{ fuf_resumen.total }} ítems de autoevaluación legal.
+                        </p>
+                    </div>
+                    <a href="/dashboard#fuf" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6b9c31] text-white px-4 py-2 rounded-lg font-bold text-sm shrink-0">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i> Responder FUF
+                    </a>
+                </div>
+
+                <!-- Resumen -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
+                    <div class="bg-sidebar text-white rounded-lg p-3">
+                        <p class="text-[10px] uppercase tracking-wide text-white/60 font-bold">Cumplimiento</p>
+                        <p class="text-2xl font-extrabold">{{ fuf_resumen.pct }}%</p>
+                        <p class="text-[10px] text-white/60">{{ fuf_resumen.respondidos }} / {{ fuf_resumen.total }} respondidos</p>
+                    </div>
+                    <div class="bg-okbg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-ok">Cumple</p><p class="text-2xl font-extrabold text-ok">{{ fuf_resumen.si }}</p></div>
+                    <div class="bg-[#FFEBEE] rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-[#C62828]">No cumple</p><p class="text-2xl font-extrabold text-[#C62828]">{{ fuf_resumen.no }}</p></div>
+                    <div class="bg-nabg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-na">No aplica</p><p class="text-2xl font-extrabold text-na">{{ fuf_resumen.na }}</p></div>
+                    <div class="bg-warnbg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-warn">Pendientes</p><p class="text-2xl font-extrabold text-warn">{{ fuf_resumen.pendiente }}</p></div>
+                </div>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="tbl w-full text-xs min-w-[900px]">
+                        <thead><tr>
+                            <th class="w-10">N°</th><th class="w-1/2">Requisito Normativo (D.S. 44)</th>
+                            <th>Estatus</th><th>Artículo</th><th>Observación</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for sec in fuf_secciones %}
+                            <tr class="bg-sidebar/5 border-t-2 border-primary/20">
+                                <td colspan="5" class="px-2 py-2">
+                                    <span class="text-[11px] font-extrabold text-primary uppercase tracking-wide">{{ sec.seccion }}</span>
+                                    <span class="ml-2 text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{{ sec.organismo }}</span>
+                                </td>
+                            </tr>
+                            {% for it in sec['items'] %}
+                            {% set fila = fuf_estados.get(it.n) %}
+                            {% set estado = fila.estado if fila else 'pendiente' %}
+                            <tr>
+                                <td class="font-mono text-[10px] text-gray-500 align-top">{{ it.n }}</td>
+                                <td class="text-gray-800 align-top">{{ it.t }}</td>
+                                <td class="align-top">
+                                    {% if estado == 'si' %}<span class="badge b-ok"><i data-lucide="check" class="w-3 h-3"></i> CUMPLE</span>
+                                    {% elif estado == 'no' %}<span class="badge b-no"><i data-lucide="x" class="w-3 h-3"></i> NO CUMPLE</span>
+                                    {% elif estado == 'na' %}<span class="badge b-na">N/A</span>
+                                    {% else %}<span class="badge b-warn"><i data-lucide="clock" class="w-3 h-3"></i> PENDIENTE</span>{% endif %}
+                                </td>
+                                <td class="align-top"><code class="text-[10px] text-gray-500">{{ it.art }}</code></td>
+                                <td class="align-top text-gray-600 text-[11px]">
+                                    {{ fila.observacion or '' if fila else '' }}
+                                    {% if fila and fila.fecha_compromiso %}<span class="block text-[10px] text-warn font-semibold">Compromiso: {{ fila.fecha_compromiso }}</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Modal: Agregar Requisito (Capa Operativa) -->
@@ -120,7 +212,15 @@
         // ── Matriz Legal (doble capa, tabla editable en línea, agrupada por pilar normativo) ──
         const MTZ_ESTADOS = ['pendiente', 'en_proceso', 'auditado', 'no_aplica'];
         const PILARES = {{ pilares | tojson }};
+        const PILARES_CORTOS = {{ pilares_cortos | tojson }};
         const ORDEN_PILARES = ['P1', 'P2', 'P3', 'OTROS'];
+        // Un estado del requisito -> cómo se ve. Mismo criterio de color que los badges del FUF.
+        const ESTILO_ESTADO = {
+            auditado:   { txt: 'CUMPLE',    cls: 'b-ok' },
+            pendiente:  { txt: 'PENDIENTE', cls: 'b-warn' },
+            en_proceso: { txt: 'EN PROCESO', cls: 'b-warn' },
+            no_aplica:  { txt: 'N/A',       cls: 'b-na' },
+        };
         function esc(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
         function agrupar(data) {
@@ -138,18 +238,22 @@
         function filaHTML(r) {
             const core = !!r.is_mandatory;
             const id = r.id_requisito || r.id;
-            const opts = MTZ_ESTADOS.map(e => `<option value="${e}" ${(r.estado_avance || 'pendiente') === e ? 'selected' : ''}>${e.replace('_', ' ')}</option>`).join('');
-            return `<tr class="border-t border-gray-50 ${core ? 'bg-primary/5' : ''}">
-                <td class="p-2 font-mono text-[10px] text-gray-500 align-top whitespace-nowrap">${core ? '🔒 ' : ''}${esc(id)}</td>
-                <td class="p-2 align-top font-semibold text-gray-700">${esc(r.cuerpo_normativo)}</td>
-                <td class="p-2 align-top text-gray-500 text-[10px] whitespace-nowrap">${esc(r.articulo)}</td>
-                <td class="p-2 align-top text-gray-800">${esc(r.requisito_legal)}</td>
-                <td class="p-2 align-top text-gray-600 whitespace-pre-line text-[11px] leading-relaxed">${esc(r.control_operativo)}</td>
-                <td class="p-2 align-top"><select onchange="editarReq('${esc(id)}','estado_avance',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary">${opts}</select></td>
-                <td class="p-2 align-top"><input value="${esc(r.evidencia_notas)}" onchange="editarReq('${esc(id)}','evidencia_notas',this.value)" placeholder="Evidencia / notas" class="w-32 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                <td class="p-2 align-top"><input value="${esc(r.responsable)}" onchange="editarReq('${esc(id)}','responsable',this.value)" placeholder="Responsable" class="w-28 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                <td class="p-2 align-top"><input type="date" value="${esc(r.fecha_vencimiento)}" onchange="editarReq('${esc(id)}','fecha_vencimiento',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                <td class="p-2 align-top text-right whitespace-nowrap">
+            const est = (r.estado_avance || 'pendiente');
+            const cls = (ESTILO_ESTADO[est] || ESTILO_ESTADO.pendiente).cls;
+            const opts = MTZ_ESTADOS.map(e => `<option value="${e}" ${est === e ? 'selected' : ''}>${(ESTILO_ESTADO[e] || {}).txt || e}</option>`).join('');
+            const categoria = core ? (PILARES_CORTOS[r.pilar] || '—') : 'Operativo';
+            return `<tr class="${core ? 'bg-primary/5' : ''}">
+                <td class="font-mono text-[10px] text-gray-500 align-top whitespace-nowrap"><strong>${core ? '🔒 ' : ''}${esc(id)}</strong></td>
+                <td class="align-top text-gray-600">${esc(categoria)}</td>
+                <td class="align-top font-semibold text-gray-700">${esc(r.cuerpo_normativo)}</td>
+                <td class="align-top text-gray-500 text-[10px] whitespace-nowrap">${esc(r.articulo)}</td>
+                <td class="align-top text-gray-800">${esc(r.requisito_legal)}</td>
+                <td class="align-top text-gray-600 whitespace-pre-line text-[11px] leading-relaxed">${esc(r.control_operativo)}</td>
+                <td class="align-top"><select onchange="editarReq('${esc(id)}','estado_avance',this.value)" class="sel-estado ${cls}">${opts}</select></td>
+                <td class="align-top"><input value="${esc(r.evidencia_notas)}" onchange="editarReq('${esc(id)}','evidencia_notas',this.value)" placeholder="Evidencia / notas" class="w-32 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="align-top"><input value="${esc(r.responsable)}" onchange="editarReq('${esc(id)}','responsable',this.value)" placeholder="Responsable" class="w-28 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="align-top"><input type="date" value="${esc(r.fecha_vencimiento)}" onchange="editarReq('${esc(id)}','fecha_vencimiento',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="align-top text-right whitespace-nowrap">
                     <button type="button" onclick="verRiesgosReq(${r.id})" class="text-gray-300 hover:text-primary" title="Actividades de riesgo vinculadas / crear"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
                     ${core ? '<span class="text-[9px] text-gray-400 ml-1">Obligatorio</span>' : `<button type="button" onclick="eliminarReq(${r.id})" class="text-gray-300 hover:text-red-500 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
                 </td>
@@ -160,15 +264,16 @@
             let data = [];
             try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
             const body = document.getElementById('matrizBody');
-            if (!data.length) { body.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-gray-400">Sin requisitos aún. Usa “Agregar Requisito”.</td></tr>'; return; }
+            if (!data.length) { body.innerHTML = '<tr><td colspan="11" class="p-6 text-center text-gray-400">Sin requisitos aún. Usa “Agregar Requisito”.</td></tr>'; return; }
             body.innerHTML = agrupar(data).map(g => `
                 <tr class="bg-sidebar/5 border-t-2 border-primary/20">
-                    <td colspan="10" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">${esc(g.nombre)}</td>
+                    <td colspan="11" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">${esc(g.nombre)}</td>
                 </tr>` + g.filas.map(filaHTML).join('')).join('');
             if (window.lucide) lucide.createIcons();
         }
         async function editarReq(id_requisito, campo, valor) {
             await fetch('/api/matriz-legal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_requisito, [campo]: valor }) });
+            if (campo === 'estado_avance') cargarMatriz();   // repinta el color del badge
         }
         async function eliminarReq(rid) {
             if (!confirm('¿Eliminar este requisito operativo?')) return;

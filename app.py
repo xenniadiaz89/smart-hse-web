@@ -15,6 +15,7 @@ from core_auth import (normalizar_rut, rut_valido, login_required,      # noqa: 
                        empresa_required, onboarding_required,
                        empresa_id as _empresa_id)
 import db
+import fuf
 import normativa
 import resso
 import ia
@@ -277,7 +278,8 @@ def dashboard():
             emp = emps[0]
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
-                           onboarding_ok=core_auth.onboarding_completo(emp))
+                           onboarding_ok=core_auth.onboarding_completo(emp),
+                           fuf_catalogo=fuf.SECCIONES)   # el modal FUF lo recibe por tojson
 
 
 # ── API de empresas (gestión desde la consola) ──
@@ -705,7 +707,7 @@ def api_contrato_eliminar():
 # Mandantes mineros parametrizados (selector de derivación / Módulo Puente).
 MANDANTES_MINEROS = ['Codelco División RT', 'Minera Spence (BHP)', 'Minera El Abra',
                      'Minera Centinela', 'Otra minería']
-FUF_TOTAL = 60          # ítems del FUF DS 44 (base legal Ley 16.744, común a todo empleador)
+FUF_TOTAL = fuf.TOTAL   # 60 ítems del FUF DS 44, contados del catálogo (fuf.py) y no a mano
 CARPETA_TOTAL = 29      # ítems de la Carpeta de Arranque (estándar minero)
 
 
