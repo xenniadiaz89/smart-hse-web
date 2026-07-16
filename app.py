@@ -10,6 +10,10 @@ from flask import (Flask, render_template, request, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import sqla
+import core_auth
+from core_auth import (normalizar_rut, rut_valido, login_required,      # noqa: F401
+                       empresa_required, onboarding_required,
+                       empresa_id as _empresa_id)
 import db
 import normativa
 import resso
@@ -104,32 +108,43 @@ def _ensure_db_ready():
         _try_init_db()
 
 
+# ──────────────────── Módulos aislados (Blueprints) ────────────────────────
+# Cada submódulo vive en su carpeta y se registra por separado. Si uno revienta al importar,
+# el error queda encapsulado ahí: se anota como caído, su ítem del sidebar sale deshabilitado
+# y el resto de Smart HSE arranca normal. gunicorn importa app:app una vez por worker.
+MODULOS_OK = {}
+
+
+def _registrar(nombre, ruta_modulo, attr='bp'):
+    try:
+        mod = __import__(ruta_modulo, fromlist=[attr])
+        app.register_blueprint(getattr(mod, attr))
+        MODULOS_OK[nombre] = True
+    except Exception:
+        import traceback
+        traceback.print_exc()                   # el error real queda visible en los logs de Render
+        print(f'[Smart HSE] ⚠️  Módulo "{nombre}" NO disponible (ver traza arriba). '
+              'El resto de la app sigue operativa.', flush=True)
+        MODULOS_OK[nombre] = False
+
+
+_registrar('onboarding', 'onboarding')
+_registrar('matriz_legal', 'matriz_legal')
+
+# Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
+# sin la pantalla donde desbloquearse.
+core_auth.set_onboarding_disponible(MODULOS_OK.get('onboarding', False))
+
+
+@app.context_processor
+def _inyectar_modulos():
+    return {'MODULOS_OK': MODULOS_OK}
+
+
 # ─────────────────────────── Utilidades RUT / clave ────────────────────────
-def normalizar_rut(rut):
-    """Quita puntos y guion, deja el dígito verificador en mayúscula."""
-    r = re.sub(r'[^0-9kK]', '', rut or '').upper()
-    if len(r) < 2:
-        return r
-    return r[:-1] + '-' + r[-1]
-
-
-def rut_valido(rut):
-    """Valida el dígito verificador chileno (módulo 11)."""
-    r = re.sub(r'[^0-9kK]', '', rut or '').upper()
-    if len(r) < 2:
-        return False
-    cuerpo, dv = r[:-1], r[-1]
-    if not cuerpo.isdigit():
-        return False
-    suma, factor = 0, 2
-    for d in reversed(cuerpo):
-        suma += int(d) * factor
-        factor = 2 if factor == 7 else factor + 1
-    resto = 11 - (suma % 11)
-    dv_calc = 'K' if resto == 10 else '0' if resto == 11 else str(resto)
-    return dv == dv_calc
-
-
+# normalizar_rut, rut_valido, login_required, _empresa_id y empresa_required viven ahora en
+# core_auth.py (los módulos aislados los necesitan sin importar app.py). Se re-importan con
+# los mismos nombres, así que las rutas de este archivo no cambian.
 def clave_valida(c):
     """Alfanumérica: mín. 6 caracteres con al menos una letra y un dígito."""
     return bool(c) and len(c) >= 6 and re.search(r'[A-Za-z]', c) and re.search(r'\d', c)
@@ -141,36 +156,7 @@ def normalizar_id(valor):
 
 
 # ─────────────────────────── Control de acceso ─────────────────────────────
-def login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not session.get('rut'):
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Sesión expirada. Reingresa a la consola.'}), 401
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return wrapper
-
-
-def _empresa_id():
-    """Empresa en foco (Ronda 12). None si el asesor aún no seleccionó una."""
-    return session.get('empresa_id')
-
-
-def empresa_required(f):
-    """Exige empresa activa. Para /api → 409 JSON; para vistas → redirige a Mis Empresas."""
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not session.get('rut'):
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Sesión expirada. Reingresa a la consola.'}), 401
-            return redirect(url_for('login'))
-        if not session.get('empresa_id'):
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Selecciona o registra una empresa primero.'}), 409
-            return redirect(url_for('empresas'))
-        return f(*args, **kwargs)
-    return wrapper
+# (definidos en core_auth.py — ver el re-import en la cabecera de imports)
 
 
 # ─────────────────────────────── Rutas ─────────────────────────────────────
@@ -290,7 +276,8 @@ def dashboard():
             session['empresa_id'] = emps[0]['id']
             emp = emps[0]
     return render_template('dashboard.html', nombre=session.get('nombre'),
-                           sns=session.get('sns'), rol=session.get('rol'), empresa=emp)
+                           sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
+                           onboarding_ok=core_auth.onboarding_completo(emp))
 
 
 # ── API de empresas (gestión desde la consola) ──
@@ -320,6 +307,7 @@ def api_plan():
 # ── Protocolos de Salud (MINSAL) — motor de datos de la Tarjeta 3 del Dashboard DS44 ──
 @app.route('/api/protocolos', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_protocolos_get():
     return jsonify(db.protocolos_de(_empresa_id()))
 
@@ -360,6 +348,7 @@ def api_cargos_get():
 
 @app.route('/api/capacitaciones', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_capacitaciones_get():
     return jsonify({'registros': db.capacitaciones_de(_empresa_id()),
                     'resumen': db.capacitaciones_resumen(_empresa_id()),
@@ -399,6 +388,7 @@ def api_capacitacion_eliminar(cid):
 # ── Agregado del Dashboard Gerencial DS44 (todo en un JSON, sin hardcode) ──
 @app.route('/api/ds44/dashboard', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_ds44_dashboard():
     eid = _empresa_id()
     # 1-2) FUF: conteos Cumple/No Cumple/N-A + % global de cumplimiento.
@@ -447,13 +437,20 @@ def api_empresa_crear():
         return jsonify({'error': 'limite_empresas',
                         'mensaje': f'Alcanzaste el límite del Plan Básico ({MAX_EMPRESAS_BASICO} '
                                    'empresas). Migra a un pack corporativo superior para gestionar más.'}), 403
+    try:
+        dotacion = int(f.get('dotacion') or 0) or None
+    except (TypeError, ValueError):
+        dotacion = None
     eid = db.crear_empresa(
         session['rut'], razon,
         rut_empresa=(f.get('rut_empresa') or '').strip() or None,
         mutual=(f.get('mutual') or '').strip() or None,
         n_adherente=(f.get('n_adherente') or '').strip() or None,
-        rubro=(f.get('rubro') or '').strip() or None)
+        rubro=(f.get('rubro') or '').strip() or None,
+        dotacion=dotacion)
     session['empresa_id'] = eid
+    if dotacion:
+        db.aplicar_reglas_dotacion(eid)
     return jsonify({'ok': True, 'empresa_id': eid, 'empresas': db.empresas_de(session['rut'])})
 
 
@@ -994,6 +991,7 @@ def api_carpeta_estado(cid, n):
 # ─────────────────────────── FUF DS 44 (persistencia) ──────────────────────
 @app.route('/api/fuf', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_fuf_get():
     return jsonify(db.estados_fuf(_empresa_id()))
 
@@ -1035,6 +1033,7 @@ def _dias_restantes(fecha_iso):
 
 @app.route('/api/brechas', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_brechas():
     rut = session['rut']
     eid = _empresa_id()
@@ -1092,6 +1091,7 @@ def api_brecha_compromiso():
 # ══════════════ Motor de Cumplimiento: pendientes / matriz / reglas ═════════
 @app.route('/api/pendientes', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_pendientes():
     """Panel de Actividades Pendientes unificado (legal + contractual + operativa),
     con el seguimiento de actualización anual adjunto a cada ítem legal."""
@@ -1149,69 +1149,8 @@ def api_pendiente_subir(categoria):
                     'mensaje': mensaje, 'pendientes': alertas.actividades_pendientes(db, eid)})
 
 
-@app.route('/api/matriz-legal', methods=['GET'])
-@empresa_required
-def api_matriz_get():
-    return jsonify(db.matriz_legal(_empresa_id()))
-
-
-@app.route('/api/matriz-legal', methods=['POST'])
-@empresa_required
-def api_matriz_guardar():
-    data = request.get_json(silent=True) or {}
-    # Capa Operativa: si es fila nueva sin ID, genera uno (OP-N) automáticamente.
-    if not (data.get('id_requisito') or '').strip():
-        existentes = db.matriz_legal(_empresa_id())
-        n = 1 + sum(1 for r in existentes if str(r.get('id_requisito') or '').startswith('OP-'))
-        data['id_requisito'] = f'OP-{n:03d}'
-        data.setdefault('capa', 'operativa')
-    return jsonify(db.requisito_guardar(_empresa_id(), data))
-
-
-@app.route('/api/matriz-legal/<int:rid>/eliminar', methods=['POST'])
-@empresa_required
-def api_matriz_eliminar(rid):
-    res = db.requisito_eliminar(_empresa_id(), rid)
-    if res.get('error'):
-        return jsonify(res), 400
-    return jsonify(db.matriz_legal(_empresa_id()))
-
-
-@app.route('/api/matriz-legal/importar', methods=['POST'])
-@empresa_required
-def api_matriz_importar():
-    """Importa la Matriz Legal desde un Excel normalizado (columnas ID_Requisito, Origen,
-    Cuerpo_Normativo, Requisito_Legal, Riesgo_Asociado, Control_Operativo, Frecuencia,
-    Estado_Avance). Reusa openpyxl."""
-    archivo = request.files.get('archivo')
-    if not archivo or not archivo.filename:
-        return jsonify({'error': 'No se recibió archivo.'}), 400
-    try:
-        from openpyxl import load_workbook
-        wb = load_workbook(BytesIO(archivo.read()), data_only=True)
-        ws = wb.active
-        filas = list(ws.iter_rows(values_only=True))
-    except Exception as e:      # noqa: BLE001
-        return jsonify({'error': f'No se pudo leer el Excel: {type(e).__name__}.'}), 400
-    if not filas:
-        return jsonify({'error': 'El archivo está vacío.'}), 400
-    encabezados = [str(h or '').strip().lower().replace(' ', '_') for h in filas[0]]
-    campo = {'id_requisito': 'id_requisito', 'origen': 'origen', 'cuerpo_normativo': 'cuerpo_normativo',
-             'requisito_legal': 'requisito_legal', 'riesgo_asociado': 'riesgo_asociado',
-             'control_operativo': 'control_operativo', 'frecuencia': 'frecuencia',
-             'estado_avance': 'estado_avance', 'responsable': 'responsable', 'capa': 'capa',
-             'categoria': 'categoria'}
-    n = 0
-    for fila in filas[1:]:
-        data = {}
-        for i, h in enumerate(encabezados):
-            if h in campo and i < len(fila) and fila[i] is not None:
-                data[campo[h]] = str(fila[i]).strip()
-        if not data:
-            continue
-        db.requisito_guardar(_empresa_id(), data)
-        n += 1
-    return jsonify({'ok': True, 'importados': n, 'matriz': db.matriz_legal(_empresa_id())})
+# Las rutas /api/matriz-legal* y la vista /matriz-legal viven ahora en el módulo aislado
+# matriz_legal/ (Blueprint, mismas URLs).
 
 
 @app.route('/api/reglas', methods=['GET'])
@@ -1281,6 +1220,7 @@ def api_empresa_logo_get():
 # ── Trabajadores ──
 @app.route('/api/trabajadores', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_trabajadores():
     out = []
     for t in db.trabajadores_de(_empresa_id()):
@@ -1331,6 +1271,7 @@ def api_trabajador_tareas(tid):
 # ── Tareas / EPP / PTS de la Matriz IPER ──
 @app.route('/api/iper/tareas', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_tareas_get():
     tareas = db.tareas_de_empresa(_empresa_id())
     for t in tareas:
@@ -1461,6 +1402,7 @@ def api_trabajador_irls(tid):
 # ══════════════ Ronda 17 — Consola MIPER (VEP DS 44) + biblioteca + cascada IRL ══════════
 @app.route('/api/miper', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_miper():
     """Matriz de riesgos vigente: tareas → riesgos (con VEP/magnitud/método) + contexto minero."""
     eid = _empresa_id()
@@ -1538,13 +1480,6 @@ def api_miper_vincular_legal(rid):
     req_row = db.asegurar_requisito_sugerido(eid, s)
     db.vincular_riesgo_requisito(rid, req_row)
     return jsonify({'ok': True, 'requisito_row_id': req_row, 'cuerpo_legal': s.get('cuerpo_legal')})
-
-
-@app.route('/api/matriz-legal/<int:rid>/riesgos', methods=['GET'])
-@empresa_required
-def api_matriz_riesgos(rid):
-    """Legal → MIPER: actividades/riesgos vinculados a un requisito legal."""
-    return jsonify(db.riesgos_de_requisito(_empresa_id(), rid))
 
 
 @app.route('/api/miper/desde-requisito', methods=['POST'])
@@ -1804,6 +1739,7 @@ def api_biblioteca_add():
 # ══════════════ Ronda 22 — Vehículos + QR + checklist móvil ══════════════
 @app.route('/api/vehiculos', methods=['GET'])
 @empresa_required
+@onboarding_required
 def api_vehiculos_get():
     return jsonify(db.vehiculos_de(_empresa_id()))
 

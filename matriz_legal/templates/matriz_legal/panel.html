@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Matriz Legal D.S. 44</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60' } } } }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .nav-item { display:flex; align-items:center; gap:.6rem; padding:.62rem .8rem; border-radius:.6rem; font-size:.82rem; font-weight:600; color:#bcd0e0; transition:all .15s; white-space:nowrap; }
+        .nav-item i { color:#8fb2cd; }
+        .nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .nav-item:hover i { color:#fff; }
+        .nav-item.nav-on { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 3px 0 0 #7ab038; }
+        .nav-item.nav-on i { color:#7ab038; }
+    </style>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+
+    <!-- ── Header ── -->
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+            <div class="hidden md:flex items-center gap-3 border-l pl-4">
+                <div class="flex flex-col leading-tight">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Módulo de Legalidad</span>
+                    <span class="text-sm font-extrabold text-primary inline-flex items-center gap-1">
+                        <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </a>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+        <!-- ── Sidebar ── -->
+        <aside class="w-full lg:w-60 shrink-0 lg:sticky lg:top-24">
+            <div class="bg-sidebar rounded-2xl shadow-lg overflow-hidden">
+                <div class="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-white/10">
+                    <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Smart HSE" class="h-9 w-auto brightness-0 invert">
+                    <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
+                </div>
+                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la consola</span></a>
+                    <a href="/matriz-legal" class="nav-item nav-on"><i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></a>
+                </nav>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-w-0 w-full">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="table-2" class="w-5 h-5 text-primary"></i>
+                    <h2 class="text-xl font-extrabold text-gray-900">Matriz Legal</h2>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" onclick="abrirNuevoReq()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Agregar Requisito</button>
+                    <label class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl font-bold text-sm cursor-pointer">
+                        <i data-lucide="upload" class="w-4 h-4"></i> Importar
+                        <input type="file" accept=".xlsx,.xlsm" class="hidden" onchange="importarMatriz(this)">
+                    </label>
+                </div>
+            </div>
+            <p class="text-gray-600 text-sm mb-4"><b>Capa Core</b> (obligatoria, precargada 🔒): pilares normativos vigentes — editables solo en Estado, Evidencia y Fechas. <b>Capa Operativa</b>: requisitos propios de mandantes o sectoriales, con edición y borrado.</p>
+
+            <div class="overflow-x-auto bg-white rounded-2xl shadow-sm border border-gray-100">
+                <table class="w-full text-left text-xs min-w-[1050px]">
+                    <thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500">
+                        <th class="p-2">ID</th><th class="p-2">Cuerpo Legal</th><th class="p-2">Art.</th>
+                        <th class="p-2 w-1/5">Requisito</th><th class="p-2 w-1/5">Control Operativo</th>
+                        <th class="p-2">Estado</th><th class="p-2">Evidencia / Notas</th>
+                        <th class="p-2">Responsable</th><th class="p-2">Vence</th><th class="p-2"></th>
+                    </tr></thead>
+                    <tbody id="matrizBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Modal: Agregar Requisito (Capa Operativa) -->
+            <div id="reqOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
+                    <div class="border-b px-6 py-4 flex items-center justify-between">
+                        <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar Requisito (Operativo)</h3>
+                        <button type="button" onclick="cerrarNuevoReq()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <input id="rq_origen" class="iet-in" placeholder="Origen (ej. Codelco RT, BHP Spence, Sectorial)">
+                        <input id="rq_cuerpo" class="iet-in" placeholder="Cuerpo Legal / Estándar (ej. ECF, SIGO-P006, Permiso Seremi)">
+                        <textarea id="rq_req" class="iet-in" rows="2" placeholder="Requisito / obligación específica"></textarea>
+                        <div>
+                            <textarea id="rq_control" class="iet-in" rows="4" placeholder="Control operativo — una acción por línea:&#10;Revisar el registro&#10;Firmar el acta"></textarea>
+                            <p class="text-[11px] text-gray-500 mt-1">Se guarda como lista numerada (1. 2. 3.), una acción por línea.</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <input id="rq_resp" class="iet-in" placeholder="Responsable">
+                            <input id="rq_venc" type="date" class="iet-in" title="Fecha de vencimiento">
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button type="button" onclick="cerrarNuevoReq()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                            <button type="button" onclick="guardarNuevoReq()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+        // ── Matriz Legal (doble capa, tabla editable en línea, agrupada por pilar normativo) ──
+        const MTZ_ESTADOS = ['pendiente', 'en_proceso', 'auditado', 'no_aplica'];
+        const PILARES = {{ pilares | tojson }};
+        const ORDEN_PILARES = ['P1', 'P2', 'P3', 'OTROS'];
+        function esc(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+        function agrupar(data) {
+            const grupos = [], porPilar = {}, operativas = [];
+            data.forEach(r => {
+                const p = r.pilar;
+                if (r.is_mandatory && ORDEN_PILARES.includes(p)) (porPilar[p] = porPilar[p] || []).push(r);
+                else operativas.push(r);
+            });
+            ORDEN_PILARES.forEach(p => { if (porPilar[p]) grupos.push({ nombre: PILARES[p], filas: porPilar[p] }); });
+            if (operativas.length) grupos.push({ nombre: 'Requisitos agregados manualmente', filas: operativas });
+            return grupos;
+        }
+
+        function filaHTML(r) {
+            const core = !!r.is_mandatory;
+            const id = r.id_requisito || r.id;
+            const opts = MTZ_ESTADOS.map(e => `<option value="${e}" ${(r.estado_avance || 'pendiente') === e ? 'selected' : ''}>${e.replace('_', ' ')}</option>`).join('');
+            return `<tr class="border-t border-gray-50 ${core ? 'bg-primary/5' : ''}">
+                <td class="p-2 font-mono text-[10px] text-gray-500 align-top whitespace-nowrap">${core ? '🔒 ' : ''}${esc(id)}</td>
+                <td class="p-2 align-top font-semibold text-gray-700">${esc(r.cuerpo_normativo)}</td>
+                <td class="p-2 align-top text-gray-500 text-[10px] whitespace-nowrap">${esc(r.articulo)}</td>
+                <td class="p-2 align-top text-gray-800">${esc(r.requisito_legal)}</td>
+                <td class="p-2 align-top text-gray-600 whitespace-pre-line text-[11px] leading-relaxed">${esc(r.control_operativo)}</td>
+                <td class="p-2 align-top"><select onchange="editarReq('${esc(id)}','estado_avance',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary">${opts}</select></td>
+                <td class="p-2 align-top"><input value="${esc(r.evidencia_notas)}" onchange="editarReq('${esc(id)}','evidencia_notas',this.value)" placeholder="Evidencia / notas" class="w-32 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="p-2 align-top"><input value="${esc(r.responsable)}" onchange="editarReq('${esc(id)}','responsable',this.value)" placeholder="Responsable" class="w-28 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="p-2 align-top"><input type="date" value="${esc(r.fecha_vencimiento)}" onchange="editarReq('${esc(id)}','fecha_vencimiento',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
+                <td class="p-2 align-top text-right whitespace-nowrap">
+                    <button type="button" onclick="verRiesgosReq(${r.id})" class="text-gray-300 hover:text-primary" title="Actividades de riesgo vinculadas / crear"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
+                    ${core ? '<span class="text-[9px] text-gray-400 ml-1">Obligatorio</span>' : `<button type="button" onclick="eliminarReq(${r.id})" class="text-gray-300 hover:text-red-500 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+                </td>
+            </tr>`;
+        }
+
+        async function cargarMatriz() {
+            let data = [];
+            try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
+            const body = document.getElementById('matrizBody');
+            if (!data.length) { body.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-gray-400">Sin requisitos aún. Usa “Agregar Requisito”.</td></tr>'; return; }
+            body.innerHTML = agrupar(data).map(g => `
+                <tr class="bg-sidebar/5 border-t-2 border-primary/20">
+                    <td colspan="10" class="px-2 py-2 text-[11px] font-extrabold text-primary uppercase tracking-wide">${esc(g.nombre)}</td>
+                </tr>` + g.filas.map(filaHTML).join('')).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        async function editarReq(id_requisito, campo, valor) {
+            await fetch('/api/matriz-legal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_requisito, [campo]: valor }) });
+        }
+        async function eliminarReq(rid) {
+            if (!confirm('¿Eliminar este requisito operativo?')) return;
+            const r = await fetch(`/api/matriz-legal/${rid}/eliminar`, { method: 'POST' });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo eliminar.'); return; }
+            cargarMatriz();
+        }
+        function abrirNuevoReq() { document.getElementById('reqOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
+        function cerrarNuevoReq() { document.getElementById('reqOverlay').classList.add('hidden'); }
+        async function guardarNuevoReq() {
+            const req = document.getElementById('rq_req').value.trim();
+            if (!req) { alert('Indica el requisito.'); return; }
+            await fetch('/api/matriz-legal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                capa: 'operativa', origen: document.getElementById('rq_origen').value.trim(),
+                cuerpo_normativo: document.getElementById('rq_cuerpo').value.trim(), requisito_legal: req,
+                control_operativo: document.getElementById('rq_control').value,
+                responsable: document.getElementById('rq_resp').value.trim(), fecha_vencimiento: document.getElementById('rq_venc').value }) });
+            ['rq_origen', 'rq_cuerpo', 'rq_req', 'rq_control', 'rq_resp', 'rq_venc'].forEach(i => document.getElementById(i).value = '');
+            cerrarNuevoReq(); cargarMatriz();
+        }
+        // Legal → MIPER: ver actividades de riesgo vinculadas a un requisito, o crear una nueva
+        async function verRiesgosReq(rid) {
+            let ri = [];
+            try { const r = await fetch(`/api/matriz-legal/${rid}/riesgos`); if (r.ok) ri = await r.json(); } catch (e) { }
+            const lista = ri.length ? ri.map(x => `• ${x.tarea || '—'}: ${x.peligro || ''} / ${x.riesgo || ''}`).join('\n') : '(sin actividades vinculadas)';
+            if (confirm(`Actividades de riesgo (MIPER) vinculadas a este requisito:\n\n${lista}\n\n¿Crear una nueva actividad de riesgo en la MIPER a partir de este requisito legal?`)) {
+                const r = await fetch('/api/miper/desde-requisito', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requisito_id: rid }) });
+                if (r.ok) alert('✔ Actividad creada en la Matriz de Riesgos (MIPER), vinculada a este requisito.');
+            }
+        }
+        async function importarMatriz(input) {
+            if (!input.files.length) return;
+            const fd = new FormData(); fd.append('archivo', input.files[0]);
+            const r = await fetch('/api/matriz-legal/importar', { method: 'POST', body: fd });
+            input.value = '';
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo importar.'); return; }
+            alert(`✅ Importados ${d.importados} requisitos.`);
+            cargarMatriz();
+        }
+
+        cargarMatriz();
+        if (window.lucide) lucide.createIcons();
+    </script>
+</body>
+</html>

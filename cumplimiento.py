@@ -98,34 +98,97 @@ FUENTES_LEGALES = [
 ]
 
 
+# ── Pilares normativos de la Matriz Legal (agrupación de la capa Core) ──
+# El orden de este dict es el orden de render en el panel. 'OTROS' es un valor explícito y no
+# None: matriz_legal.service usa `pilar IS NULL` como centinela del backfill, así que un pilar
+# nulo legítimo dispararía UPDATEs en cada request.
+PILARES = {
+    'P1': 'Pilar 1 · Gestión Preventiva e Información de Riesgos Laborales — D.S. 44 Art. 13-16',
+    'P2': 'Pilar 2 · Condiciones Sanitarias y Ambientales Básicas — D.S. 594',
+    'P3': 'Pilar 3 · Prevención del Acoso y Violencia Laboral — Ley 21.643 (Karin)',
+    'OTROS': 'Otros requisitos Core',
+}
+
 # ── Matriz Legal — Capa Core (requisitos transversales VIGENTES, precarga obligatoria) ──
 # Se inyectan al crear la empresa con is_mandatory=1 (bloqueados en Requisito/Cuerpo_Legal;
 # editables en Estado_Avance, Evidencia_Notas, Responsable y Fecha_Vencimiento).
+# control_operativo va en el formato estricto de lista numérica '1.\n<acción>\n2.\n<acción>\n'
+# (ver matriz_legal.formato.normalizar_control_operativo). Los 8 deben tener pilar y control:
+# un Core sin ellos reabriría el backfill en cada GET.
 REQUISITOS_CORE = [
     {'id_requisito': 'CORE-01', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 16.744',
      'requisito': 'Adhesión a un Organismo Administrador del Seguro (mutualidad o ISL) y cotización vigente.',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'OTROS', 'articulo': 'Art. 4 y 5',
+     'control_operativo':
+         '1.\nMantener vigente la adhesión al Organismo Administrador y su N° de adherente.\n'
+         '2.\nArchivar el certificado de afiliación y las 3 constancias exigidas.\n'
+         '3.\nVerificar el pago mensual de la cotización básica y adicional diferenciada.\n'},
     {'id_requisito': 'CORE-02', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
      'requisito': 'Sistema de Gestión de SST implementado (política, MIPER, programa de trabajo y evaluación anual).',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'P1', 'articulo': 'Art. 13',
+     'control_operativo':
+         '1.\nFormalizar la política de SST firmada por la gerencia y difundirla al personal.\n'
+         '2.\nMantener el programa de trabajo anual con responsables y plazos.\n'
+         '3.\nRealizar la evaluación anual del sistema y registrar sus conclusiones.\n'},
     {'id_requisito': 'CORE-03', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
      'requisito': 'Matriz IPER elaborada, difundida y revisada al menos anualmente o ante cambios.',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'P1', 'articulo': 'Art. 14 y 15',
+     'control_operativo':
+         '1.\nIdentificar peligros y evaluar riesgos por puesto de trabajo y tarea.\n'
+         '2.\nDefinir medidas de control según la jerarquía (eliminación a EPP).\n'
+         '3.\nRevisar la matriz al menos una vez al año o ante todo cambio de proceso.\n'
+         '4.\nDifundir la matriz vigente a los trabajadores y dejar registro firmado.\n'},
     {'id_requisito': 'CORE-04', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 44/2024',
      'requisito': 'Obligación de Informar los riesgos laborales (ODI) entregada y registrada a cada trabajador.',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'P1', 'articulo': 'Art. 16',
+     'control_operativo':
+         '1.\nEntregar la ODI al ingreso y ante todo cambio de tarea o de riesgo.\n'
+         '2.\nRegistrar la firma del trabajador y archivar el comprobante.\n'
+         '3.\nRepetir la información al menos una vez al año.\n'},
     {'id_requisito': 'CORE-05', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 594',
      'requisito': 'Condiciones sanitarias y ambientales básicas (agua potable, servicios higiénicos, EPP certificado).',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'P2', 'articulo': 'Art. 12-27 y 53',
+     'control_operativo':
+         '1.\nAsegurar agua potable y servicios higiénicos suficientes según la dotación.\n'
+         '2.\nMantener comedores y vestidores en las condiciones exigidas.\n'
+         '3.\nEntregar EPP certificado y registrar su entrega por trabajador.\n'
+         '4.\nControlar los agentes ambientales presentes contra los límites permisibles.\n'},
     {'id_requisito': 'CORE-06', 'origen': 'Legal Nacional', 'cuerpo_legal': 'DS 54 / Ley 16.744',
      'requisito': 'Comité Paritario de Higiene y Seguridad constituido cuando hay más de 25 trabajadores.',
-     'frecuencia_actualizacion_meses': 24},
+     'frecuencia_actualizacion_meses': 24, 'pilar': 'OTROS', 'articulo': 'Art. 66 Ley 16.744',
+     'control_operativo':
+         '1.\nConstituir el CPHS por votación cuando la dotación llegue a 25 trabajadores.\n'
+         '2.\nSesionar mensualmente y levantar acta de cada reunión.\n'
+         '3.\nRenovar el comité cada 2 años.\n'},
     {'id_requisito': 'CORE-07', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 21.643 (Karin)',
      'requisito': 'Protocolo de prevención del acoso sexual, laboral y violencia en el trabajo, incorporado al RIOHS.',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'P3', 'articulo': 'Art. 1 y 2',
+     'control_operativo':
+         '1.\nIncorporar el protocolo de prevención del acoso y la violencia al RIOHS.\n'
+         '2.\nDifundir el protocolo y el canal de denuncia a toda la dotación.\n'
+         '3.\nCapacitar a jefaturas en la aplicación del procedimiento de investigación.\n'
+         '4.\nDerivar toda denuncia a la DT o investigar en plazo máximo de 30 días.\n'},
     {'id_requisito': 'CORE-08', 'origen': 'Legal Nacional', 'cuerpo_legal': 'Ley 21.015 / 21.690',
      'requisito': 'Cumplimiento de inclusión laboral: reserva del 1% de puestos en empresas de 100 o más trabajadores.',
-     'frecuencia_actualizacion_meses': 12},
+     'frecuencia_actualizacion_meses': 12, 'pilar': 'OTROS', 'articulo': 'Art. 157 bis CdT',
+     'control_operativo':
+         '1.\nVerificar si la dotación alcanza 100 trabajadores y activa la reserva del 1%.\n'
+         '2.\nRegistrar los contratos de personas con discapacidad en la DT.\n'
+         '3.\nEnviar la comunicación electrónica anual a la Dirección del Trabajo.\n'},
+]
+
+
+# ── Cruce automático dotación → aplicabilidad de requisitos Core ──
+# La dotación declarada en el onboarding determina si CORE-06 y CORE-08 son exigibles.
+# Los umbrales y su fundamento son datos; el writer vive en db.aplicar_reglas_dotacion().
+REGLAS_DOTACION = [
+    {'id_requisito': 'CORE-06', 'umbral': 25,
+     'fundamento': 'Dotación declarada: {n} trabajadores (inferior a 25). La constitución del Comité '
+                   'Paritario de Higiene y Seguridad es exigible desde 25 trabajadores '
+                   '(Art. 66 Ley 16.744 / DS 54). No aplica.'},
+    {'id_requisito': 'CORE-08', 'umbral': 100,
+     'fundamento': 'Dotación declarada: {n} trabajadores (inferior a 100). La reserva del 1% de puestos '
+                   'para personas con discapacidad rige desde 100 trabajadores (Ley 21.015). No aplica.'},
 ]
 
 

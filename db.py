@@ -75,6 +75,9 @@ _COLUMNAS_NUEVAS = [
     ('irl_generado', 'motivo_actualizacion', 'TEXT'),
     # Ronda 18 Fase 2 — capa legal por contrato/faena
     ('requisito_legal', 'contrato_id', 'INTEGER'),
+    # Ronda 24 — Onboarding obligatorio + Pilares de la Matriz Legal
+    ('empresa', 'dotacion', 'INTEGER'),
+    ('requisito_legal', 'pilar', 'TEXT'),
 ]
 
 
@@ -236,10 +239,10 @@ def vocabulario_eliminar(vid):
 # ───────────────────────────── Contratos ──────────────────────────────────
 # ─────────────────────────────── Empresas (Ronda 12) ──────────────────────
 def crear_empresa(rut, razon_social, rut_empresa=None, mutual=None,
-                  n_adherente=None, rubro=None, datos_json=None):
+                  n_adherente=None, rubro=None, datos_json=None, dotacion=None):
     e = Empresa(rut_asesor=rut, razon_social=razon_social, rut_empresa=rut_empresa,
                 mutual=mutual, n_adherente=n_adherente, rubro=rubro,
-                creado=_hoy(), datos_json=datos_json)
+                creado=_hoy(), datos_json=datos_json, dotacion=dotacion)
     sqla.session.add(e)
     _commit()
     seed_requisitos_core(e.id)          # Ronda 16: precarga la Capa Core (obligatoria)
@@ -509,6 +512,48 @@ def _core01_auto_cumple(empresa_id):
                                'Certificados de Adhesión, Siniestralidad y Cotizaciones cargados.')
         row.fecha_actualizacion = _hoy()
     _commit()
+
+
+def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
+    """Cruce automático: la dotación declarada determina si CORE-06 (CPHS, desde 25) y CORE-08
+    (reserva 1%, desde 100) son exigibles. Deja rastro en la bitácora ValidacionCumplimiento.
+
+    Es bidireccional a propósito: si la dotación sube y cruza el umbral, el requisito vuelve a
+    'pendiente'. Sin esa vuelta quedaría un 'no aplica' fósil y la empresa creería estar cumpliendo
+    un requisito que la ley sí le exige. Nunca pisa un estado 'auditado': el dato humano con
+    evidencia real gana sobre la regla. Idempotente: solo escribe cuando el estado cambia."""
+    from datetime import datetime as _dtn
+    e = Empresa.query.get(empresa_id)
+    if not e or not e.dotacion:
+        return []
+    try:
+        n = int(e.dotacion)
+    except (TypeError, ValueError):
+        return []
+    ahora, tocados = _dtn.now().isoformat(timespec='seconds'), []
+    for regla in cumplimiento.REGLAS_DOTACION:
+        row = RequisitoLegal.query.filter_by(empresa_id=empresa_id,
+                                             id_requisito=regla['id_requisito']).first()
+        if not row or row.estado_avance == 'auditado':
+            continue
+        no_aplica = n < regla['umbral']
+        nuevo = 'no_aplica' if no_aplica else 'pendiente'
+        if row.estado_avance == nuevo:
+            continue
+        umbral = regla['umbral']
+        motivo = (regla['fundamento'].format(n=n) if no_aplica else
+                  f'Dotación declarada: {n} trabajadores (igual o superior a {umbral}). '
+                  'El requisito pasa a ser exigible y queda pendiente de evidencia.')
+        sqla.session.add(ValidacionCumplimiento(
+            requisito_id=row.id, validado_por=quien, validado_en=ahora,
+            estado='no_aplica' if no_aplica else 'en_revision', comentario=motivo))
+        row.estado_avance = nuevo
+        row.evidencia_notas = motivo
+        row.validado_por, row.validado_en = quien, ahora
+        row.fecha_actualizacion = _hoy()
+        tocados.append(row.id_requisito)
+    _commit()
+    return tocados
 
 
 def listar_contratos(rut, empresa_id=None):
@@ -1002,7 +1047,8 @@ _MATRIZ_CAMPOS_GESTION = ('estado_avance', 'evidencia_notas', 'responsable',
                           'fecha_vencimiento', 'fecha_actualizacion')
 _MATRIZ_CAMPOS_DEF = ('capa', 'origen', 'cuerpo_normativo', 'requisito_legal', 'obligacion',
                       'riesgo_asociado', 'control_operativo', 'frecuencia', 'categoria',
-                      'fuente_legal_id', 'articulo', 'frecuencia_actualizacion_meses', 'contrato_id')
+                      'fuente_legal_id', 'articulo', 'frecuencia_actualizacion_meses', 'contrato_id',
+                      'pilar')
 
 
 def requisito_guardar(empresa_id, data):

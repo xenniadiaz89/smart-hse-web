@@ -48,6 +48,7 @@ class Empresa(_DictMixin, sqla.Model):
     creado = sqla.Column(sqla.Text)
     datos_json = sqla.Column(sqla.Text)
     logo_doc_id = sqla.Column(sqla.Integer)               # Ronda 16: logo corporativo (blob en documento)
+    dotacion = sqla.Column(sqla.Integer)                  # N° de trabajadores: gatilla CORE-06 (CPHS) y CORE-08 (1%)
 
 
 class Contrato(_DictMixin, sqla.Model):
@@ -252,6 +253,7 @@ class RequisitoLegal(_DictMixin, sqla.Model):
     evidencia_notas = sqla.Column(sqla.Text)
     fecha_vencimiento = sqla.Column(sqla.Text)
     contrato_id = sqla.Column(sqla.Integer, index=True)   # Ronda 18 F2: requisito por contrato/faena (null = transversal)
+    pilar = sqla.Column(sqla.Text)                        # 'P1'|'P2'|'P3'|'OTROS' → agrupación (cumplimiento.PILARES)
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'id_requisito'),)
 
 

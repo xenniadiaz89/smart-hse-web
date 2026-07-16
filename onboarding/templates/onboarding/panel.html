@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Datos de tu empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60' } } } }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .lbl { font-size:.75rem; font-weight:700; color:#4b5563; text-transform:uppercase; letter-spacing:.03em; }
+    </style>
+</head>
+<body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
+
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm">
+        <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+        <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </a>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-6 py-10">
+
+        <div class="mb-6">
+            <h1 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+                <i data-lucide="building-2" class="w-6 h-6 text-primary"></i>
+                {% if completo %}Datos de tu empresa{% else %}Bienvenido a Smart HSE{% endif %}
+            </h1>
+            {% if completo %}
+            <p class="text-gray-600 text-sm mt-2">Estos son los datos legales de tu empresa. Si cambian, actualízalos aquí: la dotación recalcula automáticamente qué requisitos te exige la ley.</p>
+            {% elif empresa %}
+            <p class="text-gray-600 text-sm mt-2">Nos falta un dato para activar tus cruces legales automáticos (CPHS y Ley 21.015). Completa lo que falte y quedas operativo.</p>
+            {% else %}
+            <p class="text-gray-600 text-sm mt-2">Registra los datos legales de tu empresa para habilitar la consola. Con esto precargamos tu Matriz Legal D.S. 44 y activamos los cruces automáticos.</p>
+            {% endif %}
+        </div>
+
+        <div id="alerta" class="hidden mb-4 rounded-xl border px-4 py-3 text-sm font-semibold"></div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+
+            <div>
+                <label class="lbl" for="ob_razon">Razón Social</label>
+                <input id="ob_razon" class="iet-in" placeholder="Ej. Servicios Integrales SpA"
+                       value="{{ empresa.razon_social if empresa else '' }}">
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="lbl" for="ob_rut">RUT de la empresa</label>
+                    <input id="ob_rut" class="iet-in" placeholder="76.123.456-7"
+                           value="{{ empresa.rut_empresa if empresa else '' }}">
+                </div>
+                <div>
+                    <label class="lbl" for="ob_dotacion">Dotación de trabajadores</label>
+                    <input id="ob_dotacion" type="number" min="1" class="iet-in" placeholder="Ej. 18"
+                           value="{{ empresa.dotacion if empresa and empresa.dotacion else '' }}">
+                    <p class="text-[11px] text-gray-500 mt-1">Define si te aplican el Comité Paritario (desde 25) y la reserva del 1% (desde 100).</p>
+                </div>
+            </div>
+
+            <!-- Adhesión Ley 16.744: se captura aquí una vez; su GESTIÓN vive en Protocolos de Salud -->
+            <div class="border-t pt-5">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="lbl" for="ob_mutual">Organismo Administrador (OAL)</label>
+                        <select id="ob_mutual" class="iet-in">
+                            <option value="">— Selecciona —</option>
+                            {% for m in mutuales %}
+                            <option value="{{ m }}" {% if empresa and empresa.mutual == m %}selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="lbl" for="ob_adherente">N° de Adherente</label>
+                        <input id="ob_adherente" class="iet-in" placeholder="Ej. 123456-0"
+                               value="{{ empresa.n_adherente if empresa else '' }}">
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-500 mt-2 flex items-start gap-1.5">
+                    <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary"></i>
+                    <span>La gestión de la adhesión y sus certificados vive en <b>Protocolos de Salud</b>. Aquí solo registramos el organismo y tu número de adherente.</span>
+                </p>
+            </div>
+
+            <div class="flex justify-end pt-1">
+                <button type="button" id="btnGuardar" onclick="guardarOnboarding()"
+                        class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6b9c31] text-white px-6 py-2.5 rounded-xl font-bold text-sm">
+                    <i data-lucide="save" class="w-4 h-4"></i> Guardar y continuar
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function aviso(tipo, msg) {
+            const el = document.getElementById('alerta');
+            const estilos = { error: 'bg-red-50 border-red-200 text-red-800', ok: 'bg-green-50 border-green-200 text-green-800' };
+            el.className = 'mb-4 rounded-xl border px-4 py-3 text-sm font-semibold ' + estilos[tipo];
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        async function guardarOnboarding() {
+            const btn = document.getElementById('btnGuardar');
+            btn.disabled = true; btn.classList.add('opacity-60');
+            try {
+                const r = await fetch('/api/onboarding', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        razon_social: document.getElementById('ob_razon').value,
+                        rut_empresa: document.getElementById('ob_rut').value,
+                        dotacion: document.getElementById('ob_dotacion').value,
+                        mutual: document.getElementById('ob_mutual').value,
+                        n_adherente: document.getElementById('ob_adherente').value
+                    })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { aviso('error', d.error || 'No se pudo guardar.'); return; }
+                const n = (d.requisitos_actualizados || []).length;
+                aviso('ok', '✔ Datos guardados.' + (n ? ` Se actualizaron ${n} requisitos de tu Matriz Legal según la dotación.` : ''));
+                setTimeout(() => location.href = d.redirect || '/dashboard', n ? 1400 : 500);
+            } catch (e) {
+                aviso('error', 'Error de conexión. Reintenta.');
+            } finally {
+                btn.disabled = false; btn.classList.remove('opacity-60');
+            }
+        }
+        if (window.lucide) lucide.createIcons();
+    </script>
+</body>
+</html>

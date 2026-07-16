@@ -110,35 +110,52 @@
                    <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Smart HSE" class="h-9 w-auto brightness-0 invert">
                    <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
                </div>
+               {#- Módulo bloqueado hasta completar el onboarding. 'Avance general' y 'Mis contratos'
+                   nunca se bloquean: son la salida. Esto es cosmético — el bloqueo real lo hace
+                   @onboarding_required en el servidor. -#}
+               {%- macro nav(id, icono, texto, carga=None) %}
+                   {%- if onboarding_ok %}
+                   <button type="button" data-nav="{{ id }}" onclick="mostrarVista('{{ id }}'){% if carga %}; {{ carga }}{% endif %}" class="nav-item">
+                       <i data-lucide="{{ icono }}" class="w-5 h-5"></i> <span>{{ texto }}</span>{{ caller() if caller }}</button>
+                   {%- else %}
+                   <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="{{ icono }}" class="w-5 h-5"></i> <span>{{ texto }}</span></button>
+                   {%- endif %}
+               {%- endmacro %}
                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+                   {% if not onboarding_ok %}
+                   <a href="/onboarding" class="block mx-1 mb-1 bg-amber-400/15 border border-amber-300/40 rounded-lg px-3 py-2 text-[11px] font-semibold text-amber-100 hover:bg-amber-400/25">
+                       <span class="flex items-center gap-1.5"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Completa los datos de tu empresa</span>
+                       <span class="block text-amber-200/70 font-normal mt-0.5">para desbloquear los módulos →</span>
+                   </a>
+                   {% endif %}
                    <button type="button" data-nav="avance" onclick="mostrarVista('avance')" class="nav-item nav-on">
                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance general</span></button>
                    <button type="button" data-nav="contratos" onclick="mostrarVista('contratos'); cargarEmpresaCard()" class="nav-item">
                        <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis contratos</span></button>
-                   <button type="button" data-nav="matriz" onclick="mostrarVista('matriz'); cargarMatriz()" class="nav-item">
+                   {% if not MODULOS_OK.get('matriz_legal') %}
+                   <button type="button" disabled title="Módulo no disponible temporalmente" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz legal (no disponible)</span></button>
+                   {% elif onboarding_ok %}
+                   <a href="/matriz-legal" class="nav-item">
+                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></a>
+                   {% else %}
+                   <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></button>
-                   <button type="button" data-nav="ds44" onclick="mostrarVista('ds44'); cargarDS44()" class="nav-item">
-                       <i data-lucide="clipboard-check" class="w-5 h-5"></i> <span>Cumplimiento DS 44</span></button>
-                   <button type="button" data-nav="miper" onclick="mostrarVista('miper'); cargarMIPER()" class="nav-item">
-                       <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de riesgos</span></button>
-                   <button type="button" data-nav="faena" onclick="mostrarVista('faena'); cargarFaena()" class="nav-item">
-                       <i data-lucide="hard-hat" class="w-5 h-5"></i> <span>Gestión de faena</span></button>
-                   <button type="button" data-nav="protocolos" onclick="mostrarVista('protocolos'); cargarProtocolos()" class="nav-item">
-                       <i data-lucide="heart-pulse" class="w-5 h-5"></i> <span>Protocolos de Salud</span></button>
-                   <button type="button" data-nav="capacitaciones" onclick="mostrarVista('capacitaciones'); cargarCapacitaciones()" class="nav-item">
-                       <i data-lucide="graduation-cap" class="w-5 h-5"></i> <span>Capacitaciones Legales</span></button>
-                   <button type="button" data-nav="checklist" onclick="mostrarVista('checklist'); cargarVehiculos()" class="nav-item">
-                       <i data-lucide="list-checks" class="w-5 h-5"></i> <span>Checklist digital</span></button>
-                   <button type="button" data-nav="iet" onclick="mostrarVista('iet')" class="nav-item">
-                       <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Inspección en terreno</span></button>
+                   {% endif %}
+                   {{ nav('ds44', 'clipboard-check', 'Cumplimiento DS 44', 'cargarDS44()') }}
+                   {{ nav('miper', 'shield-alert', 'Matriz de riesgos', 'cargarMIPER()') }}
+                   {{ nav('faena', 'hard-hat', 'Gestión de faena', 'cargarFaena()') }}
+                   {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
+                   {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
+                   {{ nav('checklist', 'list-checks', 'Checklist digital', 'cargarVehiculos()') }}
+                   {{ nav('iet', 'map-pin', 'Inspección en terreno') }}
                    <div class="side-divider">Más</div>
-                   <button type="button" data-nav="pendientes" onclick="mostrarVista('pendientes'); cargarPendientes()" class="nav-item">
-                       <i data-lucide="calendar-clock" class="w-5 h-5"></i> <span>Actividades Pendientes</span>
-                       <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span></button>
-                   <button type="button" data-nav="irl" onclick="mostrarVista('irl'); cargarIRL()" class="nav-item">
-                       <i data-lucide="file-badge" class="w-5 h-5"></i> <span>Trabajadores / IRL</span></button>
-                   <button type="button" data-nav="vocab" onclick="mostrarVista('vocab'); cargarVocab()" class="nav-item">
-                       <i data-lucide="book-a" class="w-5 h-5"></i> <span>Vocabulario técnico</span></button>
+                   {% call nav('pendientes', 'calendar-clock', 'Actividades Pendientes', 'cargarPendientes()') %}
+                       <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span>
+                   {%- endcall %}
+                   {{ nav('irl', 'file-badge', 'Trabajadores / IRL', 'cargarIRL()') }}
+                   {{ nav('vocab', 'book-a', 'Vocabulario técnico', 'cargarVocab()') }}
                </nav>
            </div>
        </aside>
@@ -496,57 +513,6 @@
             <div id="pendientesLista" class="space-y-3"></div>
         </section>
 
-        <!-- VISTA: Matriz Legal (doble capa: Core obligatoria + Operativa) -->
-        <section id="vista-matriz" class="hidden">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="table-2" class="w-5 h-5 text-primary"></i>
-                    <h2 class="text-xl font-extrabold text-gray-900">Matriz Legal</h2>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" onclick="abrirNuevoReq()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm">
-                        <i data-lucide="plus" class="w-4 h-4"></i> Agregar Requisito</button>
-                    <label class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl font-bold text-sm cursor-pointer">
-                        <i data-lucide="upload" class="w-4 h-4"></i> Importar
-                        <input type="file" accept=".xlsx,.xlsm" class="hidden" onchange="importarMatriz(this)">
-                    </label>
-                </div>
-            </div>
-            <p class="text-gray-600 text-sm mb-4"><b>Capa Core</b> (obligatoria, precargada 🔒): requisitos transversales vigentes (Ley 16.744, DS 44, DS 594, Karin, Inclusión) — editables solo en Estado, Evidencia y Fechas. <b>Capa Operativa</b>: requisitos propios de mandantes o sectoriales, con edición y borrado.</p>
-            <div class="overflow-x-auto bg-white rounded-2xl shadow-sm border border-gray-100">
-                <table class="w-full text-left text-xs min-w-[900px]">
-                    <thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                        <th class="p-2">ID</th><th class="p-2">Origen</th><th class="p-2">Cuerpo Legal</th>
-                        <th class="p-2 w-1/4">Requisito</th><th class="p-2">Estado</th><th class="p-2">Evidencia / Notas</th>
-                        <th class="p-2">Responsable</th><th class="p-2">Vence</th><th class="p-2"></th>
-                    </tr></thead>
-                    <tbody id="matrizBody"></tbody>
-                </table>
-            </div>
-
-            <!-- Modal: Agregar Requisito (Capa Operativa) -->
-            <div id="reqOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
-                    <div class="border-b px-6 py-4 flex items-center justify-between">
-                        <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar Requisito (Operativo)</h3>
-                        <button type="button" onclick="cerrarNuevoReq()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
-                    </div>
-                    <div class="p-6 space-y-3">
-                        <input id="rq_origen" class="iet-in" placeholder="Origen (ej. Codelco RT, BHP Spence, Sectorial)">
-                        <input id="rq_cuerpo" class="iet-in" placeholder="Cuerpo Legal / Estándar (ej. ECF, SIGO-P006, Permiso Seremi)">
-                        <textarea id="rq_req" class="iet-in" rows="2" placeholder="Requisito / obligación específica"></textarea>
-                        <div class="grid grid-cols-2 gap-3">
-                            <input id="rq_resp" class="iet-in" placeholder="Responsable">
-                            <input id="rq_venc" type="date" class="iet-in" title="Fecha de vencimiento">
-                        </div>
-                        <div class="flex justify-end gap-2 pt-1">
-                            <button type="button" onclick="cerrarNuevoReq()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
-                            <button type="button" onclick="guardarNuevoReq()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
 
         <!-- VISTA: Matriz de Riesgos (MIPER — DS 44 / Guía ISP 3, VEP=P×C) -->
         <section id="vista-miper" class="hidden">
@@ -1357,7 +1323,9 @@
         // ─────────────────────────────────────────────────────────────
         // NAVEGACIÓN DE VISTAS (menú lateral)
         // ─────────────────────────────────────────────────────────────
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'matriz', 'miper', 'faena', 'irl', 'protocolos', 'capacitaciones'];
+        // 'matriz' salió de aquí: la Matriz Legal es ahora una página propia (/matriz-legal),
+        // no una sección de este archivo. mostrarVista() no tolera ids inexistentes.
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'miper', 'faena', 'irl', 'protocolos', 'capacitaciones'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -2560,79 +2528,6 @@
             cargarPendientes();
         }
 
-        // ── Matriz Legal (doble capa, tabla editable en línea) ──
-        const MTZ_ESTADOS = ['pendiente', 'en_proceso', 'auditado', 'no_aplica'];
-        function esc(s) { return (s == null ? '' : String(s)).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
-        async function cargarMatriz() {
-            let data = [];
-            try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
-            const body = document.getElementById('matrizBody');
-            if (!data.length) { body.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-gray-400">Sin requisitos aún. Crea una empresa para precargar la Capa Core, o usa “Agregar Requisito”.</td></tr>'; return; }
-            // Core primero, luego operativa
-            data.sort((a, b) => (b.is_mandatory || 0) - (a.is_mandatory || 0));
-            body.innerHTML = data.map(r => {
-                const core = !!r.is_mandatory;
-                const id = r.id_requisito || r.id;
-                const opts = MTZ_ESTADOS.map(e => `<option value="${e}" ${(r.estado_avance || 'pendiente') === e ? 'selected' : ''}>${e.replace('_', ' ')}</option>`).join('');
-                return `<tr class="border-t border-gray-50 ${core ? 'bg-primary/5' : ''}">
-                    <td class="p-2 font-mono text-[10px] text-gray-500 align-top whitespace-nowrap">${core ? '🔒 ' : ''}${esc(id)}</td>
-                    <td class="p-2 align-top text-gray-600">${esc(r.origen)}</td>
-                    <td class="p-2 align-top font-semibold text-gray-700">${esc(r.cuerpo_normativo)}</td>
-                    <td class="p-2 align-top text-gray-800">${esc(r.requisito_legal)}</td>
-                    <td class="p-2 align-top"><select onchange="editarReq('${esc(id)}','estado_avance',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary">${opts}</select></td>
-                    <td class="p-2 align-top"><input value="${esc(r.evidencia_notas)}" onchange="editarReq('${esc(id)}','evidencia_notas',this.value)" placeholder="Evidencia / notas" class="w-32 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                    <td class="p-2 align-top"><input value="${esc(r.responsable)}" onchange="editarReq('${esc(id)}','responsable',this.value)" placeholder="Responsable" class="w-28 border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                    <td class="p-2 align-top"><input type="date" value="${esc(r.fecha_vencimiento)}" onchange="editarReq('${esc(id)}','fecha_vencimiento',this.value)" class="border border-gray-200 rounded px-1 py-1 text-[11px] outline-none focus:border-primary"></td>
-                    <td class="p-2 align-top text-right whitespace-nowrap">
-                        <button type="button" onclick="verRiesgosReq(${r.id})" class="text-gray-300 hover:text-primary" title="Actividades de riesgo vinculadas / crear"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
-                        ${core ? '<span class="text-[9px] text-gray-400 ml-1">Obligatorio</span>' : `<button type="button" onclick="eliminarReq(${r.id})" class="text-gray-300 hover:text-red-500 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
-                    </td>
-                </tr>`;
-            }).join('');
-            if (window.lucide) lucide.createIcons();
-        }
-        async function editarReq(id_requisito, campo, valor) {
-            await fetch('/api/matriz-legal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_requisito, [campo]: valor }) });
-        }
-        async function eliminarReq(rid) {
-            if (!confirm('¿Eliminar este requisito operativo?')) return;
-            const r = await fetch(`/api/matriz-legal/${rid}/eliminar`, { method: 'POST' });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok) { alert(d.error || 'No se pudo eliminar.'); return; }
-            cargarMatriz();
-        }
-        function abrirNuevoReq() { document.getElementById('reqOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
-        function cerrarNuevoReq() { document.getElementById('reqOverlay').classList.add('hidden'); }
-        async function guardarNuevoReq() {
-            const req = document.getElementById('rq_req').value.trim();
-            if (!req) { alert('Indica el requisito.'); return; }
-            await fetch('/api/matriz-legal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-                capa: 'operativa', origen: document.getElementById('rq_origen').value.trim(),
-                cuerpo_normativo: document.getElementById('rq_cuerpo').value.trim(), requisito_legal: req,
-                responsable: document.getElementById('rq_resp').value.trim(), fecha_vencimiento: document.getElementById('rq_venc').value }) });
-            ['rq_origen', 'rq_cuerpo', 'rq_req', 'rq_resp', 'rq_venc'].forEach(i => document.getElementById(i).value = '');
-            cerrarNuevoReq(); cargarMatriz();
-        }
-        // Legal → MIPER: ver actividades de riesgo vinculadas a un requisito, o crear una nueva
-        async function verRiesgosReq(rid) {
-            let ri = [];
-            try { const r = await fetch(`/api/matriz-legal/${rid}/riesgos`); if (r.ok) ri = await r.json(); } catch (e) { }
-            const lista = ri.length ? ri.map(x => `• ${x.tarea || '—'}: ${x.peligro || ''} / ${x.riesgo || ''}`).join('\n') : '(sin actividades vinculadas)';
-            if (confirm(`Actividades de riesgo (MIPER) vinculadas a este requisito:\n\n${lista}\n\n¿Crear una nueva actividad de riesgo en la MIPER a partir de este requisito legal?`)) {
-                const r = await fetch('/api/miper/desde-requisito', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requisito_id: rid }) });
-                if (r.ok) alert('✔ Actividad creada en la Matriz de Riesgos (MIPER), vinculada a este requisito.');
-            }
-        }
-        async function importarMatriz(input) {
-            if (!input.files.length) return;
-            const fd = new FormData(); fd.append('archivo', input.files[0]);
-            const r = await fetch('/api/matriz-legal/importar', { method: 'POST', body: fd });
-            input.value = '';
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok) { alert(d.error || 'No se pudo importar.'); return; }
-            alert(`✅ Importados ${d.importados} requisitos.`);
-            cargarMatriz();
-        }
 
         // ── Flota / Vehículos con QR (Ronda 22) ──
         function toggleFormVehiculo() { document.getElementById('formVehiculo').classList.toggle('hidden'); }
