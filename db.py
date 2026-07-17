@@ -1227,6 +1227,43 @@ def requisito_guardar(empresa_id, data):
     return row.to_dict()
 
 
+def insertar_requisito_legal(empresa_id, codigo):
+    """Inserta un requisito del catálogo transversal (catalogo_legal) en la Matriz Legal de la
+    empresa. Editable y borrable (is_mandatory=0), a diferencia de los CORE. Idempotente por
+    (empresa_id, id_requisito): si ya está, no duplica. Devuelve la fila o None si el código no existe."""
+    import catalogo_legal
+    from formato import normalizar_control_operativo
+    c = catalogo_legal.requisito(codigo)
+    if not c:
+        return None
+    idr = c['codigo']
+    if RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first():
+        return {'ya_existe': True, 'id_requisito': idr}
+    ctrl = c.get('control_operativo')
+    if isinstance(ctrl, (list, tuple)):
+        ctrl = '\n'.join(ctrl)
+    return requisito_guardar(empresa_id, {
+        'id_requisito': idr, 'capa': 'transversal', 'origen': 'Legal Nacional',
+        'cuerpo_normativo': c.get('cuerpo_legal'), 'requisito_legal': c.get('requisito'),
+        'control_operativo': normalizar_control_operativo(ctrl), 'articulo': c.get('articulo'),
+        'pilar': c.get('pilar'), 'frecuencia_actualizacion_meses': c.get('frecuencia_meses'),
+    })
+
+
+def catalogo_legal_estado(empresa_id):
+    """El catálogo agrupado por pilar, marcando cuáles ya están en la matriz (para el modal)."""
+    import catalogo_legal
+    presentes = {r.id_requisito for r in
+                 RequisitoLegal.query.filter_by(empresa_id=empresa_id).all()}
+    grupos = []
+    for g in catalogo_legal.agrupado():
+        grupos.append({'pilar': g['pilar'], 'nombre': g['nombre'],
+                       'requisitos': [{'codigo': r['codigo'], 'cuerpo_legal': r['cuerpo_legal'],
+                                       'articulo': r.get('articulo'), 'requisito': r['requisito'],
+                                       'ya_esta': r['codigo'] in presentes} for r in g['requisitos']]})
+    return grupos
+
+
 def requisito_eliminar(empresa_id, requisito_id):
     """Elimina una fila operativa. Las filas Core (is_mandatory=1) NO se pueden borrar."""
     row = RequisitoLegal.query.filter_by(id=requisito_id, empresa_id=empresa_id).first()

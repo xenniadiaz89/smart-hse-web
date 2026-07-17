@@ -44,6 +44,34 @@ def api_matriz_get():
     return jsonify(db.matriz_legal(eid))
 
 
+@bp.route('/api/matriz-legal/catalogo', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_matriz_catalogo():
+    """Catálogo transversal SST agrupado por pilar, marcando lo ya insertado (para el modal)."""
+    return jsonify(db.catalogo_legal_estado(empresa_id()))
+
+
+@bp.route('/api/matriz-legal/insertar', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_matriz_insertar():
+    """Inserta uno o varios requisitos del catálogo transversal en la Matriz Legal."""
+    f = request.get_json(silent=True) or {}
+    codigos = f.get('codigos') or ([f['codigo']] if f.get('codigo') else [])
+    eid, insertados, ya = empresa_id(), 0, 0
+    for cod in codigos:
+        r = db.insertar_requisito_legal(eid, cod)
+        if r is None:
+            return jsonify({'error': f'Requisito «{cod}» no está en el catálogo.'}), 404
+        if r.get('ya_existe'):
+            ya += 1
+        else:
+            insertados += 1
+    return jsonify({'ok': True, 'insertados': insertados, 'ya_estaban': ya,
+                    'matriz': db.matriz_legal(eid)})
+
+
 @bp.route('/api/matriz-legal', methods=['POST'])
 @empresa_required
 @onboarding_required
