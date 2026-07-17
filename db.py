@@ -308,6 +308,11 @@ def protocolos_de(empresa_id):
     return out
 
 
+def protocolo_por_id(empresa_id, pid):
+    p = ProtocoloSalud.query.filter_by(id=pid, empresa_id=empresa_id).first()
+    return p.to_dict() if p else None
+
+
 def protocolo_crear(empresa_id, nombre, puestos_totales=0):
     orden = (sqla.session.query(sqla.func.max(ProtocoloSalud.orden))
              .filter_by(empresa_id=empresa_id).scalar() or 0) + 1
@@ -1008,6 +1013,17 @@ def documentos_fuf(empresa_id, rut, item_n=None):
     for d in docs:
         out.setdefault(d['item_n'], []).append(d)
     return out
+
+
+def documentos_protocolo(empresa_id, rut, protocolo_id):
+    """Documentos (autoevaluaciones generadas o formularios oficiales subidos) de un protocolo de
+    salud, colgados del contrato base con categoria='PROTOCOLO' e item_n=<protocolo_id>. Alimentan
+    la carpeta exportable del Módulo 5."""
+    cid = contrato_base(empresa_id, rut)
+    filas = (Documento.query.filter_by(contrato_id=cid, categoria='PROTOCOLO', item_n=protocolo_id)
+             .order_by(Documento.id.desc()).all())
+    campos = ['id', 'nombre', 'item_n', 'fecha', 'mimetype', 'flujo']
+    return [{k: d.to_dict().get(k) for k in campos} for d in filas]
 
 
 def set_fuf_compromiso(empresa_id, item_n, fecha_compromiso):

@@ -17,6 +17,7 @@ from core_auth import (normalizar_rut, rut_valido, login_required,      # noqa: 
 import db
 import fuf
 import catalogo_documentos_ds44
+import catalogo_protocolos
 import normativa
 import planes
 import resso
@@ -318,7 +319,11 @@ def api_plan():
 @empresa_required
 @onboarding_required
 def api_protocolos_get():
-    return jsonify(db.protocolos_de(_empresa_id()))
+    protos = db.protocolos_de(_empresa_id())
+    for p in protos:                      # marca los que tienen Plantilla Maestra (autoeval o carga)
+        m = catalogo_protocolos.por_protocolo(p.get('nombre'))
+        p['plantilla_tipo'] = m['tipo'] if m else None
+    return jsonify(protos)
 
 
 @app.route('/api/protocolos', methods=['POST'])
@@ -346,6 +351,84 @@ def api_protocolo_actualizar(pid):
 def api_protocolo_eliminar(pid):
     db.protocolo_eliminar(_empresa_id(), pid)
     return jsonify(db.protocolos_de(_empresa_id()))
+
+
+# ── Plantillas Maestras de Protocolos (autoevaluación MINSAL/SUSESO) → Módulo 5 ──
+def _protocolo_maestra(pid):
+    """(protocolo, plantilla maestra) para un id de ProtocoloSalud, o (proto, None) si no tiene."""
+    proto = db.protocolo_por_id(_empresa_id(), pid)
+    if not proto:
+        return None, None
+    return proto, catalogo_protocolos.por_protocolo(proto.get('nombre'))
+
+
+@app.route('/api/protocolos/<int:pid>/plantilla', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_protocolo_plantilla(pid):
+    """Plantilla Maestra del protocolo (autoevaluación + campos) con la carátula precargada desde
+    Empresa y Nómina, más los documentos ya generados/subidos (carpeta del Módulo 5)."""
+    rut, eid = session['rut'], _empresa_id()
+    proto, maestra = _protocolo_maestra(pid)
+    if not proto:
+        return jsonify({'error': 'Protocolo no encontrado.'}), 404
+    emp = db.empresa_de(rut, eid) or {}
+    nomina = db.trabajadores_de(eid)
+    return jsonify({
+        'protocolo': proto.get('nombre'),
+        'maestra': catalogo_protocolos.resumen(maestra),
+        'prefill': catalogo_protocolos.prefill(emp, nomina),
+        'documentos': db.documentos_protocolo(eid, rut, pid),
+    })
+
+
+@app.route('/api/protocolos/<int:pid>/generar', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_protocolo_generar(pid):
+    """Genera la autoevaluación (PREXOR/TMERT) con auto-llenado + respuestas, la persiste trazable
+    al protocolo (categoria='PROTOCOLO') y la devuelve para abrir/imprimir/firmar."""
+    rut, eid = session['rut'], _empresa_id()
+    proto, maestra = _protocolo_maestra(pid)
+    if not proto:
+        return jsonify({'error': 'Protocolo no encontrado.'}), 404
+    if not maestra or maestra['tipo'] != 'autoevaluacion':
+        return jsonify({'error': 'Este protocolo no tiene autoevaluación generable.'}), 400
+    f = request.get_json(silent=True) or {}
+    emp = db.empresa_de(rut, eid) or {}
+    nomina = db.trabajadores_de(eid)
+    html = catalogo_protocolos.generar_html(maestra['clave'], f.get('campos') or {},
+                                            f.get('respuestas') or {}, emp, nomina)
+    cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    nombre = f"{maestra['nombre']}.html"
+    doc_id = db.registrar_documento(cid, nombre, 'generado', 'evidencia', item_n=pid,
+                                    categoria='PROTOCOLO', contenido=html.encode('utf-8'),
+                                    mimetype='text/html; charset=utf-8')
+    return jsonify({'ok': True, 'doc_id': doc_id, 'html': html,
+                    'documentos': db.documentos_protocolo(eid, rut, pid)})
+
+
+@app.route('/api/protocolos/<int:pid>/documento', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_protocolo_subir(pid):
+    """Sube el formulario oficial ya aplicado (ej. CEAL-SM) y lo cuelga trazable al protocolo."""
+    rut, eid = session['rut'], _empresa_id()
+    proto, _ = _protocolo_maestra(pid)
+    if not proto:
+        return jsonify({'error': 'Protocolo no encontrado.'}), 404
+    emp = db.empresa_de(rut, eid) or {}
+    cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    archivos = request.files.getlist('archivo') or []
+    if not archivos or not any(a and a.filename for a in archivos):
+        return jsonify({'error': 'No se recibió archivo.'}), 400
+    for archivo in archivos:
+        if not archivo or not archivo.filename:
+            continue
+        db.registrar_documento(cid, archivo.filename, 'oficial', 'evidencia', item_n=pid,
+                               categoria='PROTOCOLO', contenido=archivo.read(),
+                               mimetype=archivo.mimetype or 'application/octet-stream')
+    return jsonify({'ok': True, 'documentos': db.documentos_protocolo(eid, rut, pid)})
 
 
 # ── Capacitaciones Legales por cargo — motor de datos de la Tarjeta 5 ──

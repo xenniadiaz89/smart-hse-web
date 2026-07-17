@@ -2759,8 +2759,108 @@
                         <label class="text-xs text-gray-500 flex-1">Totales<input id="pto${p.id}" type="number" min="0" value="${p.puestos_totales}" class="iet-in !py-1.5"></label>
                         <button onclick="guardarProtocolo(${p.id})" class="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg">Guardar</button>
                     </div>
+                    ${p.plantilla_tipo ? `
+                    <button type="button" onclick="abrirPlantillaProto(${p.id})" class="mt-3 w-full inline-flex items-center justify-center gap-2 bg-secondary/10 text-secondary border border-secondary/30 text-xs font-bold px-3 py-2 rounded-lg hover:bg-secondary/20"><i data-lucide="file-badge" class="w-4 h-4"></i> Plantilla Maestra (autoevaluación → Módulo 5)</button>
+                    <div id="proto_pl_${p.id}" class="mt-2"></div>` : ''}
                 </div>`).join('');
             if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Plantillas Maestras de Protocolos: auto-llenado + generar/subir → Módulo 5 ──
+        function _escP(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+        const _protoPlantilla = {};   // pid -> data de /plantilla
+
+        async function abrirPlantillaProto(pid) {
+            const cont = document.getElementById('proto_pl_' + pid);
+            if (!cont) return;
+            if (cont.dataset.open === '1') { cont.innerHTML = ''; cont.dataset.open = '0'; return; }
+            cont.dataset.open = '1';
+            cont.innerHTML = '<p class="text-xs text-gray-400">Cargando plantilla…</p>';
+            const r = await fetch(`/api/protocolos/${pid}/plantilla`);
+            if (!r.ok) { cont.innerHTML = '<p class="text-xs text-red-500">No se pudo cargar.</p>'; return; }
+            const data = await r.json(); _protoPlantilla[pid] = data;
+            const m = data.maestra, pf = data.prefill || {};
+            const caratula = `
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2 text-[11px] text-gray-600">
+                    <p class="font-bold text-gray-700 mb-1">Carátula (auto-llenada de Empresa + Nómina)</p>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        <span>Razón social: <b>${_escP(pf.razon_social)}</b></span><span>RUT: <b>${_escP(pf.rut_empresa)}</b></span>
+                        <span>Mutual: <b>${_escP(pf.mutual)}</b></span><span>N° adherente: <b>${_escP(pf.n_adherente)}</b></span>
+                        <span>Rubro: <b>${_escP(pf.rubro)}</b></span><span>Trab. activos: <b>${_escP(pf.trabajadores_activos)}</b></span>
+                    </div>
+                </div>`;
+            const campos = (m.campos || []).map(c => `
+                <label class="block text-[11px] text-gray-500">${_escP(c.label)}
+                    <input data-pk="${c.k}" type="${c.tipo === 'date' ? 'date' : 'text'}" class="iet-in !py-1.5"></label>`).join('');
+            let cuerpo;
+            if (m.tipo === 'autoevaluacion') {
+                const secs = (m.secciones || []).map((s, si) => `
+                    <p class="text-[11px] font-extrabold text-primary uppercase mt-2 mb-1">${_escP(s.titulo)}</p>
+                    ${s.items.map((it, ii) => `
+                        <div class="border border-gray-100 rounded-lg px-2 py-1.5 mb-1">
+                            <p class="text-[11px] text-gray-700 mb-1">${ii + 1}. ${_escP(it)}</p>
+                            <div class="flex items-center gap-1">
+                                <select data-r="${si}-${ii}" class="text-[11px] border border-gray-200 rounded px-1 py-1">
+                                    <option value="">—</option><option value="si">Cumple</option><option value="no">No cumple</option><option value="na">No aplica</option>
+                                </select>
+                                <input data-o="${si}-${ii}" type="text" placeholder="Observación / evidencia" class="flex-1 text-[11px] border border-gray-200 rounded px-2 py-1">
+                            </div>
+                        </div>`).join('')}`).join('');
+                cuerpo = `${secs}
+                    <button type="button" onclick="generarProto(${pid}, this)" class="mt-2 bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-2"><i data-lucide="file-check-2" class="w-4 h-4"></i> Generar autoevaluación</button>`;
+            } else {
+                cuerpo = `
+                    <p class="text-[11px] text-gray-500 mb-2">Instrumento con derechos SUSESO: sube el formulario oficial ya aplicado. El sistema lo deja trazable en la carpeta del Módulo 5 junto a esta carátula.</p>
+                    <label class="block border-2 border-dashed border-secondary/40 rounded-lg p-4 text-center cursor-pointer hover:bg-secondary/5 text-xs text-gray-600">
+                        <i data-lucide="file-up" class="w-6 h-6 mx-auto text-secondary mb-1"></i> Subir formulario oficial (CEAL-SM)
+                        <input type="file" class="hidden" onchange="subirProto(${pid}, this)"></label>`;
+            }
+            cont.innerHTML = `<div class="border border-secondary/30 rounded-xl p-3">${caratula}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">${campos}</div>
+                ${cuerpo}<div id="proto_docs_${pid}" class="mt-2"></div></div>`;
+            if (window.lucide) lucide.createIcons();
+            _renderProtoDocs(pid, data.documentos || []);
+        }
+
+        function _protoCampos(pid) {
+            const cont = document.getElementById('proto_pl_' + pid), campos = {};
+            cont.querySelectorAll('[data-pk]').forEach(i => campos[i.dataset.pk] = i.value);
+            return campos;
+        }
+        function _protoRespuestas(pid) {
+            const cont = document.getElementById('proto_pl_' + pid), resp = {};
+            cont.querySelectorAll('[data-r]').forEach(sel => {
+                const key = sel.dataset.r, obs = cont.querySelector(`[data-o="${key}"]`);
+                if (sel.value || (obs && obs.value)) resp[key] = { estado: sel.value, obs: obs ? obs.value : '' };
+            });
+            return resp;
+        }
+        function _renderProtoDocs(pid, docs) {
+            const el = document.getElementById('proto_docs_' + pid);
+            if (!el) return;
+            el.innerHTML = docs.length ? `<p class="text-[11px] font-bold text-gray-700 mb-1">En la carpeta del Módulo 5</p>
+                ${docs.map(d => `<div class="flex items-center justify-between bg-white border border-gray-200 rounded px-2 py-1 mb-1">
+                    <span class="text-[11px] text-gray-600 truncate">${_escP(d.nombre)}${d.flujo === 'generado' ? ' (generado)' : ' (oficial)'}</span>
+                    <a href="/api/doc/${d.id}" target="_blank" class="text-primary text-[11px] font-bold ml-2">Abrir</a></div>`).join('')}` : '';
+        }
+        async function generarProto(pid, btn) {
+            btn.disabled = true;
+            const r = await fetch(`/api/protocolos/${pid}/generar`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ campos: _protoCampos(pid), respuestas: _protoRespuestas(pid) })
+            });
+            btn.disabled = false;
+            if (!r.ok) { alert('No se pudo generar.'); return; }
+            const data = await r.json();
+            const w = window.open('', '_blank'); if (w) { w.document.write(data.html); w.document.close(); }
+            _renderProtoDocs(pid, data.documentos || []);
+        }
+        async function subirProto(pid, input) {
+            if (!input.files || !input.files[0]) return;
+            const fd = new FormData(); fd.append('archivo', input.files[0]);
+            const r = await fetch(`/api/protocolos/${pid}/documento`, { method: 'POST', body: fd });
+            if (!r.ok) { alert('No se pudo subir.'); return; }
+            _renderProtoDocs(pid, (await r.json()).documentos || []);
         }
         async function guardarProtocolo(id) {
             const ev = document.getElementById('pev' + id).value, to = document.getElementById('pto' + id).value;
