@@ -16,6 +16,7 @@ from core_auth import (normalizar_rut, rut_valido, login_required,      # noqa: 
                        empresa_id as _empresa_id)
 import db
 import fuf
+import catalogo_documentos_ds44
 import normativa
 import planes
 import resso
@@ -282,7 +283,7 @@ def dashboard():
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
                            onboarding_ok=core_auth.onboarding_completo(emp),
-                           fuf_catalogo=fuf.SECCIONES)   # el modal FUF lo recibe por tojson
+                           fuf_catalogo=catalogo_documentos_ds44.enriquecer_fuf(fuf.SECCIONES))   # el modal FUF lo recibe por tojson
 
 
 # ── API de empresas (gestión desde la consola) ──
@@ -1014,8 +1015,65 @@ def api_fuf_guardar():
         if estado == 'no' and not obs:
             return jsonify({'error': f'La observación es obligatoria en el ítem {n} (No Cumple).'}), 400
         fecha_comp = (it.get('fecha_compromiso') or '').strip() or None
-        db.set_fuf_estado(eid, n, estado, obs, fecha_comp, rut=rut)
+        responsable = (it.get('responsable') or '').strip()
+        db.set_fuf_estado(eid, n, estado, obs, fecha_comp, rut=rut, responsable=responsable)
     return jsonify(db.estados_fuf(eid))
+
+
+# ───────────── FUF con documentos: cargar el que se tiene o generar el que falta ─────────────
+@app.route('/api/fuf/<int:n>/documentos', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_fuf_documentos(n):
+    """Tipos de documento generables/cargables del ítem FUF n + documentos ya cargados/generados."""
+    rut, eid = session['rut'], _empresa_id()
+    return jsonify({**catalogo_documentos_ds44.resumen_para_item(n),
+                    'documentos': db.documentos_fuf(eid, rut, item_n=n)})
+
+
+@app.route('/api/fuf/<int:n>/documento', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_fuf_subir(n):
+    """Sube el documento real que la empresa ya tiene y lo cuelga del contrato base con item_n=n."""
+    rut, eid = session['rut'], _empresa_id()
+    emp = db.empresa_de(rut, eid) or {}
+    cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    archivos = request.files.getlist('archivo') or []
+    if not archivos or not any(a and a.filename for a in archivos):
+        return jsonify({'error': 'No se recibió archivo.'}), 400
+    for archivo in archivos:
+        if not archivo or not archivo.filename:
+            continue
+        db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n, categoria='FUF',
+                               contenido=archivo.read(),
+                               mimetype=archivo.mimetype or 'application/octet-stream')
+    db.fuf_marcar_cumple(eid, n, rut=rut)
+    return jsonify({'ok': True, 'documentos': db.documentos_fuf(eid, rut, item_n=n)})
+
+
+@app.route('/api/fuf/<int:n>/generar', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_fuf_generar(n):
+    """Genera el documento desde la plantilla del catálogo con los campos rellenados, lo persiste
+    (HTML) trazable al ítem, y lo devuelve para abrir/imprimir."""
+    rut, eid = session['rut'], _empresa_id()
+    f = request.get_json(silent=True) or {}
+    tipo_doc = (f.get('tipo_doc') or '').strip()
+    campos = f.get('campos') or {}
+    doc = catalogo_documentos_ds44.documento(tipo_doc)
+    if not doc or n not in doc['items_fuf']:
+        return jsonify({'error': 'Tipo de documento no válido para este ítem.'}), 400
+    emp = db.empresa_de(rut, eid) or {}
+    html = catalogo_documentos_ds44.generar_html(tipo_doc, campos, emp)
+    cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+    nombre = f"{doc['nombre']}.html"
+    doc_id = db.registrar_documento(cid, nombre, 'generado', 'evidencia', item_n=n, categoria='FUF',
+                                    contenido=html.encode('utf-8'), mimetype='text/html; charset=utf-8')
+    db.fuf_marcar_cumple(eid, n, rut=rut)
+    return jsonify({'ok': True, 'doc_id': doc_id, 'html': html,
+                    'documentos': db.documentos_fuf(eid, rut, item_n=n)})
 
 
 # ─────────────────────────── Panel de Brechas (unificado) ──────────────────

@@ -129,6 +129,7 @@ class FufEstado(_DictMixin, sqla.Model):
     observacion = sqla.Column(sqla.Text)
     fecha_compromiso = sqla.Column(sqla.Text)
     fecha = sqla.Column(sqla.Text)
+    responsable = sqla.Column(sqla.Text)                 # Ronda 28 — responsable de cierre del ítem FUF
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'item_n'),)
 
 

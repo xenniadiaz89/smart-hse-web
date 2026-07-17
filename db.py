@@ -103,6 +103,8 @@ _COLUMNAS_NUEVAS = [
     ('riesgo_item', 'control_validado_por', 'TEXT'),
     ('riesgo_item', 'control_validado_en', 'TEXT'),
     ('tarea_iper', 'puesto', 'TEXT'),
+    # Ronda 28 — FUF con documentos: responsable de cierre del ítem
+    ('fuf_estado', 'responsable', 'TEXT'),
 ]
 
 
@@ -954,7 +956,8 @@ def set_carpeta_compromiso(contrato_id, item_n, fecha_compromiso):
 
 
 # ──────────────────── Estado FUF (DS 44) — base por empresa (Ronda 12) ─────
-def set_fuf_estado(empresa_id, item_n, estado, observacion='', fecha_compromiso=None, rut=None):
+def set_fuf_estado(empresa_id, item_n, estado, observacion='', fecha_compromiso=None, rut=None,
+                   responsable=None):
     row = FufEstado.query.filter_by(empresa_id=empresa_id, item_n=item_n).first()
     if not row:
         row = FufEstado(empresa_id=empresa_id, item_n=item_n, rut_asesor=rut or '')
@@ -964,6 +967,8 @@ def set_fuf_estado(empresa_id, item_n, estado, observacion='', fecha_compromiso=
     row.estado = estado
     row.observacion = observacion
     row.fecha_compromiso = fecha_compromiso
+    if responsable is not None:
+        row.responsable = responsable
     row.fecha = _hoy()
     _commit()
 
@@ -971,6 +976,38 @@ def set_fuf_estado(empresa_id, item_n, estado, observacion='', fecha_compromiso=
 def estados_fuf(empresa_id):
     return {r.item_n: r.to_dict()
             for r in FufEstado.query.filter_by(empresa_id=empresa_id).all()}
+
+
+def fuf_marcar_cumple(empresa_id, item_n, rut=None):
+    """Deja el ítem FUF en 'si' al cargar/generar su documento, sin tocar observación ni
+    responsable ya escritos. Crea la fila si no existía."""
+    row = FufEstado.query.filter_by(empresa_id=empresa_id, item_n=item_n).first()
+    if not row:
+        row = FufEstado(empresa_id=empresa_id, item_n=item_n, rut_asesor=rut or '')
+        sqla.session.add(row)
+    if rut:
+        row.rut_asesor = rut
+    row.estado = 'si'
+    row.fecha = _hoy()
+    _commit()
+
+
+def documentos_fuf(empresa_id, rut, item_n=None):
+    """Documentos del FUF (subidos o generados) de la empresa, colgados de su contrato base con
+    categoria='FUF'. Devuelve dict {item_n: [docs]} o la lista de un ítem si se indica item_n."""
+    cid = contrato_base(empresa_id, rut)
+    q = Documento.query.filter_by(contrato_id=cid, categoria='FUF')
+    if item_n is not None:
+        q = q.filter_by(item_n=item_n)
+    filas = q.order_by(Documento.id.desc()).all()
+    campos = ['id', 'nombre', 'item_n', 'fecha', 'mimetype', 'flujo']
+    docs = [{k: d.to_dict().get(k) for k in campos} for d in filas]
+    if item_n is not None:
+        return docs
+    out = {}
+    for d in docs:
+        out.setdefault(d['item_n'], []).append(d)
+    return out
 
 
 def set_fuf_compromiso(empresa_id, item_n, fecha_compromiso):
