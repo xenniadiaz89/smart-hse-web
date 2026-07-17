@@ -89,6 +89,190 @@ def _plantilla_politica_sst(c, empresa):
 
 
 # ────────────────────────────────── Catálogo ──────────────────────────────────
+def _firmas(elabora='', revisa='', aprueba=''):
+    """Bloque ELABORA / REVISA / APRUEBA de los formatos DS 44."""
+    def col(rol, quien):
+        return (f'<td style="width:33%;text-align:center;padding:10px 6px">'
+                f'<div style="height:34px"></div><div style="border-top:1px solid #333;padding-top:4px">'
+                f'<b>{_esc(rol)}</b><br><span class="sub">{_esc(quien) or "&nbsp;"}</span></div></td>')
+    return (f'<table style="width:100%;border-collapse:collapse;margin-top:28px">'
+            f'<tr>{col("Elabora", elabora)}{col("Revisa", revisa)}{col("Aprueba", aprueba)}</tr></table>')
+
+
+def _plantilla_programa_trabajo(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    periodo = c.get('periodo') or ''
+    responsable = c.get('responsable') or ''
+    cuerpo = f"""
+ <h2>1. Objetivo y base</h2>
+ <p>Establecer el Programa de Trabajo Preventivo de <b>{_esc(nombre_emp)}</b>, confeccionado a partir de la
+ Matriz de Identificación de Peligros y Evaluación de Riesgos (MIPER), con las medidas preventivas y
+ correctivas, sus plazos y responsables (D.S. 44/2024 Art. 8).</p>
+ <h2>2. Contenido mínimo (Art. 8)</h2>
+ <ul>
+   <li>Medidas preventivas y correctivas priorizadas según la MIPER.</li>
+   <li>Plazos de ejecución y responsables de cada medida.</li>
+   <li>Actividades de prevención del consumo de alcohol y drogas.</li>
+   <li>Promoción de vida y alimentación saludable.</li>
+   <li>Conducción segura de vehículos cuando corresponda.</li>
+   <li>Fechas de elaboración, modificación y aprobación.</li>
+ </ul>
+ <h2>3. Cronograma (referencia — completar desde la MIPER)</h2>
+ <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Medida / actividad</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Responsable</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Plazo</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Estado</th></tr></thead>
+   <tbody>{''.join('<tr><td style="border-bottom:1px solid #eee;padding:6px 5px;height:22px"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td></tr>' for _ in range(6))}</tbody></table>
+ <p class="sub">Programa por escrito y aprobado por el representante legal; difundido en los lugares de trabajo y
+ remitido un ejemplar al Comité Paritario.</p>
+ {_firmas(elabora=responsable, aprueba='Representante legal')}"""
+    return _documento_html('PROGRAMA DE TRABAJO PREVENTIVO', f'D.S. 44/2024 · Art. 8 · Período {_esc(periodo)}',
+                           empresa, cuerpo, refs=[('Norma', 'D.S. 44/2024 Art. 8'),
+                                                  ('Período', periodo or '—'), ('Responsable', responsable or '—')])
+
+
+def _plantilla_pts_epp(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    cuerpo = f"""
+ <h2>1. Propósito y alcance</h2>
+ <p>Regular la adquisición, selección, entrega, uso, mantención, reposición y disposición final de los
+ Equipos de Protección Personal (EPP) en <b>{_esc(nombre_emp)}</b>, asegurando que toda persona trabajadora
+ cuente con el EPP requerido para su puesto y esté capacitada en su uso (D.S. 44/2024 Art. 12 y 13).</p>
+ <h2>2. Criterios</h2>
+ <ul>
+   <li>Los EPP se entregan solo ante el riesgo residual, tras privilegiar la protección colectiva (prelación).</li>
+   <li>Adecuados al riesgo a cubrir y a las características de la persona.</li>
+   <li>Certificados según norma de calidad o registrados en el ISP.</li>
+   <li>Entregados libres de costo para la persona trabajadora.</li>
+   <li>Con procedimiento de utilización, mantención, reposición o recambio.</li>
+ </ul>
+ <h2>3. Matriz de EPP por puesto (referencia — completar)</h2>
+ <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Puesto de trabajo</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Riesgo</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">EPP requerido</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Certificación / ISP</th></tr></thead>
+   <tbody>{''.join('<tr><td style="border-bottom:1px solid #eee;padding:6px 5px;height:22px"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td></tr>' for _ in range(5))}</tbody></table>
+ <h2>4. Registro de entrega</h2>
+ <p>Toda entrega de EPP se registra por trabajador (fecha, EPP, cantidad, firma de recepción), constituyendo
+ evidencia auditable.</p>
+ {_firmas(elabora=c.get('elabora'), revisa=c.get('revisa'), aprueba=c.get('aprueba'))}"""
+    return _documento_html('PROCEDIMIENTO DE EQUIPOS DE PROTECCIÓN PERSONAL (EPP)',
+                           'D.S. 44/2024 · Art. 12 y 13 · DS 18 (certificación)', empresa, cuerpo,
+                           refs=[('Norma', 'D.S. 44/2024 Art. 13 / DS 18')])
+
+
+def _plantilla_acta_delegado(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    fecha = c.get('fecha') or ''
+    lugar = c.get('lugar') or ''
+    n_trab = c.get('n_trabajadores') or ''
+    delegado = c.get('delegado') or '__________________'
+    rut_del = c.get('rut_delegado') or ''
+    cuerpo = f"""
+ <p>En {_esc(lugar)}, con fecha {_esc(fecha)}, reunida la asamblea de las personas trabajadoras de
+ <b>{_esc(nombre_emp)}</b> (dotación declarada: {_esc(n_trab)}), se procede a la elección del
+ <b>Delegado de Seguridad y Salud en el Trabajo</b>, conforme al D.S. 44/2024 Art. 66, aplicable a las
+ entidades donde laboran entre 10 y 25 personas, por un período de dos años.</p>
+ <h2>Resultado de la elección</h2>
+ <table class="meta"><tr><td class="k">Delegado electo</td><td>{_esc(delegado)}</td></tr>
+ <tr><td class="k">RUT</td><td>{_esc(rut_del)}</td></tr>
+ <tr><td class="k">Fecha de elección</td><td>{_esc(fecha)}</td></tr>
+ <tr><td class="k">Vigencia</td><td>2 años</td></tr></table>
+ <p>La asamblea deja constancia del acto eleccionario. Copia de la presente acta se conserva como evidencia
+ y queda a disposición de la fiscalización.</p>
+ <div class="firma">{_esc(delegado)}<br><span class="sub">Delegado de SST electo</span></div>"""
+    return _documento_html('ACTA DE ELECCIÓN — DELEGADO DE SEGURIDAD Y SALUD EN EL TRABAJO',
+                           'D.S. 44/2024 · Art. 66', empresa, cuerpo,
+                           refs=[('Norma', 'D.S. 44/2024 Art. 66'), ('Fecha', fecha or '—')])
+
+
+def _plantilla_riohs(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    vigencia = c.get('vigencia') or ''
+    cuerpo = f"""
+ <p>Reglamento Interno de Higiene y Seguridad de <b>{_esc(nombre_emp)}</b>, dictado conforme a la Ley 16.744
+ y al D.S. 44/2024, de conocimiento y cumplimiento obligatorio para todas las personas trabajadoras.</p>
+ <h2>Estructura (contenido mínimo)</h2>
+ <ul>
+   <li><b>Preámbulo</b> y ámbito de aplicación.</li>
+   <li><b>Disposiciones generales</b> del sistema de gestión preventiva.</li>
+   <li><b>Obligaciones</b> de las personas trabajadoras en materia de SST.</li>
+   <li><b>Prohibiciones</b> en materia de seguridad y salud.</li>
+   <li><b>Obligación de informar</b> los riesgos laborales (derecho a saber).</li>
+   <li><b>Procedimiento de reclamos</b> conforme a la Ley 16.744.</li>
+   <li><b>Sanciones</b> y su procedimiento de aplicación.</li>
+   <li><b>Vigencia y actualización</b> (revisión no inferior a un año).</li>
+ </ul>
+ <p class="sub">Se entrega gratuitamente a cada persona trabajadora y se envía, 30 días antes de su entrada
+ en vigencia, para observaciones, a las personas trabajadoras, al Comité Paritario y al Departamento de
+ Prevención de Riesgos cuando corresponda.</p>
+ {_firmas(elabora='Prevención de Riesgos', aprueba='Representante legal')}"""
+    return _documento_html('REGLAMENTO INTERNO DE HIGIENE Y SEGURIDAD (RIOHS)',
+                           f'Ley 16.744 · D.S. 44/2024 · Vigencia {_esc(vigencia)}', empresa, cuerpo,
+                           refs=[('Norma', 'Ley 16.744 / D.S. 44/2024'), ('Vigencia', vigencia or '—')])
+
+
+def _plantilla_programa_capacitaciones(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    anio = c.get('anio') or ''
+    responsable = c.get('responsable') or ''
+    cuerpo = f"""
+ <h2>Objetivo</h2>
+ <p>Programa Anual de Capacitación en prevención de riesgos de <b>{_esc(nombre_emp)}</b> ({_esc(anio)}), con
+ enfoque de género, incluyendo la información de los riesgos laborales (IRL), el uso de EPP y la respuesta
+ ante emergencias (D.S. 44/2024 Art. 16 y 21).</p>
+ <h2>Plan anual (referencia — completar)</h2>
+ <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Actividad / curso</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Destinatarios (cargo)</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Horas</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Trimestre</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Relator / OAL</th></tr></thead>
+   <tbody>{''.join('<tr><td style="border-bottom:1px solid #eee;padding:6px 5px;height:22px"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td></tr>' for _ in range(6))}</tbody></table>
+ <p class="sub">Cada actividad deja registro (asistentes, contenidos, relator, evaluación) como evidencia.</p>
+ {_firmas(elabora=responsable, aprueba='Representante legal')}"""
+    return _documento_html('PROGRAMA ANUAL DE CAPACITACIONES', f'D.S. 44/2024 · Art. 16 y 21 · Año {_esc(anio)}',
+                           empresa, cuerpo, refs=[('Norma', 'D.S. 44/2024 Art. 16'), ('Año', anio or '—'),
+                                                  ('Responsable', responsable or '—')])
+
+
+def _plantilla_investigacion(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    fecha = c.get('fecha_evento') or ''
+    lugar = c.get('lugar') or ''
+    tipo = c.get('tipo') or ''
+    afectado = c.get('afectado') or ''
+    cargo = c.get('cargo') or ''
+    cuerpo = f"""
+ <table class="meta">
+   <tr><td class="k">Tipo de evento</td><td>{_esc(tipo)}</td></tr>
+   <tr><td class="k">Fecha y hora</td><td>{_esc(fecha)}</td></tr>
+   <tr><td class="k">Lugar</td><td>{_esc(lugar)}</td></tr>
+   <tr><td class="k">Persona afectada</td><td>{_esc(afectado)}</td></tr>
+   <tr><td class="k">Cargo</td><td>{_esc(cargo)}</td></tr></table>
+ <h2>1. Descripción del evento</h2>
+ <p style="min-height:40px;border:1px solid #eee;border-radius:6px;padding:8px">&nbsp;</p>
+ <h2>2. Análisis de causas</h2>
+ <p><b>Causas inmediatas</b> (actos y condiciones):</p>
+ <p style="min-height:34px;border:1px solid #eee;border-radius:6px;padding:8px">&nbsp;</p>
+ <p><b>Causas básicas / raíz</b> (factores personales y del trabajo):</p>
+ <p style="min-height:34px;border:1px solid #eee;border-radius:6px;padding:8px">&nbsp;</p>
+ <h2>3. Medidas correctivas</h2>
+ <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Medida</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Responsable</th>
+   <th style="text-align:left;border-bottom:2px solid #cfe3ec;padding:5px">Plazo</th></tr></thead>
+   <tbody>{''.join('<tr><td style="border-bottom:1px solid #eee;padding:6px 5px;height:22px"></td><td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td></tr>' for _ in range(4))}</tbody></table>
+ <p class="sub">Investigación con enfoque de género. Se actualiza la MIPER si el evento revela nuevos riesgos
+ (D.S. 44/2024 Art. 71-75).</p>
+ {_firmas(elabora='Investigador', revisa='Comité Paritario', aprueba='Prevención de Riesgos')}"""
+    return _documento_html('INFORME DE INVESTIGACIÓN DE ACCIDENTES / INCIDENTES',
+                           'D.S. 44/2024 · Art. 71 a 75', empresa, cuerpo,
+                           refs=[('Norma', 'D.S. 44/2024 Art. 71-75'), ('Fecha del evento', fecha or '—')])
+
+
 CATALOGO = [
     {'tipo_doc': 'politica_sst',
      'nombre': 'Política de Seguridad y Salud en el Trabajo',
@@ -103,6 +287,78 @@ CATALOGO = [
          {'k': 'fecha', 'label': 'Fecha', 'tipo': 'date'},
      ],
      'plantilla': _plantilla_politica_sst},
+
+    {'tipo_doc': 'programa_trabajo',
+     'nombre': 'Programa de Trabajo Preventivo',
+     'items_fuf': [8, 9, 10, 11],
+     'evidencia': 'Programa de trabajo preventivo por escrito, elaborado desde la MIPER, aprobado por el representante legal y difundido.',
+     'formato_origen': 'DS44/CARTA GANTT PROGRAMA DE IMPLEMENTACION DS 44.xlsx',
+     'campos': [
+         {'k': 'periodo', 'label': 'Período (año)', 'tipo': 'text'},
+         {'k': 'responsable', 'label': 'Responsable de elaboración', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_programa_trabajo},
+
+    {'tipo_doc': 'pts_epp',
+     'nombre': 'Procedimiento de EPP (selección, entrega, uso y reposición)',
+     'items_fuf': [14, 15, 16, 17],
+     'evidencia': 'Procedimiento de EPP + matriz por puesto + registro de entrega por trabajador (EPP certificado ISP, sin costo).',
+     'formato_origen': 'DS44/PTS procedimiento Estandar de Seleccion, reposicion y entrega de epp DS44.docx',
+     'campos': [
+         {'k': 'elabora', 'label': 'Elabora', 'tipo': 'text'},
+         {'k': 'revisa', 'label': 'Revisa', 'tipo': 'text'},
+         {'k': 'aprueba', 'label': 'Aprueba', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_pts_epp},
+
+    {'tipo_doc': 'acta_delegado',
+     'nombre': 'Acta de Elección del Delegado de SST',
+     'items_fuf': [39, 40],
+     'evidencia': 'Acta de asamblea de elección del Delegado de SST (entre 10 y 25 personas, cada 2 años).',
+     'formato_origen': 'DS44/Formatos ACTA elección Delegado de Seguridad y Salud en el Trabajo.xls',
+     'campos': [
+         {'k': 'fecha', 'label': 'Fecha de elección', 'tipo': 'date'},
+         {'k': 'lugar', 'label': 'Lugar', 'tipo': 'text'},
+         {'k': 'n_trabajadores', 'label': 'N° de trabajadores', 'tipo': 'text'},
+         {'k': 'delegado', 'label': 'Delegado electo', 'tipo': 'text'},
+         {'k': 'rut_delegado', 'label': 'RUT del delegado', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_acta_delegado},
+
+    {'tipo_doc': 'riohs',
+     'nombre': 'Reglamento Interno de Higiene y Seguridad (RIOHS)',
+     'items_fuf': [49, 50, 51, 52],
+     'evidencia': 'RIOHS al día, entregado gratuitamente, con obligación de informar, procedimiento de reclamos y vigencia.',
+     'formato_origen': 'Ley 16.744 / D.S. 44/2024',
+     'campos': [
+         {'k': 'vigencia', 'label': 'Fecha de entrada en vigencia', 'tipo': 'date'},
+     ],
+     'plantilla': _plantilla_riohs},
+
+    {'tipo_doc': 'programa_capacitaciones',
+     'nombre': 'Programa Anual de Capacitaciones',
+     'items_fuf': [18, 19, 23, 24],
+     'evidencia': 'Programa anual de capacitación (IRL, EPP, emergencias) con registro de asistentes y evaluación.',
+     'formato_origen': 'DS44/FORMATO PROGRAMA ANUAL DE CAPACITACIONES  DS44.xlsx',
+     'campos': [
+         {'k': 'anio', 'label': 'Año', 'tipo': 'text'},
+         {'k': 'responsable', 'label': 'Responsable', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_programa_capacitaciones},
+
+    {'tipo_doc': 'investigacion_accidentes',
+     'nombre': 'Informe de Investigación de Accidentes / Incidentes',
+     'items_fuf': [59],
+     'evidencia': 'Investigación de causas con enfoque de género, medidas correctivas con responsable y plazo.',
+     'formato_origen': 'DS44/FORMATO INVESTIGACIÓN DE ACCIDENTES E INCIDENTES DS 44.xlsx',
+     'campos': [
+         {'k': 'tipo', 'label': 'Tipo (accidente / incidente / EP)', 'tipo': 'text'},
+         {'k': 'fecha_evento', 'label': 'Fecha y hora del evento', 'tipo': 'text'},
+         {'k': 'lugar', 'label': 'Lugar', 'tipo': 'text'},
+         {'k': 'afectado', 'label': 'Persona afectada', 'tipo': 'text'},
+         {'k': 'cargo', 'label': 'Cargo', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_investigacion},
 ]
 
 
