@@ -5,11 +5,10 @@ _NUM = re.compile(r'^\s*(\d+)[\.\)]\s*')
 
 
 def normalizar_control_operativo(texto):
-    """Normaliza al formato estricto de lista numérica '1.\\n<acción>\\n2.\\n<acción>\\n'.
+    """Normaliza a lista numerada, una acción por línea: '1. <acción>\\n2. <acción>\\n'.
 
-    Acepta lo que escriba el asesor: '1. algo', '1) algo', viñetas ('- algo', '• algo') o
-    líneas sueltas, y renumera secuencialmente. Idempotente: normalizar(normalizar(x)) == normalizar(x),
-    porque reconoce el propio formato de salida (un '1.' solo, con la acción en la línea siguiente).
+    Acepta lo que escriba el asesor: '1. algo', '1) algo', viñetas ('- algo', '• algo'), líneas
+    sueltas, o el formato viejo ('1.' con la acción en la línea siguiente), y renumera. Idempotente.
     Devuelve '' si no hay contenido.
     """
     if not texto:
@@ -36,4 +35,4 @@ def normalizar_control_operativo(texto):
         else:
             acciones.append(linea)
         i += 1
-    return ''.join(f'{k}.\n{a}\n' for k, a in enumerate(acciones, 1))
+    return ''.join(f'{k}. {a}\n' for k, a in enumerate(acciones, 1))

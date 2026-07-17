@@ -277,6 +277,27 @@ def agrupado():
     return out
 
 
+# Dos bloques para el selector del panel (decisión del usuario, Ronda 30):
+#   - Seguridad          → "Riesgos estándar"
+#   - Higiénico/Músculo/Psicosocial → "Exposición al ambiente (salud)" (los del protocolo de salud)
+BLOQUES = [
+    ('estandar', 'Riesgos estándar', ('seguridad',)),
+    ('ambiente', 'Exposición al ambiente (salud ocupacional)', ('higienico', 'musculo', 'psicosocial')),
+]
+
+
+def agrupado_por_bloque():
+    """[(bloque, nombre, [familias con sus riesgos])] — para los dos súper-grupos del selector.
+    Cada familia conserva su <optgroup> adentro."""
+    fams = agrupado()
+    out = []
+    for clave, nombre, tipos in BLOQUES:
+        familias = [f for f in fams if f['tipo'] in tipos]
+        if familias:
+            out.append({'bloque': clave, 'nombre': nombre, 'familias': familias})
+    return out
+
+
 def buscar(texto):
     """Riesgos cuyo código, nombre o familia contengan el texto. Para el buscador del selector."""
     t = (texto or '').strip().lower()

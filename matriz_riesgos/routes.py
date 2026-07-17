@@ -65,7 +65,7 @@ def panel():
                            empresa=db.empresa_de(session.get('rut'), eid),
                            gema=iper.GEMA, tipos_control=iper.TIPOS_CONTROL,
                            escala_p=iper.PROBABILIDAD, escala_c=iper.CONSECUENCIA,
-                           catalogo=riesgos_isp.agrupado(), tipos_riesgo=riesgos_isp.TIPOS,
+                           catalogo=riesgos_isp.agrupado_por_bloque(), tipos_riesgo=riesgos_isp.TIPOS,
                            con_control=iper.codigos_con_control(),
                            biblioteca=db.biblioteca_listar(eid),
                            **datos)

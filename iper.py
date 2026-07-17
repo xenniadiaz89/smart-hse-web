@@ -130,23 +130,24 @@ def control_validado(codigo):
     None significa 'que lo escriba el experto', nunca 'invéntalo'. La UI marca lo autocargado como
     propuesta editable, no como medida cerrada.
     """
+    from formato import normalizar_control_operativo
     cod = (codigo or '').strip().upper()
     tarea = CONTROLES_VALIDADOS.get(cod)
     if tarea:
         for t in CATALOGO_TAREAS_BASE:
             if t['tarea'] == tarea and t.get('riesgos'):
                 r = t['riesgos'][0]
+                # Numerado ya, para que en el textarea se vea ordenado (1. 2. 3.).
                 return {'fuente': 'catalogo_transversal', 'peligro': r.get('peligro'),
-                        'medida_control': r.get('medida_control'),
+                        'medida_control': normalizar_control_operativo(r.get('medida_control')),
                         'metodo_correcto': r.get('metodo_correcto'),
                         'probabilidad': r.get('probabilidad'), 'consecuencia': r.get('consecuencia')}
     import controles_ds44
     lista = controles_ds44.controles(cod)
     if lista:
-        # Se entrega como texto multilínea; el borde del módulo lo normaliza a '1.\n2.\n'.
         return {'fuente': 'ds44', 'peligro': None,
-                'medida_control': '\n'.join(lista), 'metodo_correcto': None,
-                'probabilidad': None, 'consecuencia': None}
+                'medida_control': normalizar_control_operativo('\n'.join(lista)),
+                'metodo_correcto': None, 'probabilidad': None, 'consecuencia': None}
     return None
 
 
