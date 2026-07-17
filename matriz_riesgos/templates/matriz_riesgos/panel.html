@@ -77,8 +77,22 @@
                         </p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
+                        <!-- Ingresar proceso: menú de presets (procesos preestablecidos con sus controles) -->
+                        <div class="relative">
+                            <button type="button" onclick="toggleProcesos()" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6b9c31] text-white px-4 py-2 rounded-lg font-bold text-sm">
+                                <i data-lucide="folder-plus" class="w-4 h-4"></i> Ingresar Proceso <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></button>
+                            <div id="menuProcesos" class="hidden absolute right-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-30 py-1 max-h-96 overflow-y-auto">
+                                <p class="px-3 py-1.5 text-[10px] uppercase font-bold text-gray-400">Procesos preestablecidos</p>
+                                {% for pid, label in [] %}{% endfor %}
+                                <div id="listaProcesos"></div>
+                                <div class="border-t mt-1 pt-1">
+                                    <button type="button" onclick="cerrarProcesos(); abrirAgregar('nueva')" class="w-full text-left px-3 py-2 text-[13px] text-primary font-semibold hover:bg-primary/5">
+                                        <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Otro proceso (ingresar a mano)</button>
+                                </div>
+                            </div>
+                        </div>
                         <button type="button" onclick="abrirAgregar()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-lg font-bold text-sm">
-                            <i data-lucide="plus" class="w-4 h-4"></i> Agregar Riesgo</button>
+                            <i data-lucide="plus" class="w-4 h-4"></i> Ingresar Matriz de Riesgo</button>
                         <button type="button" onclick="versionar()" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm" title="Bloquea la matriz vigente y abre una revisión V{{ matriz.version + 1 }}">
                             <i data-lucide="git-branch" class="w-4 h-4"></i> Versionar</button>
                         <a href="/api/faena/0/miper.xlsx" onclick="return descargarSigo(event)" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm">
@@ -274,6 +288,29 @@
             </tr>`;
         }
 
+        // ── Ingresar Proceso: menú de presets ──
+        let _presets = [];
+        async function cargarPresets() {
+            try { const r = await fetch('/api/miper/presets'); if (r.ok) _presets = await r.json(); } catch (e) { }
+            document.getElementById('listaProcesos').innerHTML = _presets.map(p =>
+                `<button type="button" onclick="insertarProceso('${p.id}','${esc(p.proceso)}')" class="w-full text-left px-3 py-2 text-[13px] text-gray-700 hover:bg-secondary/10 flex items-center gap-2">
+                    <i data-lucide="workflow" class="w-3.5 h-3.5 text-secondary"></i> ${esc(p.proceso)}</button>`).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        function toggleProcesos() { document.getElementById('menuProcesos').classList.toggle('hidden'); if (window.lucide) lucide.createIcons(); }
+        function cerrarProcesos() { document.getElementById('menuProcesos').classList.add('hidden'); }
+        async function insertarProceso(pid, label) {
+            cerrarProcesos();
+            if (!confirm(`Insertar el proceso "${label}" con sus riesgos y controles preestablecidos?\n\nQuedarán editables: podrás ajustar los controles y agregar más.`)) return;
+            const r = await fetch('/api/miper/preset', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preset_id: pid })
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo insertar.'); return; }
+            location.reload();
+        }
+
         let _tareas = [];
         async function cargar() {
             let d = { tareas: [] };
@@ -434,7 +471,15 @@
             return false;
         }
 
+        // Cerrar el menú de procesos al hacer clic fuera.
+        document.addEventListener('click', e => {
+            const m = document.getElementById('menuProcesos');
+            if (!m.classList.contains('hidden') && !e.target.closest('#menuProcesos') && !e.target.closest('[onclick="toggleProcesos()"]'))
+                m.classList.add('hidden');
+        });
+
         cargar();
+        cargarPresets();
         if (window.lucide) lucide.createIcons();
     </script>
 </body>

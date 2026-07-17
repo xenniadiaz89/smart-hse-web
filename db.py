@@ -1309,8 +1309,11 @@ def matriz_riesgo_vigente(empresa_id):
 
 
 def crear_matriz_riesgo(empresa_id, creado_por=None):
-    """Crea (o devuelve) la matriz de riesgos vigente de la empresa (versión 1). Al crearla,
-    precarga el catálogo base transversal DS 44 (Ronda 17)."""
+    """Crea (o devuelve) la matriz de riesgos vigente de la empresa (versión 1).
+
+    Ronda 29: la matriz nace VACÍA. Antes auto-sembraba 5 transversales fijos; el usuario los
+    quiere como presets que elige insertar, no fijos (ver presets_iper + /api/miper/preset).
+    seed_tareas_base se conserva pero ya no se dispara solo."""
     existente = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
     if existente:
         return existente.id
@@ -1318,8 +1321,37 @@ def crear_matriz_riesgo(empresa_id, creado_por=None):
                      creado_por=creado_por, creado_en=_hoy())
     sqla.session.add(m)
     _commit()
-    seed_tareas_base(m.id, empresa_id)
     return m.id
+
+
+def insertar_preset(empresa_id, preset_id, creado_por=None):
+    """Inserta un proceso preestablecido (presets_iper) en la matriz vigente: crea su(s) tarea(s)
+    y riesgos con los controles ya normalizados a '1.\\n2.\\n'. Devuelve cuántos riesgos entró.
+    Todo queda editable (RiesgoItem normales)."""
+    import presets_iper
+    from formato import normalizar_control_operativo
+    pr = presets_iper.preset(preset_id)
+    if not pr:
+        return None
+    m = matriz_riesgo_vigente(empresa_id) or {'id': crear_matriz_riesgo(empresa_id, creado_por)}
+    mid = m['id'] if isinstance(m, dict) else m
+    n = 0
+    for t in pr['tareas']:
+        tid = tarea_crear(mid, t['nombre'], proceso=pr['proceso'], puesto=t.get('puesto'),
+                          rutinaria='rutinaria')
+        for rk in t['riesgos']:
+            ctrl = rk.get('medida_control')
+            if isinstance(ctrl, (list, tuple)):
+                ctrl = '\n'.join(ctrl)
+            riesgo_agregar(mid, rk.get('peligro'), rk.get('riesgo'),
+                           normalizar_control_operativo(ctrl),
+                           probabilidad=rk.get('probabilidad'), consecuencia=rk.get('consecuencia'),
+                           tipo_control=rk.get('tipo_control'), gema=rk.get('gema'),
+                           riesgo_codigo=rk.get('riesgo_codigo'), tipo_riesgo=rk.get('tipo_riesgo'),
+                           tarea_id=tid)
+            n += 1
+    aplicar_herencia_controles(empresa_id)
+    return n
 
 
 def seed_tareas_base(matriz_id, empresa_id):

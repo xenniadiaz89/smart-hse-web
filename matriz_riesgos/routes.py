@@ -154,6 +154,27 @@ def api_miper_catalogo():
                     'agrupado': riesgos_isp.agrupado(), 'tipos': riesgos_isp.TIPOS})
 
 
+@bp.route('/api/miper/presets', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_miper_presets():
+    """Lista los procesos preestablecidos (para el menú 'Ingresar proceso')."""
+    import presets_iper
+    return jsonify([{'id': pid, 'proceso': label} for pid, label in presets_iper.LISTA])
+
+
+@bp.route('/api/miper/preset', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_miper_preset():
+    """Inserta un proceso preestablecido completo (tareas + riesgos + controles) en la matriz."""
+    f = request.get_json(silent=True) or {}
+    n = db.insertar_preset(empresa_id(), f.get('preset_id'), session.get('nombre'))
+    if n is None:
+        return jsonify({'error': 'Preset no encontrado.'}), 404
+    return jsonify({'ok': True, 'riesgos_insertados': n})
+
+
 @bp.route('/api/miper/sugerencia', methods=['GET'])
 @empresa_required
 @onboarding_required
