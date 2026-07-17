@@ -66,7 +66,7 @@ def panel():
                            gema=iper.GEMA, tipos_control=iper.TIPOS_CONTROL,
                            escala_p=iper.PROBABILIDAD, escala_c=iper.CONSECUENCIA,
                            catalogo=riesgos_isp.agrupado(), tipos_riesgo=riesgos_isp.TIPOS,
-                           con_control=sorted(iper.CONTROLES_VALIDADOS),
+                           con_control=iper.codigos_con_control(),
                            biblioteca=db.biblioteca_listar(eid),
                            **datos)
 

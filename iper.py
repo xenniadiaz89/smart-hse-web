@@ -113,19 +113,40 @@ CONTROLES_VALIDADOS = {
 }
 
 
+def codigos_con_control():
+    """Todos los códigos del Anexo 2 que traen control sugerido (de cualquiera de las 2 fuentes).
+    Lo usa el panel para marcar con ✓ los riesgos que se autocargan."""
+    import controles_ds44
+    return sorted(set(CONTROLES_VALIDADOS) | set(controles_ds44.CONTROLES))
+
+
 def control_validado(codigo):
-    """Medida de control real para un riesgo del Anexo 2, o None si no la tenemos.
-    None significa 'que lo escriba el experto', nunca 'invéntalo'."""
-    tarea = CONTROLES_VALIDADOS.get((codigo or '').strip().upper())
-    if not tarea:
-        return None
-    for t in CATALOGO_TAREAS_BASE:
-        if t['tarea'] == tarea and t.get('riesgos'):
-            r = t['riesgos'][0]
-            return {'tarea': t['tarea'], 'peligro': r.get('peligro'),
-                    'medida_control': r.get('medida_control'),
-                    'metodo_correcto': r.get('metodo_correcto'),
-                    'probabilidad': r.get('probabilidad'), 'consecuencia': r.get('consecuencia')}
+    """Control sugerido para un riesgo del Anexo 2, de dos fuentes, o None si no hay base.
+
+    1º CONTROLES_VALIDADOS (5 riesgos del catálogo transversal): traen peligro, método y P/C, así
+       que se prefieren — son la propuesta más completa.
+    2º controles_ds44.CONTROLES: el resto de los riesgos con base DS 44, solo con la medida.
+
+    None significa 'que lo escriba el experto', nunca 'invéntalo'. La UI marca lo autocargado como
+    propuesta editable, no como medida cerrada.
+    """
+    cod = (codigo or '').strip().upper()
+    tarea = CONTROLES_VALIDADOS.get(cod)
+    if tarea:
+        for t in CATALOGO_TAREAS_BASE:
+            if t['tarea'] == tarea and t.get('riesgos'):
+                r = t['riesgos'][0]
+                return {'fuente': 'catalogo_transversal', 'peligro': r.get('peligro'),
+                        'medida_control': r.get('medida_control'),
+                        'metodo_correcto': r.get('metodo_correcto'),
+                        'probabilidad': r.get('probabilidad'), 'consecuencia': r.get('consecuencia')}
+    import controles_ds44
+    lista = controles_ds44.controles(cod)
+    if lista:
+        # Se entrega como texto multilínea; el borde del módulo lo normaliza a '1.\n2.\n'.
+        return {'fuente': 'ds44', 'peligro': None,
+                'medida_control': '\n'.join(lista), 'metodo_correcto': None,
+                'probabilidad': None, 'consecuencia': None}
     return None
 
 
