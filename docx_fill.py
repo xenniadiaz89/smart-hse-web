@@ -11,6 +11,7 @@ DS44/ está fuera del repo). Devuelve los bytes del .docx para descargar/persist
 """
 import io
 import os
+import re
 import unicodedata
 
 PLANTILLAS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plantillas_docx')
@@ -33,14 +34,14 @@ def _set_cell_text(cell, valor):
         par.add_run(valor)
 
 
-def _replace_tokens_paragraph(par, valores):
-    """Reemplaza {{clave}} en un párrafo. Une los runs para no partir el token entre runs."""
+def _replace_tokens_paragraph(par, valores, reemplazos=None):
+    """Reemplaza {{clave}} y patrones regex en un párrafo. Une los runs para no partir el match."""
     texto = par.text
-    if '{{' not in texto:
-        return
     nuevo = texto
-    for k, v in valores.items():
+    for k, v in (valores or {}).items():
         nuevo = nuevo.replace('{{' + k + '}}', '' if v is None else str(v))
+    for pat, val in (reemplazos or []):
+        nuevo = re.sub(pat, '' if val is None else str(val), nuevo)
     if nuevo != texto:
         if par.runs:
             par.runs[0].text = nuevo
@@ -50,11 +51,12 @@ def _replace_tokens_paragraph(par, valores):
             par.add_run(nuevo)
 
 
-def rellenar(nombre_plantilla, valores=None, etiquetas=None):
+def rellenar(nombre_plantilla, valores=None, etiquetas=None, reemplazos=None):
     """Abre `plantillas_docx/<nombre_plantilla>`, rellena y devuelve (bytes, filename).
     - `valores`: dict para reemplazo de {{tokens}} (párrafos y tablas).
     - `etiquetas`: dict {texto_de_etiqueta_normalizado: valor} → rellena la celda contigua a la
       etiqueta en cualquier tabla (para tablas "Etiqueta | valor").
+    - `reemplazos`: lista de (patrón_regex, valor) → reemplazo literal (ej. placeholders XXXX).
     Best-effort: si python-docx o la plantilla faltan, devuelve (None, None).
     """
     valores = valores or {}
@@ -69,13 +71,13 @@ def rellenar(nombre_plantilla, valores=None, etiquetas=None):
     try:
         d = docx.Document(ruta)
         for par in d.paragraphs:
-            _replace_tokens_paragraph(par, valores)
+            _replace_tokens_paragraph(par, valores, reemplazos)
         for tab in d.tables:
             for row in tab.rows:
                 cells = row.cells
                 for i, cell in enumerate(cells):
                     for par in cell.paragraphs:
-                        _replace_tokens_paragraph(par, valores)
+                        _replace_tokens_paragraph(par, valores, reemplazos)
                     # tabla etiqueta|valor: si esta celda es una etiqueta conocida, rellena la siguiente
                     if etiquetas_norm and i + 1 < len(cells):
                         key = _norm(cell.text)
@@ -101,6 +103,12 @@ def _etiquetas_empresa(empresa):
     }
 
 
+def _reemplazos_riohs(empresa, campos):
+    # El RIOHS v4 usa 'XXXX…' como marcador del nombre de la empresa (50 apariciones).
+    razon = (empresa or {}).get('razon_social') or 'LA EMPRESA'
+    return [(r'X{4,}', razon)]
+
+
 DOCX = {
     'programa_sgsst': {
         'plantilla': 'programa_sgsst_v8.2.docx',
@@ -112,6 +120,13 @@ DOCX = {
             'razon_social': (empresa or {}).get('razon_social') or '',
             'periodo': (campos or {}).get('periodo') or '',
         },
+    },
+    'riohs_docx': {
+        'plantilla': 'riohs_v4.docx',
+        'nombre': 'Reglamento Interno (RIOHS) — formato Word oficial',
+        'items_fuf': [49, 50, 51, 52],
+        'campos': [],
+        'reemplazos': _reemplazos_riohs,
     },
 }
 
@@ -137,7 +152,8 @@ def generar_docx(tipo_doc, empresa, campos=None):
         return None, None
     etiquetas = cfg['etiquetas'](empresa) if callable(cfg.get('etiquetas')) else cfg.get('etiquetas')
     tokens = cfg['tokens'](empresa, campos) if callable(cfg.get('tokens')) else cfg.get('tokens')
-    data, _ = rellenar(cfg['plantilla'], valores=tokens, etiquetas=etiquetas)
+    reemplazos = cfg['reemplazos'](empresa, campos) if callable(cfg.get('reemplazos')) else cfg.get('reemplazos')
+    data, _ = rellenar(cfg['plantilla'], valores=tokens, etiquetas=etiquetas, reemplazos=reemplazos)
     if data is None:
         return None, None
     emp = (empresa or {}).get('razon_social') or 'empresa'
