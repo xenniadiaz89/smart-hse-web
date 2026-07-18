@@ -100,7 +100,14 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto mt-5">
+                <!-- Portada: dashboard de cumplimiento (OBS-3A) -->
+                <div id="mlResumen" class="mt-5 bg-white border border-gray-100 rounded-2xl shadow-sm p-5"></div>
+                <div class="mt-3">
+                    <button type="button" onclick="toggleMatrizTabla()" id="mlToggle" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-[#005580]">
+                        <i data-lucide="table-2" class="w-4 h-4"></i> Trabajar la matriz</button>
+                </div>
+
+                <div id="mlTablaWrap" class="overflow-x-auto mt-4 hidden">
                     <table class="tbl w-full text-xs min-w-[1050px]">
                         <thead><tr>
                             <th>ID</th><th>Categoría</th><th>Cuerpo Legal</th><th>Art.</th>
@@ -198,12 +205,20 @@
             <div id="reqOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
                     <div class="border-b px-6 py-4 flex items-center justify-between">
-                        <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar Requisito (Operativo)</h3>
+                        <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar Requisito Legal</h3>
                         <button type="button" onclick="cerrarNuevoReq()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
                     </div>
                     <div class="p-6 space-y-3">
-                        <input id="rq_origen" class="iet-in" placeholder="Origen (ej. Codelco RT, BHP Spence, Sectorial)">
-                        <input id="rq_cuerpo" class="iet-in" placeholder="Cuerpo Legal / Estándar (ej. ECF, SIGO-P006, Permiso Seremi)">
+                        <div class="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                            <label class="text-[11px] font-bold text-primary uppercase">Pega o carga el link de la legislación (BCN)</label>
+                            <div class="flex gap-2 mt-1">
+                                <input id="rq_link" class="iet-in flex-1" placeholder="https://www.bcn.cl/leychile/navegar?idNorma=...">
+                                <button type="button" onclick="analizarLey()" class="inline-flex items-center gap-1 bg-primary text-white px-3 py-2 rounded-lg font-bold text-xs shrink-0"><i data-lucide="sparkles" class="w-4 h-4"></i> Analizar</button>
+                            </div>
+                            <p id="rq_analisis" class="text-[11px] text-gray-500 mt-1"></p>
+                        </div>
+                        <input id="rq_origen" class="iet-in" placeholder="Origen (ej. Legal Nacional, Sectorial)">
+                        <input id="rq_cuerpo" class="iet-in" placeholder="Cuerpo Legal / Estándar (ej. DS 44, Ley 16.744, DS 594)">
                         <textarea id="rq_req" class="iet-in" rows="2" placeholder="Requisito / obligación específica"></textarea>
                         <div>
                             <textarea id="rq_control" class="iet-in" rows="4" placeholder="Control operativo — una acción por línea:&#10;Revisar el registro&#10;Firmar el acta"></textarea>
@@ -278,7 +293,58 @@
             </tr>`;
         }
 
+        // ── Portada: dashboard de cumplimiento (OBS-3A) ──
+        async function cargarResumen() {
+            const box = document.getElementById('mlResumen');
+            let d = null;
+            try { const r = await fetch('/api/matriz-legal/resumen'); if (r.ok) d = await r.json(); } catch (e) { }
+            if (!box || !d) return;
+            const color = p => p >= 80 ? 'bg-secondary' : (p >= 40 ? 'bg-amber-500' : 'bg-orange-500');
+            const barras = (d.pilares || []).map(p => `
+                <div class="mb-2">
+                    <div class="flex justify-between text-[11px] mb-0.5"><span class="font-semibold text-gray-600">${p.nombre}</span><span class="text-gray-400">${p.cumplidos}/${p.total} · ${p.pct}%</span></div>
+                    <div class="h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full ${color(p.pct)} rounded-full" style="width:${p.pct}%"></div></div>
+                </div>`).join('');
+            box.innerHTML = `
+                <div class="flex items-center gap-5 flex-wrap">
+                    <div class="text-center">
+                        <div class="relative inline-flex items-center justify-center">
+                            <svg width="104" height="104" viewBox="0 0 104 104"><circle cx="52" cy="52" r="46" fill="none" stroke="#eee" stroke-width="10"/>
+                                <circle cx="52" cy="52" r="46" fill="none" stroke="#8DC63F" stroke-width="10" stroke-linecap="round"
+                                    stroke-dasharray="${2 * Math.PI * 46}" stroke-dashoffset="${2 * Math.PI * 46 * (1 - d.pct / 100)}" transform="rotate(-90 52 52)"/></svg>
+                            <span class="absolute text-2xl font-extrabold text-gray-800">${d.pct}%</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500 font-bold uppercase mt-1">Cumplimiento</p>
+                        <p class="text-[11px] text-gray-400">${d.cumplidos}/${d.total} auditados</p>
+                    </div>
+                    <div class="flex-1 min-w-[240px]">${barras || '<p class="text-xs text-gray-400">Sin requisitos aún.</p>'}</div>
+                </div>`;
+        }
+
+        function toggleMatrizTabla() {
+            const w = document.getElementById('mlTablaWrap');
+            const hidden = w.classList.toggle('hidden');
+            const btn = document.getElementById('mlToggle');
+            if (btn) btn.innerHTML = hidden ? '<i data-lucide="table-2" class="w-4 h-4"></i> Trabajar la matriz' : '<i data-lucide="eye-off" class="w-4 h-4"></i> Ocultar la matriz';
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function analizarLey() {
+            const link = (document.getElementById('rq_link') || {}).value || '';
+            const out = document.getElementById('rq_analisis');
+            if (!link.trim()) { out.textContent = 'Pega el link o el texto de la ley.'; return; }
+            out.textContent = 'Analizando…';
+            let r;
+            try { r = await (await fetch('/api/matriz-legal/analizar-ley', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: link }) })).json(); }
+            catch (e) { out.textContent = 'No se pudo analizar.'; return; }
+            out.textContent = r.nota || '';
+            const s = r.sugerencia || {};
+            const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+            set('rq_cuerpo', s.cuerpo_legal); set('rq_req', s.requisito || s.obligacion); set('rq_origen', 'Legal Nacional');
+        }
+
         async function cargarMatriz() {
+            cargarResumen();
             let data = [];
             try { const r = await fetch('/api/matriz-legal'); if (r.ok) data = await r.json(); } catch (e) { }
             const body = document.getElementById('matrizBody');

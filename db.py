@@ -1337,6 +1337,30 @@ def matriz_legal(empresa_id):
             .order_by(RequisitoLegal.capa, RequisitoLegal.id_requisito).all()]
 
 
+def matriz_legal_resumen(empresa_id):
+    """% de cumplimiento de la Matriz Legal transversal (OBS-3A): total, auditados y desglose por
+    pilar. 'auditado' = Cumple (incluye lo que el FUF marcó vía la herencia)."""
+    filas = RequisitoLegal.query.filter_by(empresa_id=empresa_id, contrato_id=None).all()
+    total = len(filas)
+    cumplidos = sum(1 for r in filas if r.estado_avance == 'auditado')
+    porpilar = {}
+    for r in filas:
+        p = r.pilar or 'OTROS'
+        d = porpilar.setdefault(p, {'total': 0, 'cumplidos': 0})
+        d['total'] += 1
+        if r.estado_avance == 'auditado':
+            d['cumplidos'] += 1
+    pilares = []
+    for p in ('P1', 'P2', 'P3', 'OTROS'):
+        if p in porpilar:
+            d = porpilar[p]
+            pilares.append({'pilar': p, 'nombre': cumplimiento.PILARES.get(p, p),
+                            'total': d['total'], 'cumplidos': d['cumplidos'],
+                            'pct': round(100 * d['cumplidos'] / d['total']) if d['total'] else 0})
+    return {'total': total, 'cumplidos': cumplidos, 'pendientes': total - cumplidos,
+            'pct': round(100 * cumplidos / total) if total else 0, 'pilares': pilares}
+
+
 def matriz_legal_contrato(empresa_id, contrato_id):
     """Requisitos legales de la capa mandante ligados a un contrato/faena."""
     return [r.to_dict() for r in

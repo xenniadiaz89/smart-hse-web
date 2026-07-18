@@ -126,6 +126,40 @@ def _inspeccionar_claude(minimos, texto):
         return None
 
 
+def analizar_ley(texto_o_link):
+    """Analiza una ley (link BCN o texto pegado) y sugiere los campos de un Requisito Legal
+    (OBS-3B). Devuelve {'ok':bool, 'sugerencia':{cuerpo_legal,articulo,requisito,obligacion,
+    control}, 'nota'}. Best-effort: requiere ANTHROPIC_API_KEY; si no, pide captura manual."""
+    txt = (texto_o_link or '').strip()
+    if not txt:
+        return {'ok': False, 'nota': 'Pega el texto o el link de la ley.'}
+    if not os.environ.get('ANTHROPIC_API_KEY'):
+        return {'ok': False, 'nota': ('Análisis con IA no disponible (falta ANTHROPIC_API_KEY). '
+                                      'Completa los campos manualmente.'), 'sugerencia': {}}
+    try:
+        import anthropic
+        import json as _json
+        client = anthropic.Anthropic()
+        msg = client.messages.create(
+            model=os.environ.get('SMARTHSE_IA_MODEL', 'claude-haiku-4-5'),
+            max_tokens=600,
+            system=("Eres un abogado experto en SST chilena (DS 44, Ley 16.744). Te doy el texto o el "
+                    "link BCN de una norma. Responde SOLO un JSON con los campos de un requisito legal "
+                    'para una matriz de cumplimiento: {"cuerpo_legal":"","articulo":"","requisito":"",'
+                    '"obligacion":"","control":"","pilar":"P1|P2|P3|OTROS"}. Sé conciso y fiel a la norma; '
+                    "no inventes artículos. Si es un link que no puedes leer, deduce por el nombre."),
+            messages=[{'role': 'user', 'content': txt[:4000]}],
+        )
+        raw = msg.content[0].text
+        m = re.search(r'\{.*\}', raw, re.S)
+        data = _json.loads(m.group() if m else raw)
+        return {'ok': True, 'sugerencia': data,
+                'nota': 'Sugerencia de la IA — revísala y ajústala antes de guardar.'}
+    except Exception:
+        return {'ok': False, 'nota': 'No se pudo analizar la norma. Completa los campos manualmente.',
+                'sugerencia': {}}
+
+
 def _clasificar_claude(nombre, texto=None):
     """Refuerzo opcional con Claude. Devuelve item_n o None.
     Requiere ANTHROPIC_API_KEY y el paquete `anthropic` (se activa en producción)."""

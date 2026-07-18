@@ -44,6 +44,26 @@ def api_matriz_get():
     return jsonify(db.matriz_legal(eid))
 
 
+@bp.route('/api/matriz-legal/resumen', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_matriz_resumen():
+    """% de cumplimiento de la Matriz Legal (para el gráfico de la portada del panel, OBS-3A)."""
+    eid = empresa_id()
+    service.asegurar_core(eid)
+    return jsonify(db.matriz_legal_resumen(eid))
+
+
+@bp.route('/api/matriz-legal/analizar-ley', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_matriz_analizar_ley():
+    """Analiza una ley (link BCN o texto) con IA y sugiere los campos del requisito (OBS-3B)."""
+    import ia
+    f = request.get_json(silent=True) or {}
+    return jsonify(ia.analizar_ley(f.get('texto') or f.get('link') or ''))
+
+
 @bp.route('/api/matriz-legal/catalogo', methods=['GET'])
 @empresa_required
 @onboarding_required
