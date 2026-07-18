@@ -492,6 +492,15 @@
             ).forEach(p => {
                 const og = document.createElement('optgroup');
                 og.label = p;
+                // El PROCESO también es destino: es donde se van agregando las tareas y sus
+                // riesgos. Sin esta opción el proceso sería solo un rótulo y habría que
+                // re-escribir su nombre cada vez para sumarle una tarea.
+                if (p !== 'Sin proceso asignado') {
+                    const nuevo = document.createElement('option');
+                    nuevo.value = 'proc:' + p;
+                    nuevo.textContent = '➕ Nueva tarea en este proceso';
+                    og.appendChild(nuevo);
+                }
                 porProceso[p].forEach(t => {
                     const o = document.createElement('option');
                     o.value = String(t.id);
@@ -513,18 +522,36 @@
             toggleDestino();
         }
         function toggleDestino() {
-            // Si el destino es una tarea existente, se ocultan los campos de tarea nueva.
+            // Tres destinos: proceso nuevo · tarea nueva DENTRO de un proceso existente · tarea ya creada.
             const sel = document.getElementById('destino');
-            const esNueva = sel.value === 'nueva';
-            document.getElementById('camposTarea').style.display = esNueva ? '' : 'none';
+            const val = sel.value;
+            const enProceso = val.startsWith('proc:');
+            const esTareaNueva = val === 'nueva' || enProceso;
+            const proc = document.getElementById('t_proceso');
             const ayuda = document.getElementById('destinoAyuda');
-            if (esNueva) {
+
+            document.getElementById('camposTarea').style.display = esTareaNueva ? '' : 'none';
+
+            if (enProceso) {
+                // El proceso ya está decidido: se muestra fijo para que se vea dónde va la tarea.
+                proc.value = val.slice(5);
+                proc.readOnly = true;
+                proc.classList.add('bg-gray-100', 'text-gray-500');
+                ayuda.textContent = `La tarea y su riesgo se agregan dentro del proceso «${proc.value}».`;
+                setTimeout(() => document.getElementById('t_nombre').focus(), 0);
+            } else if (val === 'nueva') {
+                // Se libera: si no, quedaría pegado el proceso elegido antes.
+                proc.readOnly = false;
+                proc.classList.remove('bg-gray-100', 'text-gray-500');
+                proc.value = '';
                 ayuda.textContent = _tareas.length
-                    ? 'Si escribes un proceso y una tarea que ya existen, el riesgo se suma a esa tarea en vez de crear una repetida.'
+                    ? 'Escribe el proceso y la tarea. Si ya existen, el riesgo se suma a esa tarea en vez de crear una repetida.'
                     : 'Escribe el proceso y la tarea; los riesgos se agregan dentro.';
             } else {
+                proc.readOnly = false;
+                proc.classList.remove('bg-gray-100', 'text-gray-500');
                 const opt = sel.selectedOptions[0];
-                ayuda.textContent = `El riesgo se agrega dentro del proceso «${opt.parentElement.label}».`;
+                ayuda.textContent = `El riesgo se agrega a esta tarea, dentro del proceso «${opt.parentElement.label}».`;
             }
         }
         function cerrarNuevaTarea() { document.getElementById('tareaOverlay').classList.add('hidden'); }
@@ -571,7 +598,8 @@
 
         async function guardarNuevaTarea() {
             const v = id => document.getElementById(id).value.trim();
-            const destino = document.getElementById('destino').value;   // 'nueva' o el id de una tarea
+            // 'nueva' · 'proc:<proceso>' (tarea nueva dentro de ese proceso) · id de una tarea
+            const destino = document.getElementById('destino').value;
             // El control es obligatorio siempre. El servidor lo revalida; esto es solo cortesía.
             if (!document.getElementById('r_medida').value.trim()) {
                 alert('La medida de control es obligatoria y debe escribirla el prevencionista.\n\n' +
@@ -588,12 +616,14 @@
                 tipo_control: v('r_tipo') || null, gema: v('r_gema') || null
             };
             let r;
-            if (destino === 'nueva') {
+            if (destino === 'nueva' || destino.startsWith('proc:')) {
                 if (!v('t_nombre')) { alert('Indica el nombre de la tarea.'); return; }
+                // Con destino 'proc:' el proceso lo manda el desplegable, no lo que haya escrito.
+                const proceso = destino.startsWith('proc:') ? destino.slice(5) : v('t_proceso');
                 r = await fetch('/api/miper/tareas', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        nombre: v('t_nombre'), proceso: v('t_proceso'), puesto: v('t_puesto'),
+                        nombre: v('t_nombre'), proceso: proceso, puesto: v('t_puesto'),
                         responsable: v('t_resp'), rutinaria: v('t_rutinaria'), riesgos: [riesgo],
                         guardar_biblioteca: document.getElementById('r_guardar_biblio').checked ? 1 : 0
                     })
