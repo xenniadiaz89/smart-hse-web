@@ -424,10 +424,57 @@ def por_item(n):
     return [d for d in CATALOGO if n in d['items_fuf']]
 
 
+# ── Evidencia ESPECÍFICA por ítem (OBS-9): no todo se genera; algunos ítems piden una evidencia
+#    concreta (foto, correo…). 'grupo' = evidencia compartida entre ítems que se propaga (OBS-9). ──
+EVIDENCIAS = {
+    4: {'texto': 'Evidencia fotográfica de dónde está publicada la MIPER en los lugares de trabajo.',
+        'tipo': 'foto', 'grupo': 'publicacion_matriz',
+        'campos': [{'k': 'lugar', 'label': '¿Dónde está publicada?', 'tipo': 'text'}]},
+    53: {'texto': 'Evidencia fotográfica de dónde está publicado el mapa de riesgos (lugar visible).',
+         'tipo': 'foto', 'grupo': 'publicacion_matriz',
+         'campos': [{'k': 'lugar', 'label': '¿Dónde está publicado?', 'tipo': 'text'}]},
+    50: {'texto': 'PDF del correo con que se remitió el RIOHS, 30 días antes de regir, para observaciones.',
+         'tipo': 'correo',
+         'campos': [{'k': 'a_quien', 'label': '¿A quién se envió? (trabajadores, CPHS/Delegado, sindicatos)', 'tipo': 'text'},
+                    {'k': 'fecha_envio', 'label': 'Fecha de envío', 'tipo': 'date'}]},
+    11: {'texto': 'Constancia de difusión del programa en los lugares de trabajo y remisión de un ejemplar al Comité Paritario.',
+         'tipo': 'documento',
+         'campos': [{'k': 'a_quien', 'label': '¿A quién se difundió / remitió?', 'tipo': 'text'},
+                    {'k': 'fecha_envio', 'label': 'Fecha', 'tipo': 'date'}]},
+    56: {'texto': 'Procedimiento/registro que autoriza la asistencia a los exámenes de control del OAL como tiempo trabajado.',
+         'tipo': 'documento', 'campos': []},
+}
+
+
+def evidencia_meta(n):
+    """Metadatos de la evidencia específica del ítem: {texto, tipo, campos, grupo} o None."""
+    try:
+        return EVIDENCIAS.get(int(n))
+    except (TypeError, ValueError):
+        return None
+
+
 def evidencia_de(n):
-    """Texto de evidencia requerida para el ítem FUF n. '' si el ítem no tiene formato mapeado."""
+    """Texto de evidencia requerida para el ítem FUF n. Prioriza la evidencia específica (OBS-9),
+    luego la del documento generable; '' si no hay nada mapeado."""
+    m = evidencia_meta(n)
+    if m and m.get('texto'):
+        return m['texto']
     docs = por_item(n)
     return docs[0]['evidencia'] if docs else ''
+
+
+def grupo_de(n):
+    """Grupo de evidencia compartida del ítem (los ítems del mismo grupo comparten evidencia)."""
+    m = evidencia_meta(n)
+    return m.get('grupo') if m else None
+
+
+def items_del_grupo(grupo):
+    """Ítems FUF que comparten un grupo de evidencia (para propagar una carga a todos)."""
+    if not grupo:
+        return []
+    return sorted(k for k, v in EVIDENCIAS.items() if v.get('grupo') == grupo)
 
 
 # ── Ítems que NO se generan aquí: viven en su propio módulo (se enlaza, no se duplica) ──
@@ -450,6 +497,30 @@ def enlace_de(n):
         return None
 
 
+# ── Elementos MÍNIMOS legales por ítem (P2): la IA verifica que el documento subido los tenga,
+#    y las plantillas los traen por construcción. Se llenan por ítem FUF. ──
+MINIMOS = {
+    1: ['Política de Seguridad y Salud en el Trabajo',
+        'Estructura organizacional para la gestión preventiva',
+        'Diagnóstico, planificación y programación',
+        'Evaluación o auditoría periódica del desempeño',
+        'Acción de mejora continua o correctiva'],
+    52: ['Preámbulo', 'Disposiciones generales', 'Obligaciones', 'Prohibiciones', 'Sanciones',
+         'Obligación de informar los riesgos', 'Procedimiento de reclamos (Ley 16.744)', 'Vigencia'],
+    10: ['Medidas preventivas y correctivas según MIPER', 'Plazos', 'Responsables',
+         'Prevención de alcohol y drogas', 'Vida y alimentación saludable',
+         'Conducción de vehículos cuando corresponda', 'Fechas de modificación y aprobación'],
+}
+
+
+def minimos_item(n):
+    """Elementos mínimos legales que debe contener el documento del ítem FUF n (para IA/plantilla)."""
+    try:
+        return MINIMOS.get(int(n), [])
+    except (TypeError, ValueError):
+        return []
+
+
 def documento(tipo_doc):
     return INDEX.get(tipo_doc)
 
@@ -464,22 +535,29 @@ def generar_html(tipo_doc, campos, empresa):
 
 def resumen_para_item(n):
     """Lo que el front necesita para pintar el ítem: tipos generables + sus campos + evidencia."""
+    m = evidencia_meta(n)
     return {
         'evidencia': evidencia_de(n),
+        'evidencia_tipo': (m or {}).get('tipo'),
+        'evidencia_campos': (m or {}).get('campos', []),
+        'grupo': grupo_de(n),
         'tipos': [{'tipo_doc': d['tipo_doc'], 'nombre': d['nombre'], 'campos': d['campos']}
                   for d in por_item(n)],
         'enlace': enlace_de(n),
+        'minimos': minimos_item(n),
     }
 
 
 def enriquecer_fuf(secciones):
-    """Copia de las SECCIONES del FUF con, por ítem, su evidencia de referencia ('ev') y los
-    documentos generables ('docs'). No muta el original (fuf.SECCIONES es dato compartido)."""
+    """Copia de las SECCIONES del FUF con, por ítem, su evidencia de referencia ('ev'), tipo de
+    evidencia, grupo compartido y documentos generables ('docs'). No muta el original."""
     out = []
     for s in secciones:
         items = []
         for it in s['items']:
             r = resumen_para_item(it['n'])
-            items.append({**it, 'ev': r['evidencia'], 'docs': r['tipos'], 'enlace': r['enlace']})
+            items.append({**it, 'ev': r['evidencia'], 'ev_tipo': r['evidencia_tipo'],
+                          'ev_campos': r['evidencia_campos'], 'grupo': r['grupo'],
+                          'docs': r['tipos'], 'enlace': r['enlace']})
         out.append({**s, 'items': items})
     return out

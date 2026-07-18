@@ -1144,6 +1144,29 @@ def api_fuf_documentos(n):
                     'documentos': db.documentos_fuf(eid, rut, item_n=n)})
 
 
+def _fuf_propagar(eid, rut, n, doc_id=None):
+    """Principio transversal: propaga el Cumple del ítem n. (1.4) marca el requisito de la Matriz
+    Legal ligado (fuf_item); (1.3) si el ítem pertenece a un grupo de evidencia compartida, marca
+    Cumple los demás ítems del grupo compartiendo el mismo documento (ref_doc_id)."""
+    legal, propagados = [], []
+    try:
+        legal = db.sincronizar_fuf_matriz(eid, n)
+        grupo = catalogo_documentos_ds44.grupo_de(n)
+        if grupo and doc_id:
+            cid = db.contrato_base(eid, rut)
+            for m in catalogo_documentos_ds44.items_del_grupo(grupo):
+                if m == n or db.documentos_fuf(eid, rut, item_n=m):
+                    continue
+                db.registrar_documento(cid, f'Evidencia compartida (ítem {n})', 'compartido',
+                                       'evidencia', item_n=m, categoria='FUF', ref_doc_id=doc_id)
+                db.fuf_marcar_cumple(eid, m, rut=rut)
+                db.sincronizar_fuf_matriz(eid, m)
+                propagados.append(m)
+    except Exception:      # noqa: BLE001 — la propagación es un extra; nunca debe romper la carga
+        pass
+    return {'legal_actualizados': legal, 'items_propagados': propagados}
+
+
 @app.route('/api/fuf/<int:n>/documento', methods=['POST'])
 @empresa_required
 @onboarding_required
@@ -1155,14 +1178,22 @@ def api_fuf_subir(n):
     archivos = request.files.getlist('archivo') or []
     if not archivos or not any(a and a.filename for a in archivos):
         return jsonify({'error': 'No se recibió archivo.'}), 400
+    doc_id = None
     for archivo in archivos:
         if not archivo or not archivo.filename:
             continue
-        db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n, categoria='FUF',
-                               contenido=archivo.read(),
-                               mimetype=archivo.mimetype or 'application/octet-stream')
+        contenido = archivo.read()
+        doc_id = db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n,
+                                        categoria='FUF', contenido=contenido,
+                                        mimetype=archivo.mimetype or 'application/octet-stream')
     db.fuf_marcar_cumple(eid, n, rut=rut)
-    return jsonify({'ok': True, 'documentos': db.documentos_fuf(eid, rut, item_n=n)})
+    prop = _fuf_propagar(eid, rut, n, doc_id)
+    # Análisis IA best-effort del documento subido contra los mínimos legales del ítem.
+    mime = archivos[0].mimetype if archivos else ''
+    analisis = ia.inspeccionar_evidencia(catalogo_documentos_ds44.minimos_item(n),
+                                         contenido=contenido, mimetype=mime)
+    return jsonify({'ok': True, 'documentos': db.documentos_fuf(eid, rut, item_n=n),
+                    'analisis': analisis, **prop})
 
 
 @app.route('/api/fuf/<int:n>/generar', methods=['POST'])
@@ -1188,8 +1219,9 @@ def api_fuf_generar(n):
     doc_id = db.registrar_documento(cid, nombre, 'generado', 'evidencia', item_n=n, categoria='FUF',
                                     contenido=html.encode('utf-8'), mimetype='text/html; charset=utf-8')
     db.fuf_marcar_cumple(eid, n, rut=rut)
+    prop = _fuf_propagar(eid, rut, n, doc_id)
     return jsonify({'ok': True, 'doc_id': doc_id, 'html': html,
-                    'documentos': db.documentos_fuf(eid, rut, item_n=n)})
+                    'documentos': db.documentos_fuf(eid, rut, item_n=n), **prop})
 
 
 # ─────────────────────────── Panel de Brechas (unificado) ──────────────────

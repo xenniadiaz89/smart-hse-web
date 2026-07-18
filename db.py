@@ -6,7 +6,7 @@ firmas de función) para que `app.py` no cambie. Las funciones devuelven `dict`
 """
 from datetime import date, timedelta
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, or_
 
 import cumplimiento
 from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEstado,
@@ -395,6 +395,50 @@ def capacitacion_crear(empresa_id, curso, cargo, n_capacitados=0, n_requeridos=0
     sqla.session.add(c)
     _commit()
     return c.id
+
+
+def sincronizar_fuf_matriz(empresa_id, fuf_item, quien='FUF (auto)'):
+    """Propagación FUF → Matriz Legal (principio transversal): cuando un ítem del FUF queda Cumple
+    (con evidencia cargada o documento generado), marca 'auditado' el/los RequisitoLegal ligados a
+    ese ítem (requisito_legal.fuf_item) y dispara la herencia hacia el control del riesgo. Devuelve
+    la lista de códigos de requisito actualizados."""
+    from datetime import datetime as _dtn
+    try:
+        fuf_item = int(fuf_item)
+    except (TypeError, ValueError):
+        return []
+    # Dos puentes: (a) por código de requisito (catalogo_legal.FUF_A_CODIGO → id_requisito) y
+    # (b) por categoría (ReglaCumplimiento.fuf_item → categoria). Se unen ambos.
+    import catalogo_legal
+    codigos = catalogo_legal.codigos_por_fuf(fuf_item)
+    categorias = [r.categoria for r in
+                  ReglaCumplimiento.query.filter_by(fuf_item=fuf_item).all() if r.categoria]
+    if not codigos and not categorias:
+        return []
+    cond = []
+    if codigos:
+        cond.append(RequisitoLegal.id_requisito.in_(codigos))
+    if categorias:
+        cond.append(RequisitoLegal.categoria.in_(categorias))
+    reqs = (RequisitoLegal.query
+            .filter(RequisitoLegal.empresa_id == empresa_id, or_(*cond)).all())
+    ahora = _dtn.now().isoformat(timespec='seconds')
+    tocados = []
+    for req in reqs:
+        if req.estado_avance == 'auditado':
+            continue
+        sqla.session.add(ValidacionCumplimiento(
+            requisito_id=req.id, validado_por=quien, validado_en=ahora, estado='cumple',
+            comentario=f"Cumplido por el FUF (ítem {fuf_item})."))
+        req.estado_avance = 'auditado'
+        req.validado_por = quien
+        req.validado_en = ahora
+        tocados.append(req.id_requisito or req.id)
+    if tocados:
+        _commit()
+        for req in reqs:
+            aplicar_herencia_controles(empresa_id, requisito_id=req.id)
+    return tocados
 
 
 def sincronizar_capacitacion_matriz(empresa_id, curso, quien='Capacitaciones (auto)'):
