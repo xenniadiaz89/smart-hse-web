@@ -452,7 +452,7 @@
                 if (x.control.consecuencia) document.getElementById('r_c').value = x.control.consecuencia;
                 med.innerHTML = '<span class="text-green-700 font-semibold">✓ Control sugerido cargado (borrador).</span> Revísalo y ajústalo a tu faena antes de guardar.';
             } else {
-                // Los otros 52 del Anexo 2: el control lo escribe el prevencionista. Prohibido inventarlo.
+                // Los riesgos del Anexo 2 sin control con fuente: lo escribe el prevencionista. Prohibido inventarlo.
                 document.getElementById('r_medida').value = '';
                 med.innerHTML = '<span class="text-amber-700 font-semibold">⚠ Este riesgo no trae control normativo: debes escribirlo tú.</span> ' +
                     'El sistema no genera medidas de control — son tuyas y tienen peso legal.';

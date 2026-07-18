@@ -146,8 +146,8 @@ def api_miper_tarea():
 def api_miper_catalogo():
     """Catálogo oficial del Anexo 2 (57 riesgos con código), agrupado por familia. `?q=` busca.
 
-    `control` viene con la medida validada SOLO para los 5 riesgos que la tienen escrita y
-    revisada; para el resto es null y lo escribe el prevencionista."""
+    `control` viene con la medida sugerida para los riesgos que la tienen escrita y revisada
+    (ver iper.control_validado); para el resto es null y lo escribe el prevencionista."""
     q = (request.args.get('q') or '').strip()
     filas = riesgos_isp.buscar(q) if q else riesgos_isp.RIESGOS
     return jsonify({'riesgos': [{**r, 'control': iper.control_validado(r['codigo'])} for r in filas],

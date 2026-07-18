@@ -100,10 +100,11 @@ def calcular_residual(probabilidad, consecuencia, tipo_control=None, validado=Fa
             'vep': res['vep'], 'magnitud': res['magnitud'], 'color': res['color']}
 
 
-# ── Riesgos del Anexo 2 que SÍ tienen medida de control validada ──
-# Solo estos cinco: son los del catálogo transversal, cuyo contenido preventivo está escrito y
-# revisado. Para los otros 52 riesgos del Anexo 2 el sistema NO propone control: son medidas con
-# peso legal y su autoría es del prevencionista, no de la aplicación (ver matriz_riesgos/routes).
+# ── Riesgos del catálogo transversal: los únicos con peligro, método y P/C sugeridos ──
+# NO son "los únicos con control": la medida de control de la mayoría de los riesgos del Anexo 2
+# vive en controles_ds44. Estos cinco aportan ADEMÁS el peligro, el método correcto y la evaluación
+# P/C, que aquel no tiene. Los riesgos sin fuente en ninguno de los dos no reciben propuesta: son
+# medidas con peso legal y su autoría es del prevencionista, no de la aplicación.
 CONTROLES_VALIDADOS = {
     'I2': 'Conducción de vehículos',          # Choque, colisión o volcamiento
     'P4': 'Exposición a radiación UV',        # Exposición a radiaciones no ionizantes
@@ -123,32 +124,49 @@ def codigos_con_control():
 def control_validado(codigo):
     """Control sugerido para un riesgo del Anexo 2, de dos fuentes, o None si no hay base.
 
-    1º CONTROLES_VALIDADOS (5 riesgos del catálogo transversal): traen peligro, método y P/C, así
-       que se prefieren — son la propuesta más completa.
-    2º controles_ds44.CONTROLES: el resto de los riesgos con base DS 44, solo con la medida.
+    Cada fuente aporta lo que sabe, en vez de competir:
+    · CONTROLES_VALIDADOS + CATALOGO_TAREAS_BASE (5 riesgos): son los únicos que traen peligro,
+      método correcto y P/C sugeridos → esos campos salen siempre de aquí.
+    · controles_ds44.CONTROLES: la medida de control detallada, para esos 5 y para el resto.
+
+    Antes la primera fuente TAPABA a la segunda y se perdía contenido ya redactado: A1 tiene tres
+    controles escritos en controles_ds44 y en pantalla se veía solo la frase resumida del catálogo
+    transversal. No se concatenan porque en los 5 casos esa frase es un RESUMEN de la lista (se
+    vería repetido); la lista detallada gana, y el resumen queda de respaldo si no hubiera lista.
 
     None significa 'que lo escriba el experto', nunca 'invéntalo'. La UI marca lo autocargado como
     propuesta editable, no como medida cerrada.
     """
     from formato import normalizar_control_operativo
+    import controles_ds44
     cod = (codigo or '').strip().upper()
+    salida = {'fuente': None, 'peligro': None, 'metodo_correcto': None,
+              'probabilidad': None, 'consecuencia': None}
+    resumen = None
+
     tarea = CONTROLES_VALIDADOS.get(cod)
     if tarea:
         for t in CATALOGO_TAREAS_BASE:
             if t['tarea'] == tarea and t.get('riesgos'):
                 r = t['riesgos'][0]
-                # Numerado ya, para que en el textarea se vea ordenado (1. 2. 3.).
-                return {'fuente': 'catalogo_transversal', 'peligro': r.get('peligro'),
-                        'medida_control': normalizar_control_operativo(r.get('medida_control')),
-                        'metodo_correcto': r.get('metodo_correcto'),
-                        'probabilidad': r.get('probabilidad'), 'consecuencia': r.get('consecuencia')}
-    import controles_ds44
+                salida.update({'peligro': r.get('peligro'), 'metodo_correcto': r.get('metodo_correcto'),
+                               'probabilidad': r.get('probabilidad'),
+                               'consecuencia': r.get('consecuencia')})
+                resumen = r.get('medida_control')
+                break
+
     lista = controles_ds44.controles(cod)
     if lista:
-        return {'fuente': 'ds44', 'peligro': None,
-                'medida_control': normalizar_control_operativo('\n'.join(lista)),
-                'metodo_correcto': None, 'probabilidad': None, 'consecuencia': None}
-    return None
+        salida['fuente'] = 'catalogo_transversal+ds44' if tarea else 'ds44'
+        medida = '\n'.join(lista)
+    elif resumen:
+        salida['fuente'] = 'catalogo_transversal'
+        medida = resumen
+    else:
+        return None
+    # Numerado ya, para que en el textarea se vea ordenado (1. 2. 3.).
+    salida['medida_control'] = normalizar_control_operativo(medida)
+    return salida
 
 
 # ── Catálogo base transversal (se precarga al inicializar la matriz de una empresa) ──

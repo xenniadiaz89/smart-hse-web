@@ -15,6 +15,10 @@ Adaptados y generalizados al D.S. 44 desde:
 - Estándares transversales: D.S. 594 (condiciones sanitarias/ambientales), D.S. 63 y Ley 20.001
   (manejo manual de cargas), protocolos MINSAL (PREXOR, PLANESI, TMERT, RUV, CEAL-SM/SUSESO),
   guías del ISP.
+- Un cuadro del Anexo 2 ANOTADO con medidas de control, aportado por la usuaria. Aportó lo que
+  faltaba en P3 (ionizantes), P2 (vibraciones), el control específico de cada postura T1-T7 y los
+  controles de izaje (plegados a B1/B2, ver más abajo). Su nomenclatura CP#/CM# no se conserva:
+  es de un mandante concreto y no le sirve a una empresa cualquiera.
 
 Cobertura parcial a propósito: solo los riesgos con base real. Un código ausente aquí devuelve
 None → el control lo escribe el experto (campo vacío y obligatorio en el panel). NO se inventan
@@ -45,6 +49,16 @@ _AGENTE_QUIMICO = [
     'Monitoreo de la exposición contra los límites permisibles del D.S. 594',
     'EPP respiratorio/dérmico específico y programa de vigilancia de salud del OAL',
 ]
+# L2 y P3 son el MISMO riesgo (radiación ionizante) en dos familias del Anexo 2 —seguridad e
+# higiénico—, así que comparten cuerpo igual que O1-O3 comparten _AGENTE_QUIMICO.
+_IONIZANTE = [
+    'Blindaje, distancia y limitación del tiempo de exposición (protección radiológica)',
+    'Equipos que emitan la menor radiación posible y que cuenten con blindaje',
+    'Dosimetría personal y control por autoridad competente',
+    'Señalización y control de acceso a zonas con radiación ionizante',
+    'Conocimiento por la persona trabajadora de los riesgos radiológicos de su puesto y de los '
+    'controles existentes',
+]
 
 CONTROLES = {
     # ── Caídas ──
@@ -63,14 +77,23 @@ CONTROLES = {
            'Chaleco salvavidas y elementos de flotación/rescate disponibles',
            'Trabajador acompañado y plan de rescate acuático'],
     # ── Contacto con objetos ──
+    # B1/B2 absorben los controles de IZAJE del cuadro del Anexo 2 anotado. El izaje no es un código
+    # del Anexo 2 (sus filas vienen sin código), así que en vez de inventar uno se pliegan al código
+    # que describe el mismo daño: atrapamiento por partes móviles → B1, caída de carga → B2.
     'B1': ['Guardas y protecciones fijas en las partes móviles de equipos y máquinas',
            'Bloqueo y verificación de energía cero (LOTO) antes de intervenir',
            'Competencias del personal que interactúa con equipos de partes móviles',
+           'Operatividad y mantenimiento de aparejos y elementos de izaje',
            'Parada de emergencia operativa y accesible'],
     'B2': ['Planificación y autorización de trabajos en la vertical (niveles superpuestos)',
            'Segregación y señalización de los niveles inferiores',
            'Sujeción y contención de herramientas y materiales en altura',
-           'Casco de seguridad y control de acceso bajo la zona de trabajo'],
+           'Diseño y especificaciones técnicas de los equipos de izaje fijos y móviles',
+           'Inspección del equipo y de los elementos de izaje antes de cada maniobra',
+           'Comunicación bidireccional entre el operador del equipo y el rigger o señalero',
+           'Monitoreo de las condiciones de operación del equipo de izaje',
+           'Sistema de estabilidad del equipo durante la maniobra (apoyos, nivelación, radio de carga)',
+           'Casco de seguridad y control de acceso bajo la zona de trabajo y bajo la carga suspendida'],
     'B3': ['Uso de herramientas cortopunzantes adecuadas, en buen estado y con resguardo',
            'Guantes anticorte y técnica de corte alejando el cuerpo',
            'Descarte seguro de elementos cortopunzantes en contenedores rígidos'],
@@ -124,24 +147,33 @@ CONTROLES = {
     'L1': ['Gestión de la exposición a radiación UV/no ionizante (sombra, horarios críticos)',
            'Bloqueador solar FPS 50+, ropa de manga larga, gorro legionario y lentes UV',
            'Difusión del protocolo RUV (radiación ultravioleta de origen solar) del MINSAL'],
-    'L2': ['Blindaje, distancia y limitación del tiempo de exposición (protección radiológica)',
-           'Dosimetría personal y control por autoridad competente',
-           'Señalización y control de acceso a zonas con radiación ionizante'],
+    'L2': _IONIZANTE,
     # ── Higiénicos (agentes químicos O1-O3 comparten cuerpo) ──
     'O1': _AGENTE_QUIMICO, 'O2': _AGENTE_QUIMICO, 'O3': _AGENTE_QUIMICO,
     'P1': ['Evaluación de la exposición a ruido y programa PREXOR del MINSAL',
            'Control en la fuente (encierro, silenciadores) y en el medio',
+           'Selección y evaluación del protector auditivo según la guía del ISP',
+           'Capacitación en el uso correcto y la mantención del protector auditivo',
            'Protección auditiva certificada y vigilancia audiométrica del OAL'],
     'P2': ['Evaluación de la exposición a vibración (mano-brazo o cuerpo completo)',
+           'Herramientas que reduzcan la vibración transmitida (sistemas de contrapeso, mangos '
+           'amortiguados)',
            'Mantención de equipos, asientos amortiguados y limitación del tiempo de exposición',
+           'Alternancia de las personas trabajadoras en el uso de maquinaria y vehículos que generan '
+           'vibración intensa',
+           'Rotación de tareas para evitar exposición prolongada a vibración de cuerpo completo',
+           'Límites de duración de la exposición según las guías de salud ocupacional',
            'Vigilancia de salud de las personas expuestas'],
+    'P3': _IONIZANTE,
     'P4': ['Gestión de la exposición a radiación no ionizante (sombra, horarios críticos)',
            'Bloqueador FPS 50+, ropa de manga larga, gorro legionario y lentes UV',
            'Difusión del protocolo RUV del MINSAL'],
     'P5': ['Evaluación del estrés térmico por calor y aclimatación del personal',
            'Hidratación, sombra, pausas y ajuste de la jornada en horas críticas',
+           'Ropa de trabajo adecuada al calor (trajes térmicos, guantes resistentes al calor y calzado)',
            'Vigilancia de signos de golpe de calor'],
     'P6': ['Evaluación de la exposición a frío y ropa térmica adecuada',
+           'Sistemas de calefacción adecuados en las áreas de trabajo frías',
            'Pausas en zonas temperadas e hidratación con líquidos calientes',
            'Vigilancia de signos de hipotermia'],
     'Q1': ['Precauciones estándar frente a sangre y fluidos corporales',
@@ -161,8 +193,26 @@ CONTROLES = {
     'S1': ['Evaluación del trabajo repetitivo de extremidad superior (TMERT-EESS)',
            'Rediseño del ciclo de trabajo, herramientas y ritmo',
            'Pausas activas y rotación de tareas'],
-    'T1': _POSTURAL, 'T2': _POSTURAL, 'T3': _POSTURAL, 'T4': _POSTURAL,
-    'T5': _POSTURAL, 'T6': _POSTURAL, 'T7': _POSTURAL,
+    # T1-T7: base común (_POSTURAL) + el control propio de CADA postura. Antes los siete devolvían
+    # exactamente el mismo texto, así que elegir T3 (cuclillas) o T5 (torsión) daba lo mismo: la
+    # medida no describía el riesgo que se estaba evaluando.
+    'T1': _POSTURAL,
+    'T2': _POSTURAL + [
+        'Sentarse con la espalda recta y las piernas en postura cómoda, con apoyo lumbar',
+        'Limitar el tiempo continuo de digitación intercalando otras tareas'],
+    'T3': _POSTURAL + [
+        'Eliminar o reducir las tareas que exigen trabajar en cuclillas',
+        'Herramientas o equipos que permitan ejecutar la tarea de pie'],
+    'T4': _POSTURAL + [
+        'Eliminar las tareas que exigen trabajar arrodillado',
+        'Superficies acolchadas o rodilleras cuando la postura no se pueda evitar'],
+    'T5': _POSTURAL + [
+        'Eliminar los movimientos repetitivos de torsión o inclinación del tronco',
+        'Equipos ajustables que permitan mantener el tronco en rango neutro'],
+    'T6': _POSTURAL + [
+        'Eliminar las tareas que obligan a trabajar fuera del alcance funcional o natural',
+        'Reubicar materiales y controles dentro de la zona de alcance cómodo'],
+    'T7': _POSTURAL,
     # ── Psicosociales (Anexo 2 D1-D5; controles del protocolo CEAL-SM/SUSESO + Ley Karin) ──
     'D1': ['Evaluación del riesgo psicosocial con el cuestionario CEAL-SM/SUSESO',
            'Ajuste de cargas de trabajo, plazos y exigencias emocionales',
@@ -179,8 +229,9 @@ CONTROLES = {
     'D5': ['Medidas de conciliación trabajo-vida (doble presencia): horarios y permisos',
            'Respeto de jornadas, descansos y períodos de vacaciones',
            'Corresponsabilidad y flexibilidad según la normativa vigente'],
-    # Ausentes a propósito (sin fuente transversal clara): A-N residuales C1/C2/M/N,
-    # radiaciones P3, presiones P7/P8, aerosoles vs O ya cubiertos. Devuelven None → los escribe el experto.
+    # Ausentes a propósito (sin fuente transversal clara): C1 y C2 (contacto con personas / animales),
+    # M (ingesta de sustancias nocivas), N (otros riesgos) y P7/P8 (altas y bajas presiones). El
+    # cuadro anotado tampoco los cubre. Devuelven None → los escribe el experto, no se inventan.
 }
 
 
