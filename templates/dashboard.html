@@ -1768,8 +1768,8 @@
                     <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="line-chart" class="w-5 h-5 text-primary"></i> Estadísticas de Prevención ${data.anio}</h3>
                     <button type="button" onclick="mostrarVista('estadisticas'); cargarEstadisticas()" class="text-[11px] font-bold text-primary hover:underline">Gestionar →</button>
                 </div>
-                <div class="grid grid-cols-4 gap-2 mb-3">
-                    ${kpi(ac.accidentes, 'Accidentes')}${kpi(ac.if, 'Í. Frecuencia')}${kpi(ac.ig, 'Í. Gravedad')}${kpi(ac.ta, 'Tasa acc.')}
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                    ${kpi(ac.accidentes, 'Accidentes')}${kpi(ac.dias_perdidos, 'Días perd.')}${kpi(ac.hh_trabajadas, 'HH trabaj.')}${kpi(ac.if, 'Í. Frecuencia')}${kpi(ac.ig, 'Í. Gravedad')}${kpi(ac.ta, 'Tasa acc.')}
                 </div>
                 <div style="height:220px"><canvas id="chartEst"></canvas></div>`;
             if (window.lucide) lucide.createIcons();
@@ -1848,6 +1848,7 @@
             const data = await r.json();
             _renderEstTabla(data); _renderEstIndicadores(data.resumen.acumulado);
             _estAnioPortada = Number(anio);
+            cargarEstadisticasPortada();   // sync vivo: la portada de Mis Contratos se refresca
         }
 
         // ── Empresa / Adhesión (registro + Mutual dentro de la consola) ──

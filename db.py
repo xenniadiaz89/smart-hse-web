@@ -349,14 +349,29 @@ def protocolo_eliminar(empresa_id, pid):
 _ESTADISTICA_CAMPOS = ('n_accidentes', 'n_incidentes', 'dias_perdidos', 'n_trabajadores', 'hh_trabajadas')
 
 
+def dotacion_empresa(empresa_id):
+    """N° de trabajadores de la empresa (transversal): nómina activa; si no hay, dotación declarada.
+    Alimenta las estadísticas para no teclear el N° trabajadores a mano (OBS-2)."""
+    n = trabajadores_activos_count(empresa_id)
+    if n:
+        return n
+    e = Empresa.query.get(empresa_id)
+    return int(e.dotacion) if e and e.dotacion else 0
+
+
 def estadisticas_de(empresa_id, anio):
-    """Las 12 filas mensuales del año (dicts), rellenando con 0 los meses sin registro."""
+    """Las 12 filas mensuales del año (dicts), rellenando con 0 los meses sin registro. El N° de
+    trabajadores se sugiere desde la nómina/dotación cuando no se cargó a mano (OBS-2)."""
     filas = {r.mes: r.to_dict() for r in
              EstadisticaMensual.query.filter_by(empresa_id=empresa_id, anio=int(anio)).all()}
+    dot = dotacion_empresa(empresa_id)
     out = []
     for m in range(1, 13):
         r = filas.get(m) or {'mes': m}
-        out.append({'mes': m, **{c: (r.get(c) or 0) for c in _ESTADISTICA_CAMPOS}})
+        fila = {'mes': m, **{c: (r.get(c) or 0) for c in _ESTADISTICA_CAMPOS}}
+        if not fila['n_trabajadores']:
+            fila['n_trabajadores'] = dot        # sugerido desde nómina/dotación (editable)
+        out.append(fila)
     return out
 
 

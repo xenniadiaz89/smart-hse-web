@@ -455,8 +455,16 @@ def api_estadisticas_set():
     mes = int(f.get('mes') or 0)
     if not 1 <= mes <= 12:
         return jsonify({'error': 'Mes inválido.'}), 400
-    eid = _empresa_id()
+    rut, eid = session['rut'], _empresa_id()
     db.estadistica_set(eid, anio, mes, f.get('datos') or {})
+    # Principio transversal: al haber registro de estadísticas, los ítems FUF 47 y 60 quedan Cumple
+    # y se propaga al requisito legal de estadísticas (LEG-ESTAD). Best-effort.
+    try:
+        for it in (47, 60):
+            db.fuf_marcar_cumple(eid, it, rut=rut)
+            db.sincronizar_fuf_matriz(eid, it)
+    except Exception:      # noqa: BLE001
+        pass
     return jsonify({'anio': anio, 'filas': db.estadisticas_de(eid, anio),
                     'resumen': db.estadisticas_resumen(eid, anio)})
 
