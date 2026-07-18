@@ -1107,8 +1107,13 @@
             btn.disabled = false;
             if (!r.ok) { alert('No se pudo generar el documento.'); return; }
             const data = await r.json();
-            const w = window.open('', '_blank');
-            if (w) { w.document.write(data.html); w.document.close(); }
+            if (data.descargar && data.doc_id) {
+                // Documento Word fiel: se descarga el .docx generado.
+                window.open('/api/doc/' + data.doc_id, '_blank');
+            } else if (data.html) {
+                const w = window.open('', '_blank');
+                if (w) { w.document.write(data.html); w.document.close(); }
+            }
             // Generado = ahora lo tienes → el ítem pasa a "Cumple" y se muestra el documento guardado.
             setEstado(n, 'si');
             actualizarKPIs();

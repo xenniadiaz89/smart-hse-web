@@ -538,14 +538,17 @@ def generar_html(tipo_doc, campos, empresa):
 
 def resumen_para_item(n):
     """Lo que el front necesita para pintar el ítem: tipos generables + sus campos + evidencia."""
+    import docx_fill
     m = evidencia_meta(n)
+    tipos = [{'tipo_doc': d['tipo_doc'], 'nombre': d['nombre'], 'campos': d['campos'], 'formato': 'html'}
+             for d in por_item(n)]
+    tipos += docx_fill.tipos_para_item(n)      # documentos Word fieles (Programa/SGSST, RIOHS…)
     return {
         'evidencia': evidencia_de(n),
         'evidencia_tipo': (m or {}).get('tipo'),
         'evidencia_campos': (m or {}).get('campos', []),
         'grupo': grupo_de(n),
-        'tipos': [{'tipo_doc': d['tipo_doc'], 'nombre': d['nombre'], 'campos': d['campos']}
-                  for d in por_item(n)],
+        'tipos': tipos,
         'enlace': enlace_de(n),
         'minimos': minimos_item(n),
     }

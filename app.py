@@ -1214,10 +1214,26 @@ def api_fuf_generar(n):
     f = request.get_json(silent=True) or {}
     tipo_doc = (f.get('tipo_doc') or '').strip()
     campos = f.get('campos') or {}
+    emp = db.empresa_de(rut, eid) or {}
+
+    # Documento Word fiel (Programa/SGSST V8.2, RIOHS…): rellena el .docx real y lo deja para descargar.
+    import docx_fill
+    if docx_fill.es_docx(tipo_doc):
+        data, fname = docx_fill.generar_docx(tipo_doc, emp, campos)
+        if data is None:
+            return jsonify({'error': 'No se pudo generar el documento Word.'}), 500
+        cid = db.contrato_base(eid, rut, emp.get('razon_social'))
+        doc_id = db.registrar_documento(
+            cid, fname, 'generado', 'evidencia', item_n=n, categoria='FUF', contenido=data,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        db.fuf_marcar_cumple(eid, n, rut=rut)
+        prop = _fuf_propagar(eid, rut, n, doc_id)
+        return jsonify({'ok': True, 'doc_id': doc_id, 'descargar': True,
+                        'documentos': db.documentos_fuf(eid, rut, item_n=n), **prop})
+
     doc = catalogo_documentos_ds44.documento(tipo_doc)
     if not doc or n not in doc['items_fuf']:
         return jsonify({'error': 'Tipo de documento no válido para este ítem.'}), 400
-    emp = db.empresa_de(rut, eid) or {}
     if tipo_doc == 'estadisticas':       # documento data-driven: inyecta la serie de la empresa
         anio = int((campos.get('anio') or 0)) or date.today().year
         campos = {**campos, 'anio': anio, '_resumen': db.estadisticas_resumen(eid, anio)}
