@@ -608,6 +608,32 @@ MINIMOS = {
     10: ['Medidas preventivas y correctivas según MIPER', 'Plazos', 'Responsables',
          'Prevención de alcohol y drogas', 'Vida y alimentación saludable',
          'Conducción de vehículos cuando corresponda', 'Fechas de modificación y aprobación'],
+    # Los criterios de abajo se derivan del ENUNCIADO NORMATIVO del ítem en fuf.SECCIONES, no de
+    # palabras clave elegidas a ojo: lo que la IA busca en el documento es exactamente lo que el
+    # fiscalizador va a exigir. Sin mínimos definidos, inspeccionar_evidencia() ni se dispara.
+    4: ['La matriz de riesgos (MIPER) aparece publicada o exhibida',
+        'Se distingue el lugar de trabajo donde está publicada',
+        'Es legible para las personas trabajadoras'],
+    30: ['Acta de constitución del Comité Paritario de Higiene y Seguridad',
+         'Fecha de constitución', 'Representantes de la empresa (titulares y suplentes)',
+         'Representantes de las personas trabajadoras (titulares y suplentes)'],
+    35: ['Fecha de la reunión', 'Materias tratadas', 'Acuerdos adoptados',
+         'Medidas preventivas comprometidas', 'Plazo de cumplimiento de cada medida',
+         'Firma o identificación de los asistentes'],
+    49: ['Reglamento Interno de Higiene y Seguridad', 'Fecha de vigencia',
+         'Constancia de entrega gratuita a las personas trabajadoras',
+         'Constancia de ingreso a la página web de la Dirección del Trabajo'],
+    50: ['Constancia del envío del Reglamento Interno (correo u oficio)',
+         'Fecha de envío al menos 30 días antes de entrar a regir',
+         'Destinatarios: personas trabajadoras, CPHS o Delegado SST y organizaciones sindicales',
+         'Indicación de que se remite para formular observaciones'],
+    53: ['Esquema o plano del lugar de trabajo',
+         'Indicación de los principales riesgos existentes',
+         'Se aprecia publicado en un lugar visible'],
+    54: ['Identificación de los agentes o factores de riesgo presentes',
+         'Lugares o puestos con exposición evaluados',
+         'Referencia al protocolo del MINSAL que corresponde',
+         'Participación del organismo administrador (OAL)'],
 }
 
 

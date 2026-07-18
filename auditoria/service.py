@@ -72,6 +72,9 @@ def _bloque_fuf(eid, rut, cid):
             grupos.append({
                 'ref': n, 'titulo': f'Ítem {n:02d}', 'detalle': item.get('t', ''),
                 'norma': item.get('art', ''), 'seccion': info.get('seccion', ''),
+                # Subcarpeta dentro del bloque: el .zip queda ordenado por sección del FUF, que es
+                # como el fiscalizador recorre el formulario.
+                'subcarpeta': info.get('seccion', ''),
                 'estado': estado, 'docs': [_doc(d) for d in docs],
             })
         # La brecha que importa: dice cumplir y no hay nada que lo respalde.
@@ -240,8 +243,16 @@ def indice(empresa_id, rut):
 
 
 def ruta_zip(bloque, grupo, doc, usados):
-    """Ruta de un documento dentro del .zip, sin colisiones de nombre."""
-    carpeta = f"{bloque['slug']}/{_limpiar(grupo['titulo'], 70)}"
+    """Ruta de un documento dentro del .zip, sin colisiones de nombre.
+
+    Si el grupo declara `subcarpeta` (las secciones del FUF), se interpone un nivel: el bloque
+    queda ordenado igual que el formulario que recorre el fiscalizador.
+    """
+    tramos = [bloque['slug']]
+    if grupo.get('subcarpeta'):
+        tramos.append(_limpiar(grupo['subcarpeta'], 70))
+    tramos.append(_limpiar(grupo['titulo'], 70))
+    carpeta = '/'.join(tramos)
     base = _limpiar(doc['nombre'])
     ruta = f'{carpeta}/{base}'
     if ruta in usados:

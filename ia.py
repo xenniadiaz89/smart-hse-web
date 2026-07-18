@@ -73,26 +73,72 @@ def _texto_de(contenido, mimetype):
     return None
 
 
+# Límite del payload que se manda a la API. Por encima se degrada a checklist manual: mejor
+# decir "revísalo tú" que fallar a mitad de una carga.
+_MAX_VISION_BYTES = 4 * 1024 * 1024
+
+_IMAGENES = ('image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp')
+
+
+def _bloque_visual(contenido, mimetype):
+    """Bloque de contenido para la API (imagen o PDF), o None si este documento no aplica.
+
+    Existe porque _texto_de() no puede con PDF ni imágenes, y ahí es justo donde vive la evidencia
+    que más pesa en una fiscalización: la FOTO de dónde está publicada la MIPER (ítem 4), el PDF
+    del correo con que se envió el RIOHS (ítem 50) y todo documento escaneado.
+    """
+    import base64
+    mt = (mimetype or '').lower().split(';')[0].strip()
+    if mt in _IMAGENES:
+        tipo, media = 'image', ('image/jpeg' if mt == 'image/jpg' else mt)
+    elif mt == 'application/pdf':
+        tipo, media = 'document', 'application/pdf'
+    else:
+        return None
+    if not contenido or len(contenido) > _MAX_VISION_BYTES:
+        return None
+    return {'type': tipo,
+            'source': {'type': 'base64', 'media_type': media,
+                       'data': base64.standard_b64encode(contenido).decode('ascii')}}
+
+
 def inspeccionar_evidencia(minimos, contenido=None, mimetype=None):
     """Verifica que un documento subido contenga los elementos mínimos legales del ítem.
     Devuelve {'modo': 'ia'|'manual', 'items': [{'elemento','presente'|'estado'}], 'nota'} o None si
-    no hay mínimos definidos. Best-effort: usa Claude si hay ANTHROPIC_API_KEY y texto extraíble;
-    si no, entrega un checklist para verificación manual (no inventa cumplimiento)."""
+    no hay mínimos definidos. Best-effort: usa Claude si hay ANTHROPIC_API_KEY y el documento es
+    legible (texto, imagen o PDF); si no, entrega un checklist para verificación manual.
+
+    Nunca decide el cumplimiento: informa qué mínimos encuentra y cuáles no. Marcar el ítem como
+    Cumple sigue siendo del experto, porque es un estado con peso legal.
+    """
     minimos = [m for m in (minimos or []) if m]
     if not minimos:
         return None
-    texto = _texto_de(contenido, mimetype)
-    if texto and os.environ.get('ANTHROPIC_API_KEY'):
-        ia_res = _inspeccionar_claude(minimos, texto)
-        if ia_res is not None:
-            return ia_res
+    nota_manual = ('Verifica manualmente que el documento contenga estos elementos mínimos '
+                   'que exige la ley.')
+    if os.environ.get('ANTHROPIC_API_KEY'):
+        texto = _texto_de(contenido, mimetype)
+        if texto:
+            ia_res = _inspeccionar_claude(minimos, texto)
+            if ia_res is not None:
+                return ia_res
+        else:
+            bloque = _bloque_visual(contenido, mimetype)
+            if bloque:
+                ia_res = _inspeccionar_claude(minimos, None, bloque=bloque)
+                if ia_res is not None:
+                    return ia_res
+            elif contenido and len(contenido) > _MAX_VISION_BYTES:
+                nota_manual = ('El archivo supera los 4 MB, así que no se analizó automáticamente. '
+                               'Verifica a mano que contenga estos elementos mínimos.')
     return {'modo': 'manual',
             'items': [{'elemento': m, 'estado': 'por_verificar'} for m in minimos],
-            'nota': 'Verifica manualmente que el documento contenga estos elementos mínimos que exige la ley.'}
+            'nota': nota_manual}
 
 
-def _inspeccionar_claude(minimos, texto):
-    """Pregunta a Claude cuáles mínimos están presentes en el texto. Devuelve dict o None."""
+def _inspeccionar_claude(minimos, texto, bloque=None):
+    """Pregunta a Claude cuáles mínimos están presentes. `texto` para documentos de texto,
+    `bloque` para imagen o PDF (una sola llamada por documento). Devuelve dict o None."""
     try:
         import anthropic
         import json as _json
@@ -101,15 +147,23 @@ def _inspeccionar_claude(minimos, texto):
     try:
         lista = "\n".join(f"- {m}" for m in minimos)
         client = anthropic.Anthropic()
+        if bloque:
+            contenido = [bloque, {'type': 'text',
+                                  'text': f"Elementos mínimos:\n{lista}\n\n"
+                                          'Analiza el documento adjunto (puede ser una fotografía, '
+                                          'un escaneo o un PDF) e indica cuáles de estos elementos '
+                                          'aparecen efectivamente en él.'}]
+        else:
+            contenido = f"Elementos mínimos:\n{lista}\n\nTexto del documento:\n{texto[:6000]}"
         msg = client.messages.create(
             model=os.environ.get('SMARTHSE_IA_MODEL', 'claude-haiku-4-5'),
             max_tokens=400,
-            system=("Eres un auditor SST chileno (DS 44). Te doy el texto de un documento y una lista "
+            system=("Eres un auditor SST chileno (DS 44). Te doy un documento y una lista "
                     "de elementos mínimos que la ley exige que contenga. Responde SOLO un JSON: "
                     '{"items":[{"elemento":"<texto>","presente":true|false}]} con un objeto por cada '
-                    "elemento, en el mismo orden. No agregues nada fuera del JSON."),
-            messages=[{'role': 'user',
-                       'content': f"Elementos mínimos:\n{lista}\n\nTexto del documento:\n{texto[:6000]}"}],
+                    "elemento, en el mismo orden. Marca presente=true solo si lo ves en el documento; "
+                    "ante la duda, false. No agregues nada fuera del JSON."),
+            messages=[{'role': 'user', 'content': contenido}],
         )
         raw = msg.content[0].text
         m = re.search(r'\{.*\}', raw, re.S)
