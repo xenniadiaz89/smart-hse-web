@@ -16,7 +16,8 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
                     TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
                     BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion,
-                    TrabajadorRequisito, EstadisticaMensual)
+                    TrabajadorRequisito, EstadisticaMensual,
+                    ComiteParitario, MiembroCPHS, ActividadCPHS)
 import iper
 import estadisticas as _estadisticas
 import planes
@@ -110,6 +111,8 @@ _COLUMNAS_NUEVAS = [
     ('riesgo_item', 'medida_emergencia', 'TEXT'),
     # Ronda 28 — Nómina: ¿conduce? → inyecta requisitos de la Ley del Tránsito (18.290)
     ('trabajador', 'conduce', 'INTEGER DEFAULT 0'),
+    # Ronda 28 — Comité Paritario: miembro del CPHS → inyecta el curso de orientación (FUF 31)
+    ('trabajador', 'cphs_rol', 'TEXT'),
 ]
 
 
@@ -677,7 +680,8 @@ def inyectar_requisitos_de_rol(trabajador_id, responsable_id=None):
     t = Trabajador.query.get(trabajador_id)
     if not t:
         return []
-    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol, conduce=bool(t.conduce))}
+    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol, conduce=bool(t.conduce),
+                                                                 cphs=bool(t.cphs_rol))}
     existentes = {r.codigo: r for r in
                   TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id).all()}
     nuevos = []
@@ -813,7 +817,286 @@ def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
     _commit()
     if tocados:
         aplicar_herencia_controles(empresa_id)   # el cambio de exigibilidad se propaga a la IPER
+    # El mismo cruce sobre el FUF (CPHS 30-38, Delegado 39-40). Va aquí dentro y no repetido en
+    # cada llamador para que los cinco disparadores ya existentes (onboarding, crear empresa, alta,
+    # desvinculación y baja de trabajador) lo hereden sin tocarlos.
+    try:
+        aplicar_reglas_dotacion_fuf(empresa_id)
+    except Exception:      # noqa: BLE001 — nunca debe tumbar el alta de un trabajador
+        pass
     return tocados
+
+
+# Marca de autoría del motor: distingue un N/A puesto por la regla de dotación de uno escrito por
+# el experto. Sin ella el motor no sabría cuál puede revertir y borraría criterio humano.
+AUTO_NA = '[Automático · dotación] '
+
+
+def _carta_na_fuf(empresa_id, rut, n, fundamento):
+    """Genera y guarda la carta de no aplicabilidad del ítem n en la carpeta de auditoría."""
+    import fuf as _fuf
+    import catalogo_documentos_ds44 as _cat
+    info = _fuf.INDEX.get(n) or {}
+    item = info.get('item') or {}
+    emp = Empresa.query.get(empresa_id)
+    empresa = emp.to_dict() if emp else {}
+    html = _cat.carta_na_html(n, item.get('t', ''), item.get('art', ''),
+                              info.get('organismo', ''), fundamento, empresa, fecha=_hoy())
+    cid = contrato_base(empresa_id, rut or (emp.rut_asesor if emp else ''),
+                        empresa.get('razon_social'))
+    eliminar_doc_tipo(cid, n, 'carta_na')          # una sola carta vigente por ítem
+    registrar_documento(cid, f'Carta de No Aplicabilidad — FUF ítem {n}.html', 'N/A', 'carta_na',
+                        item_n=n, categoria='FUF', contenido=html.encode('utf-8'),
+                        mimetype='text/html; charset=utf-8')
+
+
+def aplicar_reglas_dotacion_fuf(empresa_id, rut=None):
+    """Cruce automático dotación → aplicabilidad de ítems del FUF (CPHS 30-38, Delegado 39-40).
+
+    Hermana de aplicar_reglas_dotacion(), que hace lo mismo sobre la Matriz Legal, y con sus mismas
+    invariantes:
+      · usa dotacion_efectiva() —max(declarada, activos)—, nunca el conteo a secas;
+      · BIDIRECCIONAL: si la dotación cruza el umbral, el ítem vuelve a 'pendiente' y su carta N/A
+        se borra. Sin esa vuelta quedaría un 'no aplica' fósil sobre un ítem que la ley sí exige;
+      · IDEMPOTENTE: solo escribe cuando el estado cambia;
+      · NUNCA pisa trabajo humano: solo toca ítems 'pendiente' (o sin fila), y solo revierte los
+        'na' que llevan la marca AUTO_NA. Un 'si'/'no' del experto, o un N/A que él fundamentó a
+        mano, quedan intactos.
+
+    Vive en db.py y no en el módulo cphs/ a propósito: la dispara el alta de un trabajador y el
+    render del dashboard; si viviera dentro del módulo, un fallo del módulo rompería el alta.
+    Mismo criterio que aplicar_reglas_dotacion e inyectar_requisitos_de_rol.
+
+    Devuelve {'na': [ítems marcados], 'reactivados': [ítems devueltos a pendiente]}.
+    """
+    salida = {'na': [], 'reactivados': []}
+    e = Empresa.query.get(empresa_id)
+    if not e:
+        return salida
+    n = dotacion_efectiva(empresa_id)
+    if not n:
+        return salida          # sin dotación conocida no se presume nada
+    estados = {r.item_n: r for r in FufEstado.query.filter_by(empresa_id=empresa_id).all()}
+    for regla in cumplimiento.REGLAS_DOTACION_FUF:
+        aplica = cumplimiento.aplica_por_dotacion(regla, n)
+        for item_n in regla['items']:
+            row = estados.get(item_n)
+            actual = row.estado if row else 'pendiente'
+            obs = (row.observacion or '') if row else ''
+            if not aplica:
+                if actual not in ('pendiente', 'na') or (actual == 'na' and not obs.startswith(AUTO_NA)):
+                    continue   # el experto ya se pronunció sobre este ítem
+                if actual == 'na' and obs.startswith(AUTO_NA):
+                    continue   # ya estaba marcado por el motor
+                set_fuf_estado(empresa_id, item_n, 'na',
+                               observacion=AUTO_NA + regla['fundamento'].format(n=n), rut=rut)
+                try:
+                    _carta_na_fuf(empresa_id, rut, item_n, regla['fundamento'].format(n=n))
+                except Exception:      # noqa: BLE001 — la carta es un extra; el N/A ya quedó puesto
+                    pass
+                salida['na'].append(item_n)
+            elif actual == 'na' and obs.startswith(AUTO_NA):
+                set_fuf_estado(empresa_id, item_n, 'pendiente', observacion='', rut=rut)
+                try:
+                    cid = contrato_base(empresa_id, rut or e.rut_asesor, e.razon_social)
+                    eliminar_doc_tipo(cid, item_n, 'carta_na')
+                except Exception:      # noqa: BLE001
+                    pass
+                salida['reactivados'].append(item_n)
+    return salida
+
+
+# ──────────────── Comité Paritario de Higiene y Seguridad (FUF 30-40) ────────────────
+def comite_de(empresa_id, crear=False):
+    """El comité de la empresa (uno por empresa). `crear` lo instancia vacío si aún no existe."""
+    c = ComiteParitario.query.filter_by(empresa_id=empresa_id).first()
+    if not c and crear:
+        c = ComiteParitario(empresa_id=empresa_id, n_trabajadores=dotacion_efectiva(empresa_id))
+        sqla.session.add(c)
+        _commit()
+    return c.to_dict() if c else None
+
+
+def comite_guardar(empresa_id, fecha_constitucion=None, fecha_registro_dt=None):
+    """Guarda los datos de constitución. La vigencia se deriva: el mandato dura 2 años (DS 54)."""
+    c = ComiteParitario.query.filter_by(empresa_id=empresa_id).first()
+    if not c:
+        c = ComiteParitario(empresa_id=empresa_id)
+        sqla.session.add(c)
+    if fecha_constitucion is not None:
+        c.fecha_constitucion = fecha_constitucion or None
+        c.vigencia_hasta = _mas_anios(fecha_constitucion, 2)
+    if fecha_registro_dt is not None:
+        c.fecha_registro_dt = fecha_registro_dt or None
+    c.n_trabajadores = dotacion_efectiva(empresa_id)
+    _commit()
+    return c.to_dict()
+
+
+def _mas_anios(fecha_iso, anios):
+    """fecha + n años, en ISO. Devuelve None si la fecha no es parseable (campo libre del front)."""
+    try:
+        d = date.fromisoformat(fecha_iso)
+    except (TypeError, ValueError):
+        return None
+    try:
+        return d.replace(year=d.year + anios).isoformat()
+    except ValueError:                      # 29 de febrero
+        return d.replace(year=d.year + anios, day=28).isoformat()
+
+
+def miembros_de(comite_id):
+    return [m.to_dict() for m in MiembroCPHS.query.filter_by(comite_id=comite_id)
+            .order_by(MiembroCPHS.calidad, MiembroCPHS.id).all()]
+
+
+def miembro_crear(empresa_id, comite_id, nombre, rut=None, representacion='trabajadores',
+                  calidad='titular', trabajador_id=None, es_presidente=0, es_secretario=0):
+    """Alta de un representante. Si viene ligado a un trabajador de la nómina, se le inyecta el
+    curso de orientación del CPHS (ítem FUF 31) por el mismo motor que usa el rol crítico.
+
+    Devuelve None si el RUT ya está en el comité: nadie ocupa dos asientos, y el choque debe salir
+    como mensaje al usuario, no como un 500 de la restricción de unicidad.
+    """
+    rut = (rut or '').strip()
+    if rut and MiembroCPHS.query.filter_by(comite_id=comite_id, rut=rut).first():
+        return None
+    m = MiembroCPHS(comite_id=comite_id, empresa_id=empresa_id, nombre=nombre, rut=rut,
+                    representacion=representacion, calidad=calidad, trabajador_id=trabajador_id,
+                    es_presidente=1 if es_presidente else 0,
+                    es_secretario=1 if es_secretario else 0)
+    sqla.session.add(m)
+    _commit()
+    if trabajador_id:
+        t = Trabajador.query.get(trabajador_id)
+        if t:
+            t.cphs_rol = calidad
+            _commit()
+            inyectar_requisitos_de_rol(t.id)
+    return m.id
+
+
+def miembro_eliminar(empresa_id, miembro_id):
+    """Baja del comité. El requisito del curso NO se borra: el motor lo degrada a 'rol_anterior'
+    (un curso ya rendido es historial auditable)."""
+    m = MiembroCPHS.query.filter_by(id=miembro_id, empresa_id=empresa_id).first()
+    if not m:
+        return False
+    tid = m.trabajador_id
+    sqla.session.delete(m)
+    _commit()
+    if tid:
+        t = Trabajador.query.get(tid)
+        if t:
+            t.cphs_rol = None
+            _commit()
+            inyectar_requisitos_de_rol(t.id)
+    return True
+
+
+def actividades_de(comite_id, anio=None):
+    q = ActividadCPHS.query.filter_by(comite_id=comite_id)
+    if anio:
+        q = q.filter(ActividadCPHS.fecha.like(f'{anio}-%'))
+    return [a.to_dict() for a in q.order_by(ActividadCPHS.fecha.desc(), ActividadCPHS.id.desc()).all()]
+
+
+def actividad_crear(empresa_id, comite_id, tipo, fecha, titulo=None, detalle=None,
+                    acuerdo_comunicado=0, doc_id=None):
+    a = ActividadCPHS(comite_id=comite_id, empresa_id=empresa_id, tipo=tipo, fecha=fecha,
+                      titulo=titulo, detalle=detalle,
+                      acuerdo_comunicado=1 if acuerdo_comunicado else 0, doc_id=doc_id,
+                      estado='realizada')
+    sqla.session.add(a)
+    _commit()
+    return a.id
+
+
+def actividad_guardar(empresa_id, actividad_id, **campos):
+    a = ActividadCPHS.query.filter_by(id=actividad_id, empresa_id=empresa_id).first()
+    if not a:
+        return None
+    for k in ('tipo', 'fecha', 'titulo', 'detalle', 'estado', 'doc_id'):
+        if k in campos and campos[k] is not None:
+            setattr(a, k, campos[k])
+    if 'acuerdo_comunicado' in campos:
+        a.acuerdo_comunicado = 1 if campos['acuerdo_comunicado'] else 0
+    _commit()
+    return a.to_dict()
+
+
+def actividad_eliminar(empresa_id, actividad_id):
+    a = ActividadCPHS.query.filter_by(id=actividad_id, empresa_id=empresa_id).first()
+    if not a:
+        return False
+    sqla.session.delete(a)
+    _commit()
+    return True
+
+
+def documentos_cphs(empresa_id, rut, actividad_id=None):
+    """Documentos del comité (actas subidas o generadas), colgados del contrato base con
+    categoria='CPHS'. Alimentan la carpeta exportable del Módulo 5. Espeja documentos_fuf()."""
+    cid = contrato_base(empresa_id, rut)
+    q = Documento.query.filter_by(contrato_id=cid, categoria='CPHS')
+    if actividad_id is not None:
+        q = q.filter_by(item_n=actividad_id)
+    campos = ['id', 'nombre', 'item_n', 'fecha', 'mimetype', 'flujo']
+    return [{k: d.to_dict().get(k) for k in campos}
+            for d in q.order_by(Documento.id.desc()).all()]
+
+
+def miembros_con_curso(empresa_id, comite_id):
+    """(total, con el curso de orientación vigente). Es el ítem FUF 31: no basta con saber cuántos
+    miembros hay, hay que saber QUIÉN hizo el curso — por eso se lee de TrabajadorRequisito."""
+    miembros = MiembroCPHS.query.filter_by(comite_id=comite_id).all()
+    if not miembros:
+        return 0, 0
+    ids = [m.trabajador_id for m in miembros if m.trabajador_id]
+    if not ids:
+        return len(miembros), 0
+    con = (TrabajadorRequisito.query
+           .filter(TrabajadorRequisito.trabajador_id.in_(ids),
+                   TrabajadorRequisito.codigo == _resso.COD_CURSO_CPHS,
+                   TrabajadorRequisito.estado_cumplimiento == 'vigente').count())
+    return len(miembros), con
+
+
+def cphs_propagar_fuf(empresa_id, rut=None):
+    """Principio P1: lo registrado en el módulo del comité respalda su ítem del FUF y, por la
+    herencia ya existente, el requisito de la Matriz Legal (CORE-06).
+
+    Solo marca Cumple: nunca revierte un ítem: si el experto ya se pronunció, su criterio manda.
+    Devuelve los ítems marcados.
+    """
+    c = ComiteParitario.query.filter_by(empresa_id=empresa_id).first()
+    if not c:
+        return []
+    acts = ActividadCPHS.query.filter_by(comite_id=c.id).all()
+    reuniones = [a for a in acts if (a.tipo or '').startswith('reunion')]
+    total_m, con_curso = miembros_con_curso(empresa_id, c.id)
+    marcar = {
+        30: bool(c.fecha_constitucion),                                   # comité constituido
+        31: bool(total_m) and con_curso >= total_m,                       # todos con curso de orientación
+        32: bool(c.fecha_registro_dt),                                    # acta registrada en la DT
+        34: len(reuniones) >= 1,                                          # sesiona
+        35: any(a.doc_id for a in reuniones),                             # actas levantadas
+        36: any(a.acuerdo_comunicado for a in acts),                      # acuerdos comunicados por escrito
+    }
+    hechos = []
+    for n, ok in marcar.items():
+        if not ok:
+            continue
+        fila = FufEstado.query.filter_by(empresa_id=empresa_id, item_n=n).first()
+        if fila and fila.estado == 'si':
+            continue
+        fuf_marcar_cumple(empresa_id, n, rut=rut)
+        try:
+            sincronizar_fuf_matriz(empresa_id, n)
+        except Exception:      # noqa: BLE001 — la propagación es un extra, nunca rompe el guardado
+            pass
+        hechos.append(n)
+    return hechos
 
 
 def listar_contratos(rut, empresa_id=None):

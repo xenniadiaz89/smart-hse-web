@@ -136,6 +136,7 @@ _registrar('onboarding', 'onboarding')
 _registrar('matriz_legal', 'matriz_legal')
 _registrar('matriz_riesgos', 'matriz_riesgos')
 _registrar('nomina', 'nomina')
+_registrar('cphs', 'cphs')
 
 # Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
 # sin la pantalla donde desbloquearse.
@@ -281,9 +282,19 @@ def dashboard():
         if emps:
             session['empresa_id'] = emps[0]['id']
             emp = emps[0]
+    # Aplicabilidad por dotación de los ítems FUF del CPHS/Delegado. Se recalcula al entrar para
+    # que las empresas ya creadas se regularicen sin esperar un alta de trabajador.
+    dotacion = 0
+    if emp:
+        try:
+            db.aplicar_reglas_dotacion_fuf(emp['id'], rut=session['rut'])
+            dotacion = db.dotacion_efectiva(emp['id'])
+        except Exception:      # noqa: BLE001 — el dashboard entra igual
+            pass
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
                            onboarding_ok=core_auth.onboarding_completo(emp),
+                           dotacion_efectiva=dotacion,       # gatea el nav del Comité Paritario
                            fuf_catalogo=catalogo_documentos_ds44.enriquecer_fuf(fuf.SECCIONES))   # el modal FUF lo recibe por tojson
 
 

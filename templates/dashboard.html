@@ -174,6 +174,21 @@
                    <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="users" class="w-5 h-5"></i> <span>Nómina / Smart Checker</span></button>
                    {% endif %}
+                   {# Comité Paritario: además del bloqueo por onboarding, solo aparece cuando la ley
+                      lo exige (más de 25 trabajadores). El bloqueo real lo hace la ruta /cphs. #}
+                   {% if not MODULOS_OK.get('cphs') %}
+                   <button type="button" disabled title="Módulo no disponible temporalmente" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="users-round" class="w-5 h-5"></i> <span>Comité Paritario (no disponible)</span></button>
+                   {% elif not onboarding_ok %}
+                   <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="users-round" class="w-5 h-5"></i> <span>Comité Paritario</span></button>
+                   {% elif dotacion_efectiva > 25 %}
+                   <a href="/cphs" class="nav-item">
+                       <i data-lucide="users-round" class="w-5 h-5"></i> <span>Comité Paritario</span></a>
+                   {% else %}
+                   <button type="button" disabled title="El Comité Paritario es exigible con más de 25 trabajadores (Art. 66 Ley 16.744). Con {{ dotacion_efectiva }} los ítems 30 a 38 del FUF quedan N/A automáticamente." class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="users-round" class="w-5 h-5"></i> <span>Comité Paritario (no aplica)</span></button>
+                   {% endif %}
                    {{ nav('vocab', 'book-a', 'Vocabulario técnico', 'cargarVocab()') }}
                </nav>
            </div>

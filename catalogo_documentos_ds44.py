@@ -48,6 +48,32 @@ def _documento_html(titulo, subtitulo, empresa, cuerpo_html, refs=None):
 </body></html>"""
 
 
+# ──────────────────────── Carta de No Aplicabilidad (N/A) ────────────────────────
+def carta_na_html(n, item_texto, art, organismo, fundamento, empresa, fecha=''):
+    """Carta de no aplicabilidad de un ítem del FUF, en HTML imprimible.
+
+    Existe aquí, y no solo en el JS del dashboard (cartaNAHtml), porque el motor de aplicabilidad
+    por dotación marca ítems N/A sin que haya un navegador delante: la carta tiene que poder
+    generarse en el servidor y quedar guardada en la carpeta de auditoría (Módulo 5).
+    """
+    cuerpo = f"""
+ <div style="background:#f4f7f6;border-radius:8px;padding:12px 14px;margin:14px 0">
+   <b>Ítem FUF N° {_esc(n)}</b><br><span class="sub">{_esc(item_texto)}</span></div>
+ <p><b>DECLARACIÓN DE NO APLICABILIDAD</b><br>Por medio de la presente, la empresa declara que el
+ requisito individualizado <b>NO APLICA</b>, por el siguiente fundamento:</p>
+ <div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:12px 14px;font-weight:600">
+   Fundamento: {_esc(fundamento or '[Pendiente de fundamentar]')}</div>
+ <p>Esta declaración se incorpora al sistema de gestión preventiva de la empresa (D.S. 44/2024) para
+ efectos de acreditación y auditoría.</p>
+ <div class="firma">Experto en Prevención de Riesgos<br><span class="sub">{_esc((empresa or {}).get('razon_social') or 'Empresa')}</span></div>"""
+    return _documento_html(
+        'CARTA DE NO APLICABILIDAD (N/A)',
+        'D.S. 44/2024 · Gestión Preventiva de Riesgos Laborales',
+        empresa, cuerpo,
+        refs=[('Ítem FUF N°', n), ('Organismo fiscalizador', organismo or '—'),
+              ('Norma', art or '—'), ('Fecha', fecha or '—')])
+
+
 # ───────────────────────────── Plantilla: Política SST ─────────────────────────────
 def _plantilla_politica_sst(c, empresa):
     nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
@@ -186,6 +212,51 @@ def _plantilla_acta_delegado(c, empresa):
     return _documento_html('ACTA DE ELECCIÓN — DELEGADO DE SEGURIDAD Y SALUD EN EL TRABAJO',
                            'D.S. 44/2024 · Art. 66', empresa, cuerpo,
                            refs=[('Norma', 'D.S. 44/2024 Art. 66'), ('Fecha', fecha or '—')])
+
+
+def _plantilla_acta_cphs(c, empresa):
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    fecha = c.get('fecha') or ''
+    lugar = c.get('lugar') or ''
+    n_trab = c.get('n_trabajadores') or ''
+    presidente = c.get('presidente') or '__________________'
+    secretario = c.get('secretario') or '__________________'
+    registro_dt = c.get('fecha_registro_dt') or ''
+
+    def nomina(titulo, valor):
+        lineas = [x.strip() for x in (valor or '').replace(';', '\n').splitlines() if x.strip()]
+        items = ''.join(f'<li>{_esc(x)}</li>' for x in lineas) or '<li>__________________</li>'
+        return f'<h2>{_esc(titulo)}</h2><ul>{items}</ul>'
+
+    cuerpo = f"""
+ <p>En {_esc(lugar)}, con fecha {_esc(fecha)}, se deja constancia de la constitución del
+ <b>Comité Paritario de Higiene y Seguridad</b> de <b>{_esc(nombre_emp)}</b> (dotación:
+ {_esc(n_trab)} personas trabajadoras), conforme al Art. 66 de la Ley 16.744, al D.S. 54 y al
+ D.S. 44/2024, aplicable a las entidades donde laboran más de 25 personas. El comité se integra por
+ tres representantes de la empresa y tres de las personas trabajadoras, con sus respectivos
+ suplentes, y su mandato dura dos años.</p>
+ {nomina('Representantes de la empresa — titulares', c.get('titulares_empresa'))}
+ {nomina('Representantes de la empresa — suplentes', c.get('suplentes_empresa'))}
+ {nomina('Representantes de las personas trabajadoras — titulares', c.get('titulares_trabajadores'))}
+ {nomina('Representantes de las personas trabajadoras — suplentes', c.get('suplentes_trabajadores'))}
+ <h2>Directiva y funcionamiento</h2>
+ <table class="meta"><tr><td class="k">Presidente</td><td>{_esc(presidente)}</td></tr>
+ <tr><td class="k">Secretario</td><td>{_esc(secretario)}</td></tr>
+ <tr><td class="k">Fecha de constitución</td><td>{_esc(fecha)}</td></tr>
+ <tr><td class="k">Vigencia del mandato</td><td>2 años</td></tr>
+ <tr><td class="k">Registro en la Dirección del Trabajo</td><td>{_esc(registro_dt) or 'Pendiente (plazo: 15 días hábiles)'}</td></tr></table>
+ <p>El comité sesionará <b>en forma ordinaria una vez al mes</b>, y en forma extraordinaria cuando lo
+ requiera, levantando acta de cada reunión y comunicando por escrito sus acuerdos. Sus integrantes
+ que no cuenten con el curso de orientación deberán realizarlo durante el primer semestre de su
+ mandato (D.S. 44/2024 Art. 32).</p>
+ <p>La presente acta se registra en el sitio web de la Dirección del Trabajo dentro de los 15 días
+ hábiles siguientes a la constitución y se conserva como evidencia ante fiscalización.</p>
+ {_firmas(elabora=presidente, revisa=secretario, aprueba='')}"""
+    return _documento_html('ACTA DE CONSTITUCIÓN — COMITÉ PARITARIO DE HIGIENE Y SEGURIDAD',
+                           'Ley 16.744 Art. 66 · D.S. 54 · D.S. 44/2024 Art. 30 y 32', empresa, cuerpo,
+                           refs=[('Norma', 'Ley 16.744 Art. 66 / DS 54 / DS 44 Art. 30'),
+                                 ('Fecha de constitución', fecha or '—'),
+                                 ('Registro en la DT', registro_dt or 'Pendiente')])
 
 
 def _plantilla_riohs(c, empresa):
@@ -364,6 +435,26 @@ CATALOGO = [
      ],
      'plantilla': _plantilla_acta_delegado},
 
+    {'tipo_doc': 'acta_cphs',
+     'nombre': 'Acta de Constitución del CPHS',
+     'items_fuf': [30, 32],
+     'evidencia': 'Acta de constitución del Comité Paritario y constancia de su registro en el sitio '
+                  'web de la Dirección del Trabajo dentro de los 15 días hábiles siguientes.',
+     'formato_origen': 'DS 54 / D.S. 44/2024 Art. 30 y 32',
+     'campos': [
+         {'k': 'fecha', 'label': 'Fecha de constitución', 'tipo': 'date'},
+         {'k': 'lugar', 'label': 'Lugar', 'tipo': 'text'},
+         {'k': 'n_trabajadores', 'label': 'N° de trabajadores', 'tipo': 'text'},
+         {'k': 'titulares_empresa', 'label': 'Titulares — representantes de la empresa (3)', 'tipo': 'textarea'},
+         {'k': 'suplentes_empresa', 'label': 'Suplentes — representantes de la empresa (3)', 'tipo': 'textarea'},
+         {'k': 'titulares_trabajadores', 'label': 'Titulares — representantes de las personas trabajadoras (3)', 'tipo': 'textarea'},
+         {'k': 'suplentes_trabajadores', 'label': 'Suplentes — representantes de las personas trabajadoras (3)', 'tipo': 'textarea'},
+         {'k': 'presidente', 'label': 'Presidente designado', 'tipo': 'text'},
+         {'k': 'secretario', 'label': 'Secretario designado', 'tipo': 'text'},
+         {'k': 'fecha_registro_dt', 'label': 'Fecha de registro en la Dirección del Trabajo', 'tipo': 'date'},
+     ],
+     'plantilla': _plantilla_acta_cphs},
+
     {'tipo_doc': 'riohs',
      'nombre': 'Reglamento Interno de Higiene y Seguridad (RIOHS)',
      'items_fuf': [49, 50, 51, 52],
@@ -488,8 +579,12 @@ _ENLACE_IRL = {'url': '/nomina', 'nombre': 'Nómina · IRL',
 # La vigilancia (54-55) vive en la vista Protocolos del dashboard (no es una URL): 'vista'.
 _ENLACE_PROTOCOLOS = {'vista': 'protocolos', 'nombre': 'Protocolos de Salud',
                       'desc': 'Los programas de vigilancia ambiental y de la salud se gestionan en Protocolos de Salud (PREXOR, TMERT, sílice, UV…). Trabájalos ahí y adjunta aquí el registro.'}
+_ENLACE_CPHS = {'url': '/cphs', 'nombre': 'Comité Paritario',
+                'desc': 'El comité se constituye y se le hace seguimiento (miembros, reuniones, actas y acuerdos) en el módulo Comité Paritario. Trabájalo ahí: su avance respalda solo estos ítems.'}
+
 ENLACES = {n: _ENLACE_MIPER for n in (2, 3, 4, 5, 6, 7)}
 ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL, 54: _ENLACE_PROTOCOLOS, 55: _ENLACE_PROTOCOLOS})
+ENLACES.update({n: _ENLACE_CPHS for n in range(30, 41)})
 
 
 def enlace_de(n):

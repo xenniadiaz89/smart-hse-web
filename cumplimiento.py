@@ -190,14 +190,42 @@ REQUISITOS_CORE = [
 # La dotación declarada en el onboarding determina si CORE-06 y CORE-08 son exigibles.
 # Los umbrales y su fundamento son datos; el writer vive en db.aplicar_reglas_dotacion().
 REGLAS_DOTACION = [
-    {'id_requisito': 'CORE-06', 'umbral': 25,
-     'fundamento': 'Dotación declarada: {n} trabajadores (inferior a 25). La constitución del Comité '
-                   'Paritario de Higiene y Seguridad es exigible desde 25 trabajadores '
+    # Umbral 26 y no 25: la ley dice "MÁS de 25 trabajadores", así que el primer número exigible
+    # es 26. El writer compara n < umbral, de modo que 25 justos siguen sin CPHS.
+    {'id_requisito': 'CORE-06', 'umbral': 26,
+     'fundamento': 'Dotación declarada: {n} trabajadores (25 o menos). La constitución del Comité '
+                   'Paritario de Higiene y Seguridad es exigible con más de 25 trabajadores '
                    '(Art. 66 Ley 16.744 / DS 54). No aplica.'},
     {'id_requisito': 'CORE-08', 'umbral': 100,
      'fundamento': 'Dotación declarada: {n} trabajadores (inferior a 100). La reserva del 1% de puestos '
                    'para personas con discapacidad rige desde 100 trabajadores (Ley 21.015). No aplica.'},
 ]
+
+
+# ── Cruce automático dotación → aplicabilidad de ítems del FUF (DS 44) ──
+# Mismo criterio que REGLAS_DOTACION pero sobre el FUF: hay secciones enteras que no le aplican a
+# la empresa según su tamaño, y dejarlas en 'pendiente' las muestra como brechas falsas. Cada regla
+# define el RANGO en que los ítems SÍ aplican; fuera de él se marcan N/A con su fundamento.
+# El writer vive en db.aplicar_reglas_dotacion_fuf(); aquí solo hay datos.
+REGLAS_DOTACION_FUF = [
+    {'items': list(range(30, 39)), 'min': 26, 'max': None,
+     'nombre': 'Comité Paritario de Higiene y Seguridad',
+     'fundamento': 'Dotación efectiva: {n} trabajadores (25 o menos). El Comité Paritario de Higiene '
+                   'y Seguridad es exigible con más de 25 trabajadores (Art. 66 Ley 16.744 / DS 54 / '
+                   'DS 44 Art. 30). No aplica.'},
+    {'items': [39, 40], 'min': 10, 'max': 25,
+     'nombre': 'Delegado de Seguridad y Salud en el Trabajo',
+     'fundamento': 'Dotación efectiva: {n} trabajadores (fuera del rango de 10 a 25). El Delegado de '
+                   'Seguridad y Salud en el Trabajo se elige en empresas de 10 a 25 trabajadores '
+                   '(DS 44 Art. 66 inc. 1). No aplica.'},
+]
+
+
+def aplica_por_dotacion(regla, n):
+    """¿Los ítems de la regla le aplican a una empresa de n trabajadores? (puro, sin BD)."""
+    if n < regla['min']:
+        return False
+    return regla['max'] is None or n <= regla['max']
 
 
 def dialecto_key(mandante):

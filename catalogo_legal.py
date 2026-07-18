@@ -171,6 +171,10 @@ FUF_A_CODIGO = {
     8: ['LEG-PTP'], 9: ['LEG-PTP'], 10: ['LEG-PTP'], 11: ['LEG-PTP'],
     14: ['LEG-EPP'], 15: ['LEG-EPP'], 16: ['LEG-EPP'], 17: ['LEG-EPP'],
     18: ['LEG-CAP'], 19: ['LEG-CAP'], 23: ['LEG-CAP'], 24: ['LEG-CAP'],
+    # Comité Paritario: los ítems 30-38 satisfacen el requisito Core CORE-06 (DS 54 / Ley 16.744).
+    # No hay un LEG-CPHS propio porque el CPHS ya vive en la Capa Core, que es la que el motor de
+    # dotación enciende y apaga (cumplimiento.REGLAS_DOTACION).
+    **{n: ['CORE-06'] for n in range(30, 39)},
     39: ['LEG-DELEG'], 40: ['LEG-DELEG'],
     41: ['LEG-DPR'], 42: ['LEG-DPR'], 43: ['LEG-DPR'],
     47: ['LEG-ESTAD'], 60: ['LEG-ESTAD'], 59: ['LEG-INVACC'],

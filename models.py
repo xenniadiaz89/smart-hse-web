@@ -157,6 +157,7 @@ class Trabajador(_DictMixin, sqla.Model):
     fecha_egreso = sqla.Column(sqla.Text)
     motivo_egreso = sqla.Column(sqla.Text)
     conduce = sqla.Column(sqla.Integer, default=0)        # Ronda 28: conduce → requisitos Ley Tránsito
+    cphs_rol = sqla.Column(sqla.Text)                     # 'titular'|'suplente' → curso de orientación CPHS
 
 
 class TrabajadorRequisito(_DictMixin, sqla.Model):
@@ -559,3 +560,52 @@ class Capacitacion(_DictMixin, sqla.Model):
     n_capacitados = sqla.Column(sqla.Integer, default=0)
     n_requeridos = sqla.Column(sqla.Integer, default=0)
     fecha = sqla.Column(sqla.Text)
+
+
+# ───────────────── Comité Paritario de Higiene y Seguridad (FUF 30-40) ─────────────────
+class ComiteParitario(_DictMixin, sqla.Model):
+    """El comité de la empresa. Solo existe cuando la dotación supera los 25 trabajadores
+    (Art. 66 Ley 16.744); bajo ese umbral los ítems FUF 30-38 se marcan N/A solos
+    (db.aplicar_reglas_dotacion_fuf). Respalda los ítems FUF 30 y 32."""
+    __tablename__ = 'comite_paritario'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    fecha_constitucion = sqla.Column(sqla.Text)
+    fecha_registro_dt = sqla.Column(sqla.Text)          # registro en la web de la DT (15 días hábiles)
+    vigencia_hasta = sqla.Column(sqla.Text)             # mandato de 2 años
+    n_trabajadores = sqla.Column(sqla.Integer, default=0)   # dotación al constituirse
+    acta_doc_id = sqla.Column(sqla.Integer)             # acta de constitución en la carpeta del Módulo 5
+
+
+class MiembroCPHS(_DictMixin, sqla.Model):
+    """Representante del comité. trabajador_id es opcional a propósito: el experto puede registrar
+    el comité antes de tener la nómina cargada. Cuando se liga a un trabajador real, se le inyecta
+    el curso de orientación (CAP-CPHS-ORIENT, ítem FUF 31)."""
+    __tablename__ = 'miembro_cphs'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    comite_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    trabajador_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'))
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    rut = sqla.Column(sqla.Text)
+    representacion = sqla.Column(sqla.Text)             # 'empresa'|'trabajadores'
+    calidad = sqla.Column(sqla.Text)                    # 'titular'|'suplente'
+    es_presidente = sqla.Column(sqla.Integer, default=0)
+    es_secretario = sqla.Column(sqla.Integer, default=0)
+    __table_args__ = (sqla.UniqueConstraint('comite_id', 'rut'),)
+
+
+class ActividadCPHS(_DictMixin, sqla.Model):
+    """Reunión, acuerdo o investigación del comité. Es el seguimiento que auditan los ítems FUF
+    34 (reuniones mensuales), 35 (actas) y 36 (acuerdos comunicados por escrito)."""
+    __tablename__ = 'actividad_cphs'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    comite_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    tipo = sqla.Column(sqla.Text)          # 'reunion_ordinaria'|'reunion_extraordinaria'|'acuerdo'|'investigacion'
+    fecha = sqla.Column(sqla.Text)
+    titulo = sqla.Column(sqla.Text)
+    detalle = sqla.Column(sqla.Text)
+    acuerdo_comunicado = sqla.Column(sqla.Integer, default=0)   # comunicado por escrito (FUF 36)
+    doc_id = sqla.Column(sqla.Integer)     # acta cargada/generada (FUF 35)
+    estado = sqla.Column(sqla.Text, default='realizada')        # 'realizada'|'pendiente'

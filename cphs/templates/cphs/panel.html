@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Comité Paritario</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: {
+            primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60',
+            ok: '#2E7D32', okbg: '#E8F5E9', warn: '#E65100', warnbg: '#FFF3E0',
+            na: '#455A64', nabg: '#ECEFF1'
+        } } } }
+    </script>
+    <style>
+        .iet-in { margin-top:.35rem; width:100%; border:1px solid #d1d5db; border-radius:.6rem; padding:.55rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+        .iet-in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .nav-item { display:flex; align-items:center; gap:.6rem; padding:.62rem .8rem; border-radius:.6rem; font-size:.82rem; font-weight:600; color:#bcd0e0; transition:all .15s; white-space:nowrap; }
+        .nav-item i { color:#8fb2cd; }
+        .nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .nav-item:hover i { color:#fff; }
+        .nav-item.nav-on { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 3px 0 0 #7ab038; }
+        .nav-item.nav-on i { color:#7ab038; }
+        .badge { display:inline-flex; align-items:center; gap:.25rem; padding:.25rem .5rem; border-radius:.25rem; font-weight:600; font-size:.7rem; white-space:nowrap; }
+        .b-ok   { background:#E8F5E9; color:#2E7D32; }
+        .b-warn { background:#FFF3E0; color:#E65100; }
+        .b-na   { background:#ECEFF1; color:#455A64; }
+        .b-no   { background:#FFEBEE; color:#C62828; }
+        .tbl th { background:#F1F3F5; color:#0B3B60; font-weight:600; font-size:.65rem; text-transform:uppercase; letter-spacing:.03em; }
+        .tbl td, .tbl th { padding:.6rem .6rem; text-align:left; border-bottom:1px solid #E0E0E0; }
+    </style>
+</head>
+<body class="bg-[#F8F9FA] text-[#333] font-sans min-h-screen">
+
+    <nav class="px-8 py-4 flex justify-between items-center bg-white border-b shadow-sm sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Logo SMART HSE" class="h-14 w-auto">
+            <div class="hidden md:flex items-center gap-3 border-l pl-4">
+                <div class="flex flex-col leading-tight">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Comité Paritario de Higiene y Seguridad</span>
+                    <span class="text-sm font-extrabold text-primary inline-flex items-center gap-1">
+                        <i data-lucide="building-2" class="w-4 h-4"></i> {{ empresa.razon_social if empresa else 'Empresa' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <a href="/logout" class="text-gray-500 hover:text-primary transition" title="Salir">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </a>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+        <aside class="w-full lg:w-60 shrink-0 lg:sticky lg:top-24">
+            <div class="bg-sidebar rounded-2xl shadow-lg overflow-hidden">
+                <div class="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-white/10">
+                    <img src="{{ url_for('static', filename='logo_smarthse.png') }}" alt="Smart HSE" class="h-9 w-auto brightness-0 invert">
+                    <span class="text-white font-extrabold text-sm tracking-tight">SMART HSE</span>
+                </div>
+                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
+                    <a href="/dashboard" class="nav-item"><i data-lucide="arrow-left" class="w-5 h-5"></i> <span>Volver a la Consola</span></a>
+                    <a href="/cphs" class="nav-item nav-on"><i data-lucide="users" class="w-5 h-5"></i> <span>Comité Paritario</span></a>
+                    <a href="#bloque-miembros" class="nav-item"><i data-lucide="user-check" class="w-5 h-5"></i> <span>Representantes</span></a>
+                    <a href="#bloque-actividades" class="nav-item"><i data-lucide="calendar-check" class="w-5 h-5"></i> <span>Reuniones y acuerdos</span></a>
+                </nav>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-w-0 w-full space-y-8">
+
+            <!-- ── Dashboard de cumplimiento del comité (6E) ── -->
+            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <h1 class="text-lg font-extrabold text-primary">Cumplimiento del Comité Paritario</h1>
+                        <p class="text-xs text-gray-500 mt-1">Dotación efectiva: <b>{{ dotacion }}</b> personas ·
+                            el CPHS es exigible con más de 25 (Art. 66 Ley 16.744 / DS 54). Cada indicador
+                            respalda su ítem del FUF 44.</p>
+                    </div>
+                    <button onclick="generarActa()" class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 inline-flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4"></i> Generar Acta de Constitución
+                    </button>
+                </div>
+                <div id="cphsResumen" class="mt-6 flex flex-col md:flex-row gap-8 items-center"></div>
+                <div id="cphsPendientes" class="mt-6"></div>
+            </div>
+
+            <!-- ── Constitución ── -->
+            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                <h2 class="text-sm font-extrabold text-primary uppercase tracking-wide">Constitución y registro</h2>
+                <p class="text-xs text-gray-500 mt-1">El acta debe registrarse en el sitio web de la Dirección del
+                    Trabajo dentro de los 15 días hábiles siguientes (ítem FUF 32).</p>
+                <div class="grid md:grid-cols-3 gap-4 mt-4">
+                    <label class="text-xs font-bold text-gray-600">Fecha de constitución
+                        <input id="fConstitucion" type="date" class="iet-in" value="{{ comite.fecha_constitucion or '' }}">
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">Fecha de registro en la DT
+                        <input id="fRegistroDT" type="date" class="iet-in" value="{{ comite.fecha_registro_dt or '' }}">
+                    </label>
+                    <div class="flex items-end">
+                        <button onclick="guardarComite()" class="bg-secondary text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:opacity-90 w-full">Guardar</button>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">Vigencia del mandato:
+                    <b id="vigencia">{{ comite.vigencia_hasta or '—' }}</b> (2 años desde la constitución).</p>
+            </div>
+
+            <!-- ── Representantes ── -->
+            <div id="bloque-miembros" class="bg-white rounded-2xl shadow-sm border p-6">
+                <h2 class="text-sm font-extrabold text-primary uppercase tracking-wide">Representantes del comité</h2>
+                <p class="text-xs text-gray-500 mt-1">Tres titulares y tres suplentes por parte. Al ligar un
+                    representante a la nómina, se le exige automáticamente el <b>curso de orientación</b>
+                    (ítem FUF 31) y aparece en su Smart Checker.</p>
+
+                <div class="grid md:grid-cols-6 gap-3 mt-4 items-end">
+                    <label class="text-xs font-bold text-gray-600 md:col-span-2">Persona
+                        <select id="mTrabajador" class="iet-in" onchange="autoNombre()">
+                            <option value="">— Escribir manualmente —</option>
+                            {% for t in trabajadores %}<option value="{{ t.id }}" data-nombre="{{ t.nombre }}" data-rut="{{ t.rut }}">{{ t.nombre }} ({{ t.rut }})</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">Nombre
+                        <input id="mNombre" class="iet-in" placeholder="Nombre completo">
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">RUT
+                        <input id="mRut" class="iet-in" placeholder="12.345.678-9">
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">Representa a
+                        <select id="mRepresentacion" class="iet-in">
+                            <option value="trabajadores">Personas trabajadoras</option>
+                            <option value="empresa">La empresa</option>
+                        </select>
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">Calidad
+                        <select id="mCalidad" class="iet-in">
+                            <option value="titular">Titular</option>
+                            <option value="suplente">Suplente</option>
+                        </select>
+                    </label>
+                    <div class="md:col-span-6 flex items-center gap-5 flex-wrap">
+                        <label class="text-xs font-semibold text-gray-600 inline-flex items-center gap-2">
+                            <input id="mPresidente" type="checkbox" class="accent-primary"> Presidente</label>
+                        <label class="text-xs font-semibold text-gray-600 inline-flex items-center gap-2">
+                            <input id="mSecretario" type="checkbox" class="accent-primary"> Secretario</label>
+                        <button onclick="agregarMiembro()" class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90">Agregar representante</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="w-full text-sm tbl"><thead><tr>
+                        <th>Nombre</th><th>RUT</th><th>Representa a</th><th>Calidad</th><th>Cargo</th><th>Nómina</th><th></th>
+                    </tr></thead><tbody id="tblMiembros"></tbody></table>
+                </div>
+            </div>
+
+            <!-- ── Reuniones y acuerdos ── -->
+            <div id="bloque-actividades" class="bg-white rounded-2xl shadow-sm border p-6">
+                <h2 class="text-sm font-extrabold text-primary uppercase tracking-wide">Reuniones, actas y acuerdos</h2>
+                <p class="text-xs text-gray-500 mt-1">El comité sesiona en forma ordinaria una vez al mes (ítem FUF 34),
+                    levanta acta de cada reunión (35) y comunica sus acuerdos por escrito (36).</p>
+
+                <div class="grid md:grid-cols-5 gap-3 mt-4 items-end">
+                    <label class="text-xs font-bold text-gray-600">Tipo
+                        <select id="aTipo" class="iet-in">
+                            <option value="reunion_ordinaria">Reunión ordinaria</option>
+                            <option value="reunion_extraordinaria">Reunión extraordinaria</option>
+                            <option value="acuerdo">Acuerdo</option>
+                            <option value="investigacion">Investigación de accidente</option>
+                        </select>
+                    </label>
+                    <label class="text-xs font-bold text-gray-600">Fecha
+                        <input id="aFecha" type="date" class="iet-in">
+                    </label>
+                    <label class="text-xs font-bold text-gray-600 md:col-span-2">Título
+                        <input id="aTitulo" class="iet-in" placeholder="Ej: Sesión ordinaria de marzo">
+                    </label>
+                    <button onclick="agregarActividad()" class="bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:opacity-90">Registrar</button>
+                </div>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="w-full text-sm tbl"><thead><tr>
+                        <th>Fecha</th><th>Tipo</th><th>Título</th><th>Acta</th><th>Comunicado</th><th></th>
+                    </tr></thead><tbody id="tblActividades"></tbody></table>
+                </div>
+            </div>
+
+        </section>
+      </div>
+    </main>
+
+<script>
+    let MIEMBROS = {{ miembros | tojson }};
+    let ACTIVIDADES = {{ actividades | tojson }};
+    let RESUMEN = {{ resumen | tojson }};
+
+    const esc = s => (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const TIPOS = {
+        reunion_ordinaria: 'Reunión ordinaria', reunion_extraordinaria: 'Reunión extraordinaria',
+        acuerdo: 'Acuerdo', investigacion: 'Investigación'
+    };
+
+    async function api(url, opts) {
+        const r = await fetch(url, opts);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { alert(d.error || 'No se pudo completar la operación.'); return null; }
+        return d;
+    }
+
+    // ── Dashboard: donut SVG + barras (sin Chart.js, igual que el panel de Matriz Legal) ──
+    function pintarResumen() {
+        const d = RESUMEN, R = 46, C = 2 * Math.PI * R;
+        const color = p => p >= 80 ? '#7ab038' : (p >= 40 ? '#f59e0b' : '#ef4444');
+        const barras = (d.componentes || []).map(c => `
+            <div class="mb-2">
+              <div class="flex justify-between text-[11px] font-semibold text-gray-600">
+                <span>${esc(c.nombre)} <span class="text-gray-400">· FUF ${c.item_fuf}</span></span><span>${c.pct}%</span></div>
+              <div class="h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
+                <div class="h-full rounded-full" style="width:${c.pct}%;background:${color(c.pct)}"></div></div>
+            </div>`).join('');
+        document.getElementById('cphsResumen').innerHTML = `
+            <div class="relative flex items-center justify-center shrink-0">
+              <svg width="128" height="128" viewBox="0 0 104 104">
+                <circle cx="52" cy="52" r="${R}" fill="none" stroke="#eee" stroke-width="10"/>
+                <circle cx="52" cy="52" r="${R}" fill="none" stroke="${color(d.pct)}" stroke-width="10" stroke-linecap="round"
+                        stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - d.pct / 100)}" transform="rotate(-90 52 52)"/>
+              </svg>
+              <div class="absolute text-center">
+                <div class="text-2xl font-extrabold text-gray-800">${d.pct}%</div>
+                <div class="text-[10px] text-gray-500 font-bold uppercase">Avance</div></div>
+            </div>
+            <div class="flex-1 w-full">${barras}</div>`;
+
+        const p = d.pendientes || [];
+        document.getElementById('cphsPendientes').innerHTML = !p.length
+            ? `<div class="text-xs font-semibold text-ok bg-okbg rounded-lg px-4 py-3">El comité está al día con sus obligaciones registradas.</div>`
+            : `<h3 class="text-xs font-extrabold text-gray-500 uppercase tracking-wide mb-2">Actividades pendientes</h3>
+               <ul class="space-y-2">${p.map(x => `
+                 <li class="flex items-start gap-2 text-xs bg-warnbg text-warn rounded-lg px-3 py-2">
+                   <span class="badge b-warn shrink-0">FUF ${x.item_fuf}</span>
+                   <span class="text-gray-700">${esc(x.texto)}</span></li>`).join('')}</ul>`;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function pintarMiembros() {
+        document.getElementById('tblMiembros').innerHTML = !MIEMBROS.length
+            ? `<tr><td colspan="7" class="text-center text-xs text-gray-400 py-6">Aún no hay representantes registrados.</td></tr>`
+            : MIEMBROS.map(m => `<tr>
+                <td class="font-semibold">${esc(m.nombre)}</td>
+                <td class="text-xs text-gray-500">${esc(m.rut) || '—'}</td>
+                <td class="text-xs">${m.representacion === 'empresa' ? 'La empresa' : 'Personas trabajadoras'}</td>
+                <td><span class="badge ${m.calidad === 'titular' ? 'b-ok' : 'b-na'}">${esc(m.calidad)}</span></td>
+                <td class="text-xs">${m.es_presidente ? 'Presidente' : (m.es_secretario ? 'Secretario' : '—')}</td>
+                <td class="text-xs">${m.trabajador_id ? '<span class="badge b-ok">Ligado</span>' : '<span class="badge b-na">Manual</span>'}</td>
+                <td><button onclick="eliminarMiembro(${m.id})" class="text-gray-400 hover:text-red-600" title="Quitar del comité">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function pintarActividades() {
+        document.getElementById('tblActividades').innerHTML = !ACTIVIDADES.length
+            ? `<tr><td colspan="6" class="text-center text-xs text-gray-400 py-6">Aún no hay reuniones ni acuerdos registrados.</td></tr>`
+            : ACTIVIDADES.map(a => `<tr>
+                <td class="text-xs font-semibold">${esc(a.fecha)}</td>
+                <td class="text-xs">${esc(TIPOS[a.tipo] || a.tipo)}</td>
+                <td class="text-xs">${esc(a.titulo) || '—'}</td>
+                <td>${a.doc_id
+                    ? `<a href="/api/doc/${a.doc_id}" target="_blank" class="badge b-ok">Ver acta</a>`
+                    : `<label class="badge b-warn cursor-pointer">Subir acta
+                         <input type="file" class="hidden" onchange="subirActa(${a.id}, this)"></label>`}</td>
+                <td><label class="text-xs inline-flex items-center gap-1">
+                      <input type="checkbox" class="accent-secondary" ${a.acuerdo_comunicado ? 'checked' : ''}
+                             onchange="marcarComunicado(${a.id}, this.checked)"> por escrito</label></td>
+                <td><button onclick="eliminarActividad(${a.id})" class="text-gray-400 hover:text-red-600">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function aplicar(d) {
+        if (!d) return;
+        if (d.miembros) MIEMBROS = d.miembros;
+        if (d.actividades) ACTIVIDADES = d.actividades;
+        if (d.resumen) RESUMEN = d.resumen;
+        if (d.comite && d.comite.vigencia_hasta) document.getElementById('vigencia').textContent = d.comite.vigencia_hasta;
+        pintarResumen(); pintarMiembros(); pintarActividades();
+    }
+
+    function autoNombre() {
+        const o = document.getElementById('mTrabajador').selectedOptions[0];
+        document.getElementById('mNombre').value = o.dataset.nombre || '';
+        document.getElementById('mRut').value = o.dataset.rut || '';
+    }
+
+    async function guardarComite() {
+        aplicar(await api('/api/cphs', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fecha_constitucion: document.getElementById('fConstitucion').value,
+                fecha_registro_dt: document.getElementById('fRegistroDT').value }) }));
+    }
+
+    async function agregarMiembro() {
+        const nombre = document.getElementById('mNombre').value.trim();
+        if (!nombre) { alert('Escribe el nombre del representante o selecciónalo de la nómina.'); return; }
+        const d = await api('/api/cphs/miembros', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nombre, rut: document.getElementById('mRut').value,
+                trabajador_id: document.getElementById('mTrabajador').value,
+                representacion: document.getElementById('mRepresentacion').value,
+                calidad: document.getElementById('mCalidad').value,
+                es_presidente: document.getElementById('mPresidente').checked,
+                es_secretario: document.getElementById('mSecretario').checked }) });
+        if (d) {
+            ['mNombre', 'mRut'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('mTrabajador').value = '';
+            document.getElementById('mPresidente').checked = false;
+            document.getElementById('mSecretario').checked = false;
+            aplicar(d);
+        }
+    }
+
+    async function eliminarMiembro(id) {
+        if (!confirm('¿Quitar a este representante del comité? Su curso ya rendido se conserva como historial.')) return;
+        aplicar(await api('/api/cphs/miembros/' + id, { method: 'DELETE' }));
+    }
+
+    async function agregarActividad() {
+        const fecha = document.getElementById('aFecha').value;
+        if (!fecha) { alert('Indica la fecha.'); return; }
+        const d = await api('/api/cphs/actividades', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo: document.getElementById('aTipo').value, fecha,
+                                   titulo: document.getElementById('aTitulo').value }) });
+        if (d) { document.getElementById('aTitulo').value = ''; aplicar(d); }
+    }
+
+    async function eliminarActividad(id) {
+        if (!confirm('¿Eliminar este registro?')) return;
+        aplicar(await api('/api/cphs/actividades/' + id, { method: 'DELETE' }));
+    }
+
+    async function marcarComunicado(id, valor) {
+        aplicar(await api('/api/cphs/actividades/' + id, { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acuerdo_comunicado: valor }) }));
+    }
+
+    async function subirActa(id, input) {
+        if (!input.files.length) return;
+        const fd = new FormData();
+        fd.append('archivo', input.files[0]);
+        aplicar(await api(`/api/cphs/actividades/${id}/acta`, { method: 'POST', body: fd }));
+    }
+
+    // Genera el Acta de Constitución por el motor documental del FUF (ítems 30 y 32), con los
+    // campos precargados desde este módulo: nadie vuelve a teclear lo que el sistema ya sabe.
+    async function generarActa() {
+        const pre = await api('/api/cphs/prefill-acta');
+        if (!pre) return;
+        const d = await api('/api/fuf/30/generar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo_doc: 'acta_cphs', campos: pre.campos }) });
+        if (!d) return;
+        if (d.html) { const w = window.open('', '_blank'); w.document.write(d.html); w.document.close(); }
+        alert('Acta generada y guardada en la carpeta de auditoría (Módulo 5). Ítems FUF 30 y 32 respaldados.');
+        aplicar(await api('/api/cphs'));
+    }
+
+    pintarResumen(); pintarMiembros(); pintarActividades();
+    if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
