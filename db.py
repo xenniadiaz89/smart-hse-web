@@ -2412,14 +2412,76 @@ def registrar_requerimiento(afecta, empresa_id, datos, creado_por=None):
 
 # ══════════════ Ronda 15 — Motor Documental: Tareas / EPP / PTS / Trabajadores / IRL ══════════
 # ── Tareas de la Matriz IPER (agrupan riesgos) ──
+def _clave_tarea(proceso, nombre, puesto):
+    """Identidad de una tarea a ojos del usuario: mismo proceso, misma tarea, mismo puesto.
+    Se compara sin distinguir mayúsculas ni espacios sobrantes — nadie considera dos tareas
+    distintas 'Inspeccion visual' e 'inspeccion  visual'."""
+    return tuple(' '.join((x or '').split()).lower() for x in (proceso, nombre, puesto))
+
+
+def tarea_buscar(matriz_id, nombre, proceso=None, puesto=None):
+    """La tarea equivalente ya existente en la matriz, o None."""
+    buscada = _clave_tarea(proceso, nombre, puesto)
+    for t in TareaIPER.query.filter_by(matriz_id=matriz_id).order_by(TareaIPER.id).all():
+        if _clave_tarea(t.proceso, t.nombre, t.puesto) == buscada:
+            return t
+    return None
+
+
 def tarea_crear(matriz_id, nombre, proceso=None, rutinaria=None, responsable=None,
                 fecha_evaluacion=None, estado_avance='Pendiente', puesto=None):
+    """Crea la tarea, o REUTILIZA la equivalente si ya existe en la matriz.
+
+    Sin esto, agregar tres riesgos al mismo proceso desde el modal creaba tres tareas gemelas
+    —mismo proceso, mismo nombre, mismo puesto— con un riesgo cada una: el usuario cree estar
+    sumando riesgos a su proceso y en realidad está fragmentando la matriz. El modal se abre
+    siempre en «nueva tarea», así que el caso es la norma, no la excepción.
+    """
+    existente = tarea_buscar(matriz_id, nombre, proceso, puesto)
+    if existente:
+        # Se completan los datos que la tarea no tenía; nunca se pisan los que ya estaban.
+        for campo, valor in (('rutinaria', rutinaria), ('responsable', responsable),
+                             ('fecha_evaluacion', fecha_evaluacion)):
+            if valor and not getattr(existente, campo):
+                setattr(existente, campo, valor)
+        _commit()
+        return existente.id
     t = TareaIPER(matriz_id=matriz_id, nombre=nombre, proceso=proceso, rutinaria=rutinaria,
                   responsable=responsable, fecha_evaluacion=fecha_evaluacion,
                   estado_avance=estado_avance, puesto=puesto)
     sqla.session.add(t)
     _commit()
     return t.id
+
+
+def fusionar_tareas_duplicadas(matriz_id):
+    """Consolida las tareas gemelas de una matriz: los riesgos se mueven a la primera y las
+    tareas vacías que quedan se eliminan. Devuelve (tareas_eliminadas, riesgos_movidos).
+
+    No se pierde ningún riesgo ni su control: solo cambian de tarea_id.
+    """
+    primeras, a_borrar, movidos = {}, [], 0
+    for t in TareaIPER.query.filter_by(matriz_id=matriz_id).order_by(TareaIPER.id).all():
+        clave = _clave_tarea(t.proceso, t.nombre, t.puesto)
+        if clave not in primeras:
+            primeras[clave] = t
+            continue
+        destino = primeras[clave]
+        for r in RiesgoItem.query.filter_by(tarea_id=t.id).all():
+            r.tarea_id = destino.id
+            movidos += 1
+        for tt in TrabajadorTarea.query.filter_by(tarea_id=t.id).all():
+            # La asignación de personas también se traslada, evitando duplicar la pareja.
+            if TrabajadorTarea.query.filter_by(tarea_id=destino.id,
+                                               trabajador_id=tt.trabajador_id).first():
+                sqla.session.delete(tt)
+            else:
+                tt.tarea_id = destino.id
+        a_borrar.append(t)
+    for t in a_borrar:
+        sqla.session.delete(t)
+    _commit()
+    return len(a_borrar), movidos
 
 
 def tareas_de_matriz(matriz_id):

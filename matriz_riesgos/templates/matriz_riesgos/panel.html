@@ -148,13 +148,15 @@
                 <button type="button" onclick="cerrarNuevaTarea()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-6 space-y-3">
-                <!-- Destino: a un proceso/tarea existente, o crear uno nuevo -->
+                <!-- Destino: una tarea de un proceso que ya existe, o crear uno nuevo.
+                     Las tareas van agrupadas POR PROCESO: así se agregan riesgos dentro del
+                     proceso al que pertenecen, en vez de leer una línea «proceso · tarea». -->
                 <div>
                     <label class="text-[11px] font-bold text-gray-500 uppercase">Agregar a</label>
                     <select id="destino" onchange="toggleDestino()" class="iet-in">
-                        <option value="nueva">➕ Nueva tarea / proceso</option>
-                        <optgroup label="Tarea existente" id="destinoTareas"></optgroup>
+                        <option value="nueva">➕ Nuevo proceso / tarea</option>
                     </select>
+                    <p id="destinoAyuda" class="text-[11px] text-gray-500 mt-1"></p>
                 </div>
                 <div id="camposTarea" class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
@@ -476,12 +478,30 @@
             if (r.ok) location.reload();
         }
         function abrirAgregar() {
-            // Poblar el selector de tareas existentes (para agregar un riesgo a una ya creada).
-            const og = document.getElementById('destinoTareas');
-            og.innerHTML = _tareas.map(t =>
-                `<option value="${t.id}">${esc((t.proceso || 'Sin proceso'))} · ${esc(t.nombre)}</option>`).join('');
-            og.parentElement.querySelector('optgroup').style.display = _tareas.length ? '' : 'none';
-            document.getElementById('destino').value = 'nueva';
+            // El selector agrupa las tareas POR PROCESO: cada proceso es un encabezado y sus
+            // tareas cuelgan de él, que es como se van incorporando los riesgos (Anexo 1 DS 44).
+            const sel = document.getElementById('destino');
+            sel.querySelectorAll('optgroup').forEach(g => g.remove());
+            const porProceso = {};
+            _tareas.forEach(t => {
+                const p = (t.proceso || '').trim() || 'Sin proceso asignado';
+                (porProceso[p] = porProceso[p] || []).push(t);
+            });
+            Object.keys(porProceso).sort((a, b) =>
+                (a === 'Sin proceso asignado') - (b === 'Sin proceso asignado') || a.localeCompare(b)
+            ).forEach(p => {
+                const og = document.createElement('optgroup');
+                og.label = p;
+                porProceso[p].forEach(t => {
+                    const o = document.createElement('option');
+                    o.value = String(t.id);
+                    const n = (t.riesgos || []).length;
+                    o.textContent = `${t.nombre}${t.puesto ? ' · ' + t.puesto : ''} (${n} riesgo${n === 1 ? '' : 's'})`;
+                    og.appendChild(o);
+                });
+                sel.appendChild(og);
+            });
+            sel.value = 'nueva';
             toggleDestino();
             document.getElementById('tareaOverlay').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
@@ -494,8 +514,18 @@
         }
         function toggleDestino() {
             // Si el destino es una tarea existente, se ocultan los campos de tarea nueva.
-            const esNueva = document.getElementById('destino').value === 'nueva';
+            const sel = document.getElementById('destino');
+            const esNueva = sel.value === 'nueva';
             document.getElementById('camposTarea').style.display = esNueva ? '' : 'none';
+            const ayuda = document.getElementById('destinoAyuda');
+            if (esNueva) {
+                ayuda.textContent = _tareas.length
+                    ? 'Si escribes un proceso y una tarea que ya existen, el riesgo se suma a esa tarea en vez de crear una repetida.'
+                    : 'Escribe el proceso y la tarea; los riesgos se agregan dentro.';
+            } else {
+                const opt = sel.selectedOptions[0];
+                ayuda.textContent = `El riesgo se agrega dentro del proceso «${opt.parentElement.label}».`;
+            }
         }
         function cerrarNuevaTarea() { document.getElementById('tareaOverlay').classList.add('hidden'); }
 
