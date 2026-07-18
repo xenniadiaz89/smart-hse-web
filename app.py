@@ -1231,7 +1231,13 @@ def api_fuf_generar(n):
     # Documento Word fiel (Programa/SGSST V8.2, RIOHS…): rellena el .docx real y lo deja para descargar.
     import docx_fill
     if docx_fill.es_docx(tipo_doc):
-        data, fname = docx_fill.generar_docx(tipo_doc, emp, campos)
+        # El Programa lleva las medidas de la matriz vigente (ítem 10 del FUF: «medidas
+        # preventivas y correctivas según MIPER»). Best-effort: sin matriz, el documento igual sale.
+        try:
+            medidas = db.medidas_para_programa(eid)
+        except Exception:      # noqa: BLE001
+            medidas = None
+        data, fname = docx_fill.generar_docx(tipo_doc, emp, campos, medidas_miper=medidas)
         if data is None:
             return jsonify({'error': 'No se pudo generar el documento Word.'}), 500
         cid = db.contrato_base(eid, rut, emp.get('razon_social'))

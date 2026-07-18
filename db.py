@@ -2484,6 +2484,44 @@ def fusionar_tareas_duplicadas(matriz_id):
     return len(a_borrar), movidos
 
 
+def medidas_para_programa(empresa_id):
+    """Medidas de control de la MIPER vigente, listas para el Programa de Trabajo Preventivo.
+
+    Es el puente que faltaba: el ítem 10 del FUF exige que el Programa contenga las «medidas
+    preventivas y correctivas según MIPER, con plazos y responsables», y hasta ahora el Programa
+    se generaba sin ellas. El dato se escribe una vez en la matriz y viaja solo al documento (P1).
+
+    Orden: primero los riesgos críticos, luego por magnitud residual descendente — el Programa
+    debe atacar antes lo que más riesgo tiene.
+
+    Devuelve [{'medida','peligro','riesgo','proceso','tarea','puesto','responsable','magnitud'}].
+    """
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if not m:
+        return []
+    tareas = {t.id: t for t in TareaIPER.query.filter_by(matriz_id=m.id).all()}
+    filas = []
+    for r in RiesgoItem.query.filter_by(matriz_id=m.id).all():
+        if not (r.medida_control or '').strip():
+            continue
+        t = tareas.get(r.tarea_id)
+        filas.append({
+            'medida': r.medida_control.strip(),
+            'peligro': (r.peligro or '').strip(),
+            'riesgo': (r.riesgo or '').strip(),
+            'proceso': (t.proceso if t else '') or '',
+            'tarea': (t.nombre if t else '') or '',
+            'puesto': (t.puesto if t else '') or '',
+            'responsable': (t.responsable if t else '') or '',
+            'magnitud': r.nivel_riesgo_residual or r.nivel_riesgo or '',
+            '_orden': (0 if r.es_critico else 1, -(r.vep_residual or r.vep or 0)),
+        })
+    filas.sort(key=lambda x: x['_orden'])
+    for f in filas:
+        f.pop('_orden')
+    return filas
+
+
 def tareas_de_matriz(matriz_id):
     return [t.to_dict() for t in
             TareaIPER.query.filter_by(matriz_id=matriz_id).order_by(TareaIPER.id).all()]
