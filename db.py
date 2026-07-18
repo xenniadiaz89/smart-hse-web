@@ -16,8 +16,9 @@ from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEs
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
                     TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
                     BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion,
-                    TrabajadorRequisito)
+                    TrabajadorRequisito, EstadisticaMensual)
 import iper
+import estadisticas as _estadisticas
 import planes
 import resso as _resso
 
@@ -342,6 +343,42 @@ def protocolo_eliminar(empresa_id, pid):
     sqla.session.delete(p)
     _commit()
     return True
+
+
+# ── Estadísticas de Prevención (empresa transversal) — portada Mis Contratos + FUF 47/60 ──
+_ESTADISTICA_CAMPOS = ('n_accidentes', 'n_incidentes', 'dias_perdidos', 'n_trabajadores', 'hh_trabajadas')
+
+
+def estadisticas_de(empresa_id, anio):
+    """Las 12 filas mensuales del año (dicts), rellenando con 0 los meses sin registro."""
+    filas = {r.mes: r.to_dict() for r in
+             EstadisticaMensual.query.filter_by(empresa_id=empresa_id, anio=int(anio)).all()}
+    out = []
+    for m in range(1, 13):
+        r = filas.get(m) or {'mes': m}
+        out.append({'mes': m, **{c: (r.get(c) or 0) for c in _ESTADISTICA_CAMPOS}})
+    return out
+
+
+def estadistica_set(empresa_id, anio, mes, datos):
+    """Upsert de un mes. `datos` = dict con cualquiera de _ESTADISTICA_CAMPOS."""
+    anio, mes = int(anio), int(mes)
+    row = EstadisticaMensual.query.filter_by(empresa_id=empresa_id, anio=anio, mes=mes).first()
+    if not row:
+        row = EstadisticaMensual(empresa_id=empresa_id, anio=anio, mes=mes)
+        sqla.session.add(row)
+    for c in _ESTADISTICA_CAMPOS:
+        if c in datos:
+            try:
+                setattr(row, c, max(0, int(datos[c] or 0)))
+            except (TypeError, ValueError):
+                setattr(row, c, 0)
+    _commit()
+
+
+def estadisticas_resumen(empresa_id, anio):
+    """Series e índices calculados (estadisticas.serie) para el gráfico y el documento FUF."""
+    return _estadisticas.serie(estadisticas_de(empresa_id, anio))
 
 
 # ── Capacitaciones Legales por cargo — Tarjeta 5 del Dashboard DS44 ──

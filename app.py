@@ -431,6 +431,36 @@ def api_protocolo_subir(pid):
     return jsonify({'ok': True, 'documentos': db.documentos_protocolo(eid, rut, pid)})
 
 
+# ── Estadísticas de Prevención (empresa transversal) — portada Mis Contratos + FUF 47/60 ──
+def _anio_actual():
+    return date.today().year
+
+
+@app.route('/api/estadisticas', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_estadisticas_get():
+    anio = request.args.get('anio', type=int) or _anio_actual()
+    eid = _empresa_id()
+    return jsonify({'anio': anio, 'filas': db.estadisticas_de(eid, anio),
+                    'resumen': db.estadisticas_resumen(eid, anio)})
+
+
+@app.route('/api/estadisticas', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_estadisticas_set():
+    f = request.get_json(silent=True) or {}
+    anio = int(f.get('anio') or _anio_actual())
+    mes = int(f.get('mes') or 0)
+    if not 1 <= mes <= 12:
+        return jsonify({'error': 'Mes inválido.'}), 400
+    eid = _empresa_id()
+    db.estadistica_set(eid, anio, mes, f.get('datos') or {})
+    return jsonify({'anio': anio, 'filas': db.estadisticas_de(eid, anio),
+                    'resumen': db.estadisticas_resumen(eid, anio)})
+
+
 # ── Capacitaciones Legales por cargo — motor de datos de la Tarjeta 5 ──
 @app.route('/api/cargos', methods=['GET'])
 @empresa_required
@@ -1149,6 +1179,9 @@ def api_fuf_generar(n):
     if not doc or n not in doc['items_fuf']:
         return jsonify({'error': 'Tipo de documento no válido para este ítem.'}), 400
     emp = db.empresa_de(rut, eid) or {}
+    if tipo_doc == 'estadisticas':       # documento data-driven: inyecta la serie de la empresa
+        anio = int((campos.get('anio') or 0)) or date.today().year
+        campos = {**campos, 'anio': anio, '_resumen': db.estadisticas_resumen(eid, anio)}
     html = catalogo_documentos_ds44.generar_html(tipo_doc, campos, emp)
     cid = db.contrato_base(eid, rut, emp.get('razon_social'))
     nombre = f"{doc['nombre']}.html"

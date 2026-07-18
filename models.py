@@ -529,6 +529,23 @@ class ProtocoloSalud(_DictMixin, sqla.Model):
     orden = sqla.Column(sqla.Integer, default=0)
 
 
+class EstadisticaMensual(_DictMixin, sqla.Model):
+    """Ronda 28 — Estadística de Prevención mensual por empresa (transversal, no por contrato).
+    Alimenta el gráfico de la portada de Mis Contratos y el documento FUF 47/60. Los índices
+    (IF/IG/accidentabilidad) se calculan al vuelo en estadisticas.py; aquí solo las entradas."""
+    __tablename__ = 'estadistica_mensual'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    anio = sqla.Column(sqla.Integer, nullable=False)
+    mes = sqla.Column(sqla.Integer, nullable=False)           # 1..12
+    n_accidentes = sqla.Column(sqla.Integer, default=0)
+    n_incidentes = sqla.Column(sqla.Integer, default=0)
+    dias_perdidos = sqla.Column(sqla.Integer, default=0)
+    n_trabajadores = sqla.Column(sqla.Integer, default=0)
+    hh_trabajadas = sqla.Column(sqla.Integer, default=0)
+    __table_args__ = (sqla.UniqueConstraint('empresa_id', 'anio', 'mes'),)
+
+
 class Capacitacion(_DictMixin, sqla.Model):
     """Registro de capacitación legal por CARGO (cruce con Trabajador.cargo). Alimenta la Tarjeta 5
     del Dashboard DS44. %cargo = Σcapacitados/Σrequeridos."""

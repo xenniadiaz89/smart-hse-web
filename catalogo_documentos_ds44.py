@@ -273,6 +273,45 @@ def _plantilla_investigacion(c, empresa):
                            refs=[('Norma', 'D.S. 44/2024 Art. 71-75'), ('Fecha del evento', fecha or '—')])
 
 
+def _plantilla_estadisticas(c, empresa):
+    """Data-driven: la ruta api_fuf_generar inyecta c['_resumen'] = db.estadisticas_resumen(...)."""
+    anio = c.get('anio') or ''
+    r = c.get('_resumen') or {'detalle': [], 'acumulado': {}}
+    ac = r.get('acumulado') or {}
+    filas = ''.join(
+        f'<tr><td>{_esc(d["nombre"])}</td><td style="text-align:right">{d["n_accidentes"]}</td>'
+        f'<td style="text-align:right">{d["dias_perdidos"]}</td><td style="text-align:right">{d["n_trabajadores"]}</td>'
+        f'<td style="text-align:right">{d["hh_trabajadas"]}</td><td style="text-align:right">{d["if"]}</td>'
+        f'<td style="text-align:right">{d["ig"]}</td><td style="text-align:right">{d["ta"]}</td></tr>'
+        for d in r.get('detalle', []))
+    cuerpo = f"""
+ <style>table.est{{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0}}
+  table.est th{{background:#f0f6f9;text-align:right;padding:5px;border-bottom:2px solid #cfe3ec;color:#006a9b}}
+  table.est th:first-child,table.est td:first-child{{text-align:left}}
+  table.est td{{padding:4px 5px;border-bottom:1px solid #eee}}
+  table.est tfoot td{{font-weight:bold;border-top:2px solid #cfe3ec;background:#fafcfd}}</style>
+ <h2>Indicadores acumulados {_esc(anio)}</h2>
+ <p>N° accidentes: <b>{ac.get('accidentes', 0)}</b> · Días perdidos: <b>{ac.get('dias_perdidos', 0)}</b> ·
+    HH trabajadas: <b>{ac.get('hh_trabajadas', 0)}</b> · Índice de Frecuencia: <b>{ac.get('if', 0)}</b> ·
+    Índice de Gravedad: <b>{ac.get('ig', 0)}</b> · Tasa de accidentabilidad: <b>{ac.get('ta', 0)}</b>.</p>
+ <h2>Detalle mensual</h2>
+ <table class="est"><thead><tr><th>Mes</th><th>Accid.</th><th>Días perd.</th><th>Trabaj.</th><th>HH</th>
+   <th>I. Frec.</th><th>I. Grav.</th><th>Tasa acc.</th></tr></thead>
+   <tbody>{filas}</tbody>
+   <tfoot><tr><td>Acumulado</td><td style="text-align:right">{ac.get('accidentes', 0)}</td>
+     <td style="text-align:right">{ac.get('dias_perdidos', 0)}</td><td></td>
+     <td style="text-align:right">{ac.get('hh_trabajadas', 0)}</td>
+     <td style="text-align:right">{ac.get('if', 0)}</td><td style="text-align:right">{ac.get('ig', 0)}</td>
+     <td style="text-align:right">{ac.get('ta', 0)}</td></tr></tfoot></table>
+ <p class="sub">IF = accidentes·1.000.000 / HH · IG = días perdidos·1.000.000 / HH ·
+    Tasa de accidentabilidad = accidentes·100 / N° trabajadores. Registro de la gestión preventiva de la
+    empresa (D.S. 44/2024 Art. 73-75).</p>
+ {_firmas(elabora='Prevención de Riesgos', aprueba='Representante legal')}"""
+    return _documento_html('REGISTRO DE ESTADÍSTICAS E INDICADORES DE PREVENCIÓN',
+                           f'D.S. 44/2024 · Art. 73-75 · Año {_esc(anio)}', empresa, cuerpo,
+                           refs=[('Norma', 'D.S. 44/2024 Art. 73-75'), ('Año', anio or '—')])
+
+
 CATALOGO = [
     {'tipo_doc': 'politica_sst',
      'nombre': 'Política de Seguridad y Salud en el Trabajo',
@@ -359,6 +398,16 @@ CATALOGO = [
          {'k': 'cargo', 'label': 'Cargo', 'tipo': 'text'},
      ],
      'plantilla': _plantilla_investigacion},
+
+    {'tipo_doc': 'estadisticas',
+     'nombre': 'Registro de Estadísticas e Indicadores de Prevención',
+     'items_fuf': [47, 60],
+     'evidencia': 'Registro mensual de accidentes, días perdidos e indicadores (frecuencia, gravedad, accidentabilidad) de la empresa.',
+     'formato_origen': 'DS44/FORMATO COMPLETO ESTADISTICAS MENSUALES DS44.xlsx',
+     'campos': [
+         {'k': 'anio', 'label': 'Año del registro', 'tipo': 'text'},
+     ],
+     'plantilla': _plantilla_estadisticas},
 ]
 
 

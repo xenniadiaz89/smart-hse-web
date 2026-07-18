@@ -156,6 +156,7 @@
                    {% endif %}
                    {{ nav('faena', 'hard-hat', 'Gestión de faena', 'cargarFaena()') }}
                    {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
+                   {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
                    {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
                    {{ nav('checklist', 'list-checks', 'Checklist digital', 'cargarVehiculos()') }}
                    {{ nav('iet', 'map-pin', 'Inspección en terreno') }}
@@ -371,6 +372,20 @@
             <p class="text-gray-600 mb-5 text-sm">Actualiza los <b>puestos evaluados</b> vs <b>totales</b> de cada protocolo de vigilancia. El % alimenta la Tarjeta 3 del Panel DS 44 en vivo.</p>
             <div id="protoMutual" class="mb-5"></div>
             <div id="protocolosCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-gray-400 text-sm">Cargando…</p></div>
+        </section>
+
+        <!-- VISTA: Estadísticas de Prevención (ingreso mensual → gráfico portada Mis Contratos + FUF 47/60) -->
+        <section id="vista-estadisticas" class="hidden">
+            <div class="flex items-center justify-between gap-3 mb-1">
+                <h2 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="line-chart" class="w-6 h-6 text-primary"></i> Estadísticas de Prevención</h2>
+                <label class="text-sm text-gray-500 flex items-center gap-2">Año
+                    <input id="estAnio" type="number" min="2000" max="2100" class="iet-in !py-1.5 !w-28" onchange="cargarEstadisticas()"></label>
+            </div>
+            <p class="text-gray-600 mb-5 text-sm">Carga los datos mensuales de la empresa (transversal). El sistema calcula los índices de <b>Frecuencia</b>, <b>Gravedad</b> y <b>Accidentabilidad</b>, dibuja el gráfico en la portada de <b>Mis Contratos</b> y alimenta el documento del FUF (ítems 47 y 60) para la carpeta de auditoría.</p>
+            <div id="estIndicadores" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 overflow-x-auto">
+                <table class="w-full text-sm min-w-[720px]" id="estTabla"></table>
+            </div>
         </section>
 
         <!-- VISTA: Capacitaciones Legales (ingreso de datos → Tarjeta 5 del Dashboard DS44) -->
@@ -616,6 +631,9 @@
         <section id="vista-contratos" class="hidden">
             <!-- ── Empresa / Adhesión (Ronda 18: registro y Mutual dentro de la consola) ── -->
             <div id="empresaCard" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6"></div>
+
+            <!-- ── Estadísticas de Prevención (transversal a la empresa) — gráfico en portada ── -->
+            <div id="estadisticasPortada" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6"></div>
 
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
                 <div class="flex items-center gap-2">
@@ -1240,7 +1258,7 @@
         // ─────────────────────────────────────────────────────────────
         // 'matriz' salió de aquí: la Matriz Legal es ahora una página propia (/matriz-legal),
         // no una sección de este archivo. mostrarVista() no tolera ids inexistentes.
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'capacitaciones'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -1688,6 +1706,107 @@
                 const r = await fetch('/api/contratos');
                 if (r.ok) renderContratos(await r.json());
             } catch (e) { /* offline */ }
+            cargarEstadisticasPortada();
+        }
+
+        // ── Estadísticas de Prevención (empresa transversal): gráfico en portada + vista de ingreso ──
+        const MESES_EST = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        let _estChart = null, _estAnioPortada = new Date().getFullYear();
+
+        async function cargarEstadisticasPortada() {
+            const box = document.getElementById('estadisticasPortada');
+            if (!box) return;
+            let data;
+            try { const r = await fetch('/api/estadisticas?anio=' + _estAnioPortada); if (!r.ok) return; data = await r.json(); }
+            catch (e) { return; }
+            const rs = data.resumen, ac = rs.acumulado;
+            box.classList.remove('hidden');
+            const kpi = (v, l) => `<div class="text-center"><p class="text-xl font-extrabold text-primary">${v}</p><p class="text-[10px] text-gray-500 uppercase font-bold">${l}</p></div>`;
+            box.innerHTML = `
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="line-chart" class="w-5 h-5 text-primary"></i> Estadísticas de Prevención ${data.anio}</h3>
+                    <button type="button" onclick="mostrarVista('estadisticas'); cargarEstadisticas()" class="text-[11px] font-bold text-primary hover:underline">Gestionar →</button>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                    ${kpi(ac.accidentes, 'Accidentes')}${kpi(ac.if, 'Í. Frecuencia')}${kpi(ac.ig, 'Í. Gravedad')}${kpi(ac.ta, 'Tasa acc.')}
+                </div>
+                <div style="height:220px"><canvas id="chartEst"></canvas></div>`;
+            if (window.lucide) lucide.createIcons();
+            if (_estChart) { _estChart.destroy(); _estChart = null; }
+            _estChart = new Chart(document.getElementById('chartEst'), {
+                data: {
+                    labels: rs.labels,
+                    datasets: [
+                        { type: 'bar', label: 'Accidentes', data: rs.accidentes, backgroundColor: 'rgba(141,198,63,.55)', yAxisID: 'yAcc', order: 3 },
+                        { type: 'line', label: 'Í. Frecuencia', data: rs.if, borderColor: '#006a9b', backgroundColor: '#006a9b', tension: .3, yAxisID: 'yTasa', order: 1 },
+                        { type: 'line', label: 'Í. Gravedad', data: rs.ig, borderColor: '#e0813a', backgroundColor: '#e0813a', tension: .3, yAxisID: 'yTasa', order: 2 },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { boxWidth: 12, font: { size: 10 } } } },
+                    scales: {
+                        yTasa: { position: 'left', title: { display: true, text: 'Tasas (IF / IG)', font: { size: 9 } }, beginAtZero: true },
+                        yAcc: { position: 'right', title: { display: true, text: 'Accidentes', font: { size: 9 } }, beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0 } },
+                    }
+                }
+            });
+        }
+
+        async function cargarEstadisticas() {
+            const inp = document.getElementById('estAnio');
+            if (inp && !inp.value) inp.value = new Date().getFullYear();
+            const anio = (inp && inp.value) || new Date().getFullYear();
+            const r = await fetch('/api/estadisticas?anio=' + anio);
+            if (!r.ok) return;
+            const data = await r.json();
+            _renderEstTabla(data);
+            _renderEstIndicadores(data.resumen.acumulado);
+        }
+
+        function _renderEstIndicadores(ac) {
+            const el = document.getElementById('estIndicadores');
+            const card = (v, l, c) => `<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 text-center">
+                <p class="text-2xl font-extrabold ${c}">${v}</p><p class="text-[11px] text-gray-500 font-bold uppercase">${l}</p></div>`;
+            el.innerHTML = card(ac.accidentes, 'Accidentes (año)', 'text-gray-900')
+                + card(ac.if, 'Índice Frecuencia', 'text-primary')
+                + card(ac.ig, 'Índice Gravedad', 'text-orange-500')
+                + card(ac.ta, 'Tasa accidentabilidad', 'text-secondary');
+        }
+
+        function _renderEstTabla(data) {
+            const t = document.getElementById('estTabla');
+            const byMes = {}; data.resumen.detalle.forEach(d => byMes[d.mes] = d);
+            const head = `<thead><tr class="text-left text-[11px] text-gray-500 uppercase border-b">
+                <th class="py-2">Mes</th><th>Accidentes</th><th>Incidentes</th><th>Días perdidos</th><th>N° trabaj.</th><th>HH trabajadas</th><th class="text-primary">I.F.</th><th class="text-orange-500">I.G.</th><th></th></tr></thead>`;
+            const rows = [];
+            for (let m = 1; m <= 12; m++) {
+                const d = byMes[m] || {};
+                const inp = (k, v) => `<input id="est_${k}_${m}" type="number" min="0" value="${v || 0}" class="iet-in !py-1 !w-20">`;
+                rows.push(`<tr class="border-b border-gray-50">
+                    <td class="py-1.5 font-bold text-gray-700">${MESES_EST[m - 1]}</td>
+                    <td>${inp('n_accidentes', d.n_accidentes)}</td>
+                    <td>${inp('n_incidentes', d.n_incidentes)}</td>
+                    <td>${inp('dias_perdidos', d.dias_perdidos)}</td>
+                    <td>${inp('n_trabajadores', d.n_trabajadores)}</td>
+                    <td>${inp('hh_trabajadas', d.hh_trabajadas)}</td>
+                    <td class="text-primary font-bold text-xs">${d['if'] || 0}</td>
+                    <td class="text-orange-500 font-bold text-xs">${d.ig || 0}</td>
+                    <td><button onclick="guardarEstadistica(${m})" class="bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded-lg">Guardar</button></td>
+                </tr>`);
+            }
+            t.innerHTML = head + '<tbody>' + rows.join('') + '</tbody>';
+        }
+
+        async function guardarEstadistica(mes) {
+            const anio = (document.getElementById('estAnio') || {}).value || new Date().getFullYear();
+            const g = k => Number((document.getElementById(`est_${k}_${mes}`) || {}).value || 0);
+            const datos = { n_accidentes: g('n_accidentes'), n_incidentes: g('n_incidentes'), dias_perdidos: g('dias_perdidos'), n_trabajadores: g('n_trabajadores'), hh_trabajadas: g('hh_trabajadas') };
+            const r = await fetch('/api/estadisticas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ anio, mes, datos }) });
+            if (!r.ok) { alert('No se pudo guardar.'); return; }
+            const data = await r.json();
+            _renderEstTabla(data); _renderEstIndicadores(data.resumen.acumulado);
+            _estAnioPortada = Number(anio);
         }
 
         // ── Empresa / Adhesión (registro + Mutual dentro de la consola) ──
