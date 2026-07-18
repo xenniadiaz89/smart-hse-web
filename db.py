@@ -2349,6 +2349,12 @@ def bloquear_y_versionar(empresa_id, motivo, creado_por=None):
             requisito_legal_id=it.requisito_legal_id, estado_control=it.estado_control,
             evidencia_doc_id=it.evidencia_doc_id, contrato_id=it.contrato_id,
             ecf_punto=it.ecf_punto, mfl=it.mfl, bowtie=it.bowtie, fecha=_hoy(),
+            # Estos tres se perdían al versionar: la V2 salía sin el código del Anexo 2, sin su
+            # familia de evaluación y sin la medida de emergencia. Es decir, versionar degradaba
+            # la matriz justo en lo que la hace auditable (el código normativo de cada riesgo y el
+            # mínimo d) del ítem 5 del FUF: medidas de control Y de emergencia).
+            riesgo_codigo=it.riesgo_codigo, tipo_riesgo=it.tipo_riesgo,
+            medida_emergencia=it.medida_emergencia,
             gema=it.gema, control_validado_por=it.control_validado_por,
             control_validado_en=it.control_validado_en,
             probabilidad_residual=it.probabilidad_residual,
