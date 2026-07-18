@@ -171,6 +171,10 @@
                     <p class="text-[11px] text-gray-500 mt-1">Define qué capacitaciones y exámenes se inyectan automáticamente.</p>
                 </div>
                 <div><label class="text-[11px] font-bold text-gray-500 uppercase">Cargo</label><input id="n_cargo" class="iet-in" placeholder="Ej. Operador de camión aljibe"></div>
+                <label class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
+                    <input id="n_conduce" type="checkbox" class="accent-primary">
+                    <span class="text-sm text-gray-700"><b>¿Va a conducir?</b> <span class="text-xs text-gray-500">Si marcas Sí, se inyectan licencia de conducir y examen sicosensotécnico (Ley del Tránsito 18.290).</span></span>
+                </label>
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">Faena</label>
                         <select id="n_contrato" class="iet-in">
@@ -329,7 +333,8 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     rut: v('n_rut'), nombre: v('n_nombre'), rol: v('n_rol'), cargo: v('n_cargo'),
-                    contrato_id: v('n_contrato'), responsable_id: v('n_resp') || null
+                    contrato_id: v('n_contrato'), responsable_id: v('n_resp') || null,
+                    conduce: document.getElementById('n_conduce').checked
                 })
             });
             const d = await r.json().catch(() => ({}));

@@ -108,6 +108,8 @@ _COLUMNAS_NUEVAS = [
     ('fuf_estado', 'responsable', 'TEXT'),
     # Ronda 28 — MIPER: medidas de emergencia (mínimo del ítem 5 del FUF, DS 44 Art. 7 5d)
     ('riesgo_item', 'medida_emergencia', 'TEXT'),
+    # Ronda 28 — Nómina: ¿conduce? → inyecta requisitos de la Ley del Tránsito (18.290)
+    ('trabajador', 'conduce', 'INTEGER DEFAULT 0'),
 ]
 
 
@@ -675,7 +677,7 @@ def inyectar_requisitos_de_rol(trabajador_id, responsable_id=None):
     t = Trabajador.query.get(trabajador_id)
     if not t:
         return []
-    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol)}
+    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol, conduce=bool(t.conduce))}
     existentes = {r.codigo: r for r in
                   TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id).all()}
     nuevos = []
@@ -2146,9 +2148,10 @@ def pts_de_tarea(tarea_id):
 
 # ── Trabajadores y sus Tareas asignadas ──
 def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=None,
-                     responsable_id=None):
+                     responsable_id=None, conduce=False):
     t = Trabajador(empresa_id=empresa_id, contrato_id=contrato_id or 0, rut=rut, nombre=nombre,
-                   cargo=cargo, rol=rol, fecha_ingreso=_hoy(), estado='activo')
+                   cargo=cargo, rol=rol, fecha_ingreso=_hoy(), estado='activo',
+                   conduce=1 if conduce else 0)
     sqla.session.add(t)
     _commit()
     inyectar_requisitos_de_rol(t.id, responsable_id=responsable_id)   # cargo crítico → sus exigencias

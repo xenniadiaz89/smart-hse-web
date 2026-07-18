@@ -231,7 +231,7 @@ ROLES_CRITICOS = {
 }
 
 
-def requisitos_de_rol(rol):
+def requisitos_de_rol(rol, conduce=False):
     """Requisitos aplicables a un rol = comunes ('todos') + los propios del rol.
 
     El match es por substring, así que 'Supervisor de Terreno' matchea 'supervisor'. Cada requisito
@@ -243,4 +243,7 @@ def requisitos_de_rol(rol):
     for k, extra in REQUISITOS_POR_ROL.items():
         if k != 'todos' and k in rol_key:
             reqs += [{**r, 'origen': f'rol:{k}'} for r in extra]
+    # ¿Conduce? → requisitos de la Ley del Tránsito (18.290), aunque su rol no sea 'conductor'.
+    if conduce and 'conductor' not in rol_key:
+        reqs += [{**r, 'origen': 'conduce'} for r in REQUISITOS_POR_ROL['conductor']]
     return reqs

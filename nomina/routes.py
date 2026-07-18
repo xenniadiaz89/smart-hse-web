@@ -75,7 +75,8 @@ def api_trabajador_crear():
                         cargo=(f.get('cargo') or '').strip() or None,
                         rol=(f.get('rol') or '').strip() or None,
                         contrato_id=f.get('contrato_id') or None,
-                        responsable_id=int(resp) if resp else None)
+                        responsable_id=int(resp) if resp else None,
+                        conduce=str(f.get('conduce')) in ('1', 'true', 'True', 'on', 'si'))
     return jsonify(db.trabajadores_de(eid))
 
 

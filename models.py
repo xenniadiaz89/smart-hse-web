@@ -156,6 +156,7 @@ class Trabajador(_DictMixin, sqla.Model):
     estado = sqla.Column(sqla.Text, default='activo')     # 'activo'|'inactivo'
     fecha_egreso = sqla.Column(sqla.Text)
     motivo_egreso = sqla.Column(sqla.Text)
+    conduce = sqla.Column(sqla.Integer, default=0)        # Ronda 28: conduce → requisitos Ley Tránsito
 
 
 class TrabajadorRequisito(_DictMixin, sqla.Model):
