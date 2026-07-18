@@ -81,12 +81,16 @@
                             <i data-lucide="workflow" class="w-4 h-4"></i> Ingresar Proceso</button>
                         <button type="button" onclick="abrirAgregar()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-lg font-bold text-sm">
                             <i data-lucide="plus" class="w-4 h-4"></i> Ingresar Matriz de Riesgo</button>
+                        <button type="button" id="btnCandado" onclick="alternarCandado()" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sm"></button>
                         <button type="button" onclick="versionar()" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm" title="Bloquea la matriz vigente y abre una revisión V{{ matriz.version + 1 }}">
                             <i data-lucide="git-branch" class="w-4 h-4"></i> Versionar</button>
                         <a href="/api/faena/0/miper.xlsx" onclick="return descargarSigo(event)" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm">
                             <i data-lucide="download" class="w-4 h-4"></i> SIGO-F-006</a>
                     </div>
                 </div>
+
+                <!-- Estado del candado de edición (Guardar / Editar matriz) -->
+                <div id="bannerCandado" class="mt-4"></div>
 
                 <!-- Resumen por magnitud RESIDUAL -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
@@ -259,7 +263,62 @@
             return `<span class="badge ${MAG_COLOR[m] || 'bg-gray-100 text-gray-600'}">${esc(m)}</span>`;
         }
 
+        // ── Candado de edición ──────────────────────────────────────────────────────────────
+        // CERRADA la fija toda: los <select> salen disabled y desaparece la papelera. Es cortesía
+        // visual: el bloqueo de verdad lo hace el servidor (409 en cada endpoint que muta).
+        let CERRADA = false;
+
+        function pintarCandado(m) {
+            CERRADA = !!(m && m.cerrada);
+            const btn = document.getElementById('btnCandado');
+            const banner = document.getElementById('bannerCandado');
+            if (CERRADA) {
+                btn.className = 'inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-3 py-2 rounded-lg font-bold text-sm';
+                btn.innerHTML = '<i data-lucide="pencil" class="w-4 h-4"></i> Editar matriz';
+                btn.title = 'Reabre la matriz para incorporar o sacar riesgos (pide motivo)';
+                banner.innerHTML = `<div class="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-2.5 text-[13px]">
+                    <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
+                    <span><b>Matriz guardada</b>${m.cerrada_en ? ` el ${esc(m.cerrada_en)}` : ''}${m.cerrada_por ? ` por ${esc(m.cerrada_por)}` : ''}.
+                    Está fija: para incorporar o sacar riesgos pulsa <b>Editar matriz</b>.</span></div>`;
+            } else {
+                btn.className = 'inline-flex items-center gap-2 bg-secondary hover:bg-[#6b9c31] text-white px-3 py-2 rounded-lg font-bold text-sm';
+                btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Guardar matriz';
+                btn.title = 'Da la matriz por terminada: queda fija hasta que la reabras';
+                banner.innerHTML = `<div class="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 text-[13px]">
+                    <i data-lucide="pencil-line" class="w-4 h-4 shrink-0"></i>
+                    <span><b>Matriz en edición.</b> Trabájala con libertad y pulsa <b>Guardar matriz</b> cuando la des por terminada.</span></div>`;
+            }
+            // Los botones de alta siguen la misma suerte que la tabla.
+            document.querySelectorAll('[onclick="abrirAgregar()"], [onclick="abrirProcesos()"]').forEach(b => {
+                b.disabled = CERRADA;
+                b.classList.toggle('opacity-40', CERRADA);
+                b.classList.toggle('cursor-not-allowed', CERRADA);
+                if (CERRADA) b.title = 'La matriz está guardada. Pulsa «Editar matriz» para modificarla.';
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function alternarCandado() {
+            let url = '/api/miper/cerrar', body = {};
+            if (CERRADA) {
+                const motivo = prompt('¿Por qué reabres la matriz?\n\nQueda registrado en la bitácora con tu nombre y la fecha.');
+                if (motivo === null) return;                 // canceló
+                if (!motivo.trim()) { alert('Indica el motivo para reabrir la matriz.'); return; }
+                url = '/api/miper/reabrir'; body = { motivo: motivo.trim() };
+            } else if (!confirm('¿Dar la matriz por terminada?\n\nQuedará fija: para volver a modificarla tendrás que pulsar «Editar matriz» e indicar el motivo.')) {
+                return;
+            }
+            const r = await fetch(url, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo cambiar el estado de la matriz.'); return; }
+            pintarCandado(d.matriz);
+            cargar();
+        }
+
         function filaHTML(r) {
+            const DIS = CERRADA ? ' disabled' : '';
             const val = (validado = r.estado_control === 'validado_sistema');
             const ctrl = validado
                 ? `<span class="badge bg-green-100 text-green-700"><i data-lucide="shield-check" class="w-3 h-3"></i> Vigente y Validado por Sistema</span>
@@ -276,18 +335,19 @@
             return `<tr class="${r.es_critico ? 'bg-red-50/40' : ''}">
                 <td class="font-mono text-[10px] text-gray-400">${r.riesgo_codigo ? esc(r.riesgo_codigo) : '—'}
                     ${r.tipo_riesgo ? `<span class="block text-[8px] text-gray-300">${esc(r.tipo_riesgo)}</span>` : ''}</td>
-                <td><select onchange="editar(${r.id},'gema',this.value)" class="cel">${opts(GEMA, r.gema)}</select></td>
+                <td><select onchange="editar(${r.id},'gema',this.value)" class="cel"${DIS}>${opts(GEMA, r.gema)}</select></td>
                 <td class="text-gray-800">${esc(r.peligro)}</td>
                 <td class="text-gray-800">${esc(r.riesgo)}</td>
-                <td><select onchange="editar(${r.id},'probabilidad',this.value)" class="cel">${opts(ESC_P, r.probabilidad)}</select></td>
-                <td><select onchange="editar(${r.id},'consecuencia',this.value)" class="cel">${opts(ESC_C, r.consecuencia)}</select></td>
+                <td><select onchange="editar(${r.id},'probabilidad',this.value)" class="cel"${DIS}>${opts(ESC_P, r.probabilidad)}</select></td>
+                <td><select onchange="editar(${r.id},'consecuencia',this.value)" class="cel"${DIS}>${opts(ESC_C, r.consecuencia)}</select></td>
                 <td class="font-mono font-bold text-center">${r.vep == null ? '—' : r.vep}</td>
                 <td>${badgeMag(r.nivel_riesgo)}</td>
                 <td class="text-gray-600 whitespace-pre-line text-[11px] leading-relaxed">${esc(r.medida_control)}</td>
-                <td><select onchange="editar(${r.id},'tipo_control',this.value)" class="cel">${opts(TIPOS, r.tipo_control)}</select></td>
+                <td><select onchange="editar(${r.id},'tipo_control',this.value)" class="cel"${DIS}>${opts(TIPOS, r.tipo_control)}</select></td>
                 <td>${resid}</td>
                 <td>${ctrl}</td>
-                <td class="text-right"><button type="button" onclick="eliminar(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                <td class="text-right">${CERRADA ? ''
+                    : `<button type="button" onclick="eliminar(${r.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}</td>
             </tr>`;
         }
 
@@ -333,6 +393,7 @@
             let d = { tareas: [] };
             try { const r = await fetch('/api/miper'); if (r.ok) d = await r.json(); } catch (e) { }
             _tareas = d.tareas || [];
+            if (d.matriz) pintarCandado(d.matriz);   // antes de filaHTML: define si las celdas salen bloqueadas
             const body = document.getElementById('miperBody');
             const porProceso = {};
             (d.tareas || []).forEach(t => {
@@ -357,7 +418,7 @@
                             <span class="font-bold text-gray-700">${esc(t.nombre)}</span>
                             ${t.puesto ? `<span class="ml-2 text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Puesto: ${esc(t.puesto)}</span>` : ''}
                             ${t.rutinaria ? `<span class="ml-2 text-[10px] text-gray-400">${esc(t.rutinaria.replace('_', ' '))}</span>` : ''}
-                            <button type="button" onclick="agregarRiesgoATarea(${t.id})" class="ml-2 text-[10px] text-primary font-semibold hover:underline">+ riesgo</button>
+                            ${CERRADA ? '' : `<button type="button" onclick="agregarRiesgoATarea(${t.id})" class="ml-2 text-[10px] text-primary font-semibold hover:underline">+ riesgo</button>`}
                         </td>
                     </tr>` + (t.riesgos || []).map(filaHTML).join('')).join('');
                 return `
@@ -389,13 +450,20 @@
                 body: JSON.stringify({ campo, valor })
             });
             const d = await r.json().catch(() => ({}));
+            // Sin esto un rechazo del servidor (p. ej. matriz guardada → 409) pasaría inadvertido:
+            // el <select> se quedaría con el valor nuevo en pantalla y sin guardar en la base.
+            if (!r.ok) { alert(d.error || 'No se pudo guardar el cambio.'); cargar(); return; }
             if (d.irls_actualizados && d.irls_actualizados.length)
                 alert(`⚠ ${d.irls_actualizados.length} IRL regenerado(s): requieren nueva firma (Art. 15 DS 44).`);
             cargar();   // repinta VEP, magnitud y residual
         }
         async function eliminar(rid) {
             if (!confirm('¿Eliminar este riesgo?')) return;
-            await fetch(`/api/miper/riesgo/${rid}/eliminar`, { method: 'POST' });
+            const r = await fetch(`/api/miper/riesgo/${rid}/eliminar`, { method: 'POST' });
+            if (!r.ok) {
+                const d = await r.json().catch(() => ({}));
+                alert(d.error || 'No se pudo eliminar el riesgo.');
+            }
             cargar();
         }
         async function versionar() {

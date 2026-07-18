@@ -41,6 +41,34 @@ def _desde_catalogo(r):
     return r, None
 
 
+_CERRADA = ('La matriz está guardada y no admite cambios. Pulsa «Editar matriz» e indica el '
+            'motivo para volver a abrirla.')
+
+
+def _bloqueada():
+    """409 si la matriz vigente está cerrada, None si se puede trabajar.
+
+    El candado real vive aquí, no en el navegador: los <select> deshabilitados del panel son
+    cortesía visual, cualquiera puede llamar al endpoint igual.
+    """
+    if db.matriz_editable(empresa_id()):
+        return None
+    return jsonify({'error': _CERRADA, 'cerrada': True}), 409
+
+
+def _riesgo_de_la_empresa(rid):
+    """El RiesgoItem si pertenece a la matriz vigente de la empresa en sesión, None si no.
+
+    Antes /campo editaba por id sin comprobar nada: se podía modificar un ítem de una versión
+    archivada o de otra empresa. /eliminar sí lo comprobaba; ahora ambos usan lo mismo.
+    """
+    it = RiesgoItem.query.get(rid)
+    if not it:
+        return None
+    m = db.matriz_riesgo_vigente(empresa_id())
+    return it if (m and it.matriz_id == m['id']) else None
+
+
 def _exige_control(r):
     """El control operacional es obligatorio y lo escribe el prevencionista. El sistema tiene
     prohibido generarlo o inferirlo: son medidas con peso legal.
@@ -96,6 +124,8 @@ def api_miper():
 @onboarding_required
 def api_miper_tarea():
     """Crea una tarea manual con sus riesgos. Si guardar_biblioteca=1, la persiste para reuso."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
     f = request.get_json(silent=True) or {}
     nombre = (f.get('nombre') or '').strip()
     if not nombre:
@@ -168,6 +198,8 @@ def api_miper_presets():
 @onboarding_required
 def api_miper_preset():
     """Inserta un proceso preestablecido completo (tareas + riesgos + controles) en la matriz."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
     f = request.get_json(silent=True) or {}
     n = db.insertar_preset(empresa_id(), f.get('preset_id'), session.get('nombre'))
     if n is None:
@@ -189,6 +221,10 @@ def api_miper_sugerencia():
 def api_miper_vincular_legal(rid):
     """Vincula el riesgo con el requisito legal sugerido (creándolo en la Matriz Legal si falta).
     Tras vincular, aplica la herencia: si ese requisito ya está Cumple, el control se valida solo."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
+    if not _riesgo_de_la_empresa(rid):
+        return jsonify({'error': 'Riesgo no encontrado en la matriz vigente.'}), 404
     f = request.get_json(silent=True) or {}
     eid = empresa_id()
     s = f.get('sugerencia') or iper.sugerir_requisito(f.get('texto', ''))
@@ -206,6 +242,8 @@ def api_miper_vincular_legal(rid):
 @onboarding_required
 def api_miper_desde_requisito():
     """Legal → MIPER: crea una tarea/riesgo en la MIPER a partir de un requisito legal, ya vinculado."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
     f = request.get_json(silent=True) or {}
     eid = empresa_id()
     req = RequisitoLegal.query.filter_by(id=f.get('requisito_id'), empresa_id=eid).first()
@@ -227,6 +265,8 @@ def api_miper_desde_requisito():
 @onboarding_required
 def api_miper_riesgo_add():
     """Agrega un riesgo a una tarea existente."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
     f = request.get_json(silent=True) or {}
     tid, eid = f.get('tarea_id'), empresa_id()
     m = db.matriz_riesgo_vigente(eid)
@@ -262,13 +302,17 @@ def api_miper_riesgo_campo(rid):
     Si lo que cambia es la medida de control de un riesgo amarrado a un requisito legal, se usa
     db.riesgo_editar_control: ese requisito queda 'en_revision' y se deja traza en la bitácora
     (el control cambió, la validación legal previa ya no vale)."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
+    it_row = _riesgo_de_la_empresa(rid)
+    if not it_row:
+        return jsonify({'error': 'Riesgo no encontrado en la matriz vigente.'}), 404
     f = request.get_json(silent=True) or {}
     campo, valor = f.get('campo'), f.get('valor')
     if campo in _CAMPOS_LISTA:
         valor = normalizar_control_operativo(valor)
 
-    it_row = RiesgoItem.query.get(rid)
-    if campo == 'medida_control' and it_row and it_row.requisito_legal_id:
+    if campo == 'medida_control' and it_row.requisito_legal_id:
         it = db.riesgo_editar_control(rid, valor, quien=session.get('nombre') or session.get('rut'))
         afecta_irl = True
     else:
@@ -292,12 +336,41 @@ def api_miper_riesgo_campo(rid):
 @empresa_required
 @onboarding_required
 def api_miper_riesgo_del(rid):
-    it = RiesgoItem.query.get(rid)
-    m = db.matriz_riesgo_vigente(empresa_id())
-    if it and m and it.matriz_id == m['id']:
+    if (bloqueo := _bloqueada()):
+        return bloqueo
+    it = _riesgo_de_la_empresa(rid)
+    if it:
         sqla.session.delete(it)
         sqla.session.commit()
     return jsonify({'ok': True})
+
+
+# ── Candado: guardar la matriz / volver a abrirla ──
+@bp.route('/api/miper/cerrar', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_miper_cerrar():
+    """Da la matriz por terminada: queda fija hasta que se reabra con motivo."""
+    m = db.matriz_cerrar(empresa_id(), session.get('nombre') or session.get('rut'))
+    if not m:
+        return jsonify({'error': 'La empresa aún no tiene matriz de riesgos.'}), 404
+    return jsonify({'ok': True, 'matriz': m})
+
+
+@bp.route('/api/miper/reabrir', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_miper_reabrir():
+    """Reabre la matriz para incorporar o sacar riesgos. El motivo es obligatorio: queda en la
+    bitácora porque modificar una matriz ya emitida sin constancia es lo que objeta un fiscalizador."""
+    f = request.get_json(silent=True) or {}
+    motivo = (f.get('motivo') or '').strip()
+    if not motivo:
+        return jsonify({'error': 'Indica el motivo por el que reabres la matriz.'}), 400
+    m = db.matriz_reabrir(empresa_id(), session.get('nombre') or session.get('rut'), motivo)
+    if not m:
+        return jsonify({'error': 'La empresa aún no tiene matriz de riesgos.'}), 404
+    return jsonify({'ok': True, 'matriz': m})
 
 
 @bp.route('/api/miper/versionar', methods=['POST'])

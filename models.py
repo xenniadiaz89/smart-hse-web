@@ -333,6 +333,15 @@ class MatrizRiesgo(_DictMixin, sqla.Model):
     version_previa_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'))
     creado_por = sqla.Column(sqla.Text)
     creado_en = sqla.Column(sqla.Text)
+    # Candado de edición — eje DISTINTO al de `estado`. `estado` dice qué versión es la actual
+    # ('vigente') y cuál quedó archivada por Versionar ('bloqueada'); esto dice si la versión
+    # actual está abierta para trabajarla o ya se dio por terminada. No se puede reutilizar
+    # `estado='borrador'` para esto: 'vigente' es la clave con la que db.py BUSCA la matriz, así
+    # que sacarla de ese valor equivaldría a que la empresa se quede sin matriz.
+    cerrada = sqla.Column(sqla.Integer, default=0)         # 0 = en edición · 1 = guardada/fija
+    cerrada_por = sqla.Column(sqla.Text)
+    cerrada_en = sqla.Column(sqla.Text)
+    bitacora_edicion = sqla.Column(sqla.Text)              # append-only: cierres y reaperturas con motivo
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'version'),)
 
 

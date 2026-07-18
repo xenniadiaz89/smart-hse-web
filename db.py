@@ -113,6 +113,13 @@ _COLUMNAS_NUEVAS = [
     ('trabajador', 'conduce', 'INTEGER DEFAULT 0'),
     # Ronda 28 — Comité Paritario: miembro del CPHS → inyecta el curso de orientación (FUF 31)
     ('trabajador', 'cphs_rol', 'TEXT'),
+    # Ronda 28 — Matriz de Riesgos: candado de edición (Guardar / Editar matriz). Las matrices ya
+    # existentes nacen ABIERTAS: no se puede declarar retroactivamente que un trabajo estaba dado
+    # por terminado; lo cierra el prevencionista cuando lo decide.
+    ('matriz_riesgo', 'cerrada', 'INTEGER DEFAULT 0'),
+    ('matriz_riesgo', 'cerrada_por', 'TEXT'),
+    ('matriz_riesgo', 'cerrada_en', 'TEXT'),
+    ('matriz_riesgo', 'bitacora_edicion', 'TEXT'),
 ]
 
 
@@ -1803,6 +1810,49 @@ def requisito_alerta(req):
 def matriz_riesgo_vigente(empresa_id):
     m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
     return m.to_dict() if m else None
+
+
+# ── Candado de edición de la matriz (Guardar / Editar matriz) ──
+# Eje distinto al de versiones: `estado` dice qué versión es la actual, `cerrada` dice si la actual
+# está abierta para trabajarla. Una matriz cerrada no se puede modificar hasta reabrirla con motivo.
+def matriz_editable(empresa_id):
+    """¿La matriz vigente de la empresa admite cambios? Fuente de verdad del candado.
+    Sin matriz aún, se considera editable: la primera escritura la crea."""
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    return (not m) or not m.cerrada
+
+
+def _anotar_bitacora(m, linea):
+    """Append-only: el historial de cierres y reaperturas no se pisa, se acumula."""
+    previo = (m.bitacora_edicion or '').rstrip('\n')
+    m.bitacora_edicion = f'{previo}\n{linea}'.strip('\n')
+
+
+def matriz_cerrar(empresa_id, quien=None):
+    """Da la matriz por terminada: queda fija hasta que se reabra. Idempotente."""
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if not m:
+        return None
+    if not m.cerrada:
+        m.cerrada, m.cerrada_por, m.cerrada_en = 1, quien, _hoy()
+        _anotar_bitacora(m, f'{_hoy()} · Guardada por {quien or "—"}')
+        _commit()
+    return m.to_dict()
+
+
+def matriz_reabrir(empresa_id, quien=None, motivo=None):
+    """Reabre la matriz para incorporar o sacar riesgos. EXIGE motivo: modificar una matriz ya
+    emitida sin dejar constancia es lo que un fiscalizador objeta. Devuelve None si falta."""
+    motivo = (motivo or '').strip()
+    if not motivo:
+        return None
+    m = MatrizRiesgo.query.filter_by(empresa_id=empresa_id, estado='vigente').first()
+    if not m:
+        return None
+    m.cerrada, m.cerrada_por, m.cerrada_en = 0, None, None
+    _anotar_bitacora(m, f'{_hoy()} · Reabierta por {quien or "—"} — {motivo}')
+    _commit()
+    return m.to_dict()
 
 
 def crear_matriz_riesgo(empresa_id, creado_por=None):
