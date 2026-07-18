@@ -1109,9 +1109,8 @@
             const data = await r.json();
             const w = window.open('', '_blank');
             if (w) { w.document.write(data.html); w.document.close(); }
-            cont.innerHTML = '';
-            estado[n] = 'si';
-            await cargarDocsItem(n);
+            // Generado = ahora lo tienes → el ítem pasa a "Cumple" y se muestra el documento guardado.
+            setEstado(n, 'si');
             actualizarKPIs();
             if (typeof actualizarDS44Live === 'function') actualizarDS44Live();
         }
