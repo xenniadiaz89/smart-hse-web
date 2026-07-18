@@ -223,6 +223,11 @@
                         Se guarda como lista numerada (1. 2. 3.), una acción por línea.
                     </p>
                 </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">Medidas de emergencia</label>
+                    <textarea id="r_emergencia" class="iet-in" rows="2" placeholder="Qué hacer si el riesgo se materializa (DS 44 Art. 7): evacuar, dar aviso, primeros auxilios…"></textarea>
+                    <p class="text-[11px] text-gray-500 mt-1">Exigido por el FUF ítem 5: la MIPER debe tener medidas de control <b>y de emergencia</b>.</p>
+                </div>
                 <label class="flex items-center gap-2 text-[12px] text-gray-600">
                     <input type="checkbox" id="r_guardar_biblio" class="accent-primary"> Guardar en mi biblioteca para reusarlo
                 </label>
@@ -480,6 +485,7 @@
                 peligro: v('r_peligro'), riesgo: v('r_riesgo'),
                 riesgo_codigo: v('r_catalogo') || null,
                 medida_control: document.getElementById('r_medida').value,
+                medida_emergencia: (document.getElementById('r_emergencia') || {}).value || null,
                 probabilidad: v('r_p'), consecuencia: v('r_c'),
                 tipo_control: v('r_tipo') || null, gema: v('r_gema') || null
             };

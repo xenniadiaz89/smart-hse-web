@@ -243,6 +243,7 @@ def api_miper_riesgo_add():
                             probabilidad=f.get('probabilidad'), consecuencia=f.get('consecuencia'),
                             metodo_correcto=normalizar_control_operativo(f.get('metodo_correcto')),
                             tipo_control=f.get('tipo_control'), gema=f.get('gema'),
+                            medida_emergencia=(f.get('medida_emergencia') or None),
                             contrato_id=f.get('contrato_id') or None, tarea_id=int(tid),
                             riesgo_codigo=f.get('riesgo_codigo'), tipo_riesgo=f.get('tipo_riesgo'))
     db.aplicar_herencia_controles(eid)

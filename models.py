@@ -349,6 +349,7 @@ class RiesgoItem(_DictMixin, sqla.Model):
     vep = sqla.Column(sqla.Integer)                        # Ronda 17: VEP = P × C (1..9)
     nivel_riesgo = sqla.Column(sqla.Text)                  # Magnitud: Trivial/Tolerable/Moderado/Importante/Intolerable
     medida_control = sqla.Column(sqla.Text)                # medida preventiva
+    medida_emergencia = sqla.Column(sqla.Text)             # Ronda 28: medidas de emergencia (DS 44 Art. 7 5d)
     metodo_correcto = sqla.Column(sqla.Text)               # Ronda 17: método de trabajo correcto
     tipo_control = sqla.Column(sqla.Text)                  # jerarquía de control
     mandante_key = sqla.Column(sqla.Text)                  # dialecto: 'codelco'|'bhp_spence'|None

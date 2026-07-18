@@ -485,8 +485,11 @@ _ENLACE_MIPER = {'url': '/matriz-riesgos', 'nombre': 'Matriz de Riesgos (MIPER)'
                  'desc': 'La MIPER se construye y mantiene en el módulo Matriz de Riesgos. Trabájala ahí y, si quieres, adjunta aquí el PDF/Excel exportado como evidencia.'}
 _ENLACE_IRL = {'url': '/nomina', 'nombre': 'Nómina · IRL',
                'desc': 'La Información de Riesgos Laborales (IRL, ex-ODI) se genera por trabajador desde la Matriz de Riesgos, en el módulo Nómina. Genérala ahí y adjunta aquí el registro firmado.'}
-ENLACES = {n: _ENLACE_MIPER for n in (2, 3, 4, 5, 6)}
-ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL})
+# La vigilancia (54-55) vive en la vista Protocolos del dashboard (no es una URL): 'vista'.
+_ENLACE_PROTOCOLOS = {'vista': 'protocolos', 'nombre': 'Protocolos de Salud',
+                      'desc': 'Los programas de vigilancia ambiental y de la salud se gestionan en Protocolos de Salud (PREXOR, TMERT, sílice, UV…). Trabájalos ahí y adjunta aquí el registro.'}
+ENLACES = {n: _ENLACE_MIPER for n in (2, 3, 4, 5, 6, 7)}
+ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL, 54: _ENLACE_PROTOCOLOS, 55: _ENLACE_PROTOCOLOS})
 
 
 def enlace_de(n):

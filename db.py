@@ -106,6 +106,8 @@ _COLUMNAS_NUEVAS = [
     ('tarea_iper', 'puesto', 'TEXT'),
     # Ronda 28 — FUF con documentos: responsable de cierre del ítem
     ('fuf_estado', 'responsable', 'TEXT'),
+    # Ronda 28 — MIPER: medidas de emergencia (mínimo del ítem 5 del FUF, DS 44 Art. 7 5d)
+    ('riesgo_item', 'medida_emergencia', 'TEXT'),
 ]
 
 
@@ -1636,9 +1638,11 @@ def riesgo_agregar(matriz_id, peligro, riesgo, medida_control, probabilidad=None
                    consecuencia=None, nivel_riesgo=None, tipo_control=None, mandante_key=None,
                    es_critico=0, requisito_legal_id=None, evidencia_doc_id=None,
                    metodo_correcto=None, contrato_id=None, ecf_punto=None, mfl=None, bowtie=None,
-                   gema=None, tarea_id=None, riesgo_codigo=None, tipo_riesgo=None):
+                   gema=None, tarea_id=None, riesgo_codigo=None, tipo_riesgo=None,
+                   medida_emergencia=None):
     it = RiesgoItem(matriz_id=matriz_id, peligro=peligro, riesgo=riesgo,
-                    medida_control=medida_control, tipo_control=tipo_control,
+                    medida_control=medida_control, medida_emergencia=medida_emergencia,
+                    tipo_control=tipo_control,
                     metodo_correcto=metodo_correcto, mandante_key=mandante_key,
                     es_critico=1 if es_critico else 0, requisito_legal_id=requisito_legal_id,
                     evidencia_doc_id=evidencia_doc_id, contrato_id=contrato_id,
@@ -1706,8 +1710,8 @@ def aplicar_herencia_controles(empresa_id, requisito_id=None, quien='Sistema (Ma
 
 
 # Campos editables en línea del ítem de riesgo (recalcula VEP si cambian P/C).
-_RIESGO_CAMPOS = ('peligro', 'riesgo', 'medida_control', 'metodo_correcto', 'tipo_control',
-                  'probabilidad', 'consecuencia', 'es_critico', 'contrato_id',
+_RIESGO_CAMPOS = ('peligro', 'riesgo', 'medida_control', 'medida_emergencia', 'metodo_correcto',
+                  'tipo_control', 'probabilidad', 'consecuencia', 'es_critico', 'contrato_id',
                   'ecf_punto', 'mfl', 'bowtie', 'gema', 'riesgo_codigo', 'tipo_riesgo')
 # Cambios en estos campos disparan la cascada al IRL (Art. 15 DS 44).
 _RIESGO_CAMPOS_IRL = ('medida_control', 'metodo_correcto', 'riesgo', 'peligro')
