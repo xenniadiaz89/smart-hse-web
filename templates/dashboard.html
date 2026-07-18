@@ -945,6 +945,13 @@
         function render(n, valor) {
             if (valor === 'si') {
                 const info = ITEM_INDEX[n];
+                const enlace = info && info.item && info.item.enlace;
+                const enlaceBox = enlace ? `
+                <div class="mb-3 bg-primary/5 border border-primary/20 rounded-xl p-3">
+                    <p class="text-sm font-bold text-primary mb-1 flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Este documento se gestiona en su módulo</p>
+                    <p class="text-xs text-gray-600 mb-2">${enlace.desc}</p>
+                    <a href="${enlace.url}" class="inline-flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-lg text-xs font-bold hover:brightness-95"><i data-lucide="arrow-right-circle" class="w-4 h-4"></i> Ir a ${enlace.nombre}</a>
+                </div>` : '';
                 const docs = (info && info.item && info.item.docs) || [];
                 const genBtns = docs.length ? `
                 <div class="mb-3">
@@ -955,6 +962,7 @@
                     <div id="genform_${n}" class="mt-3"></div>
                 </div>` : '';
                 return `
+                ${enlaceBox}
                 ${genBtns}
                 <p class="text-sm font-bold text-secondary mb-2 flex items-center gap-2"><i data-lucide="upload-cloud" class="w-4 h-4"></i> ¿Ya lo tienes? Cárgalo</p>
                 <label class="block border-2 border-dashed border-secondary/40 rounded-xl p-6 text-center cursor-pointer hover:bg-secondary/5 transition">

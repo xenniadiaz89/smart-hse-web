@@ -430,6 +430,26 @@ def evidencia_de(n):
     return docs[0]['evidencia'] if docs else ''
 
 
+# ── Ítems que NO se generan aquí: viven en su propio módulo (se enlaza, no se duplica) ──
+# La MIPER se construye en Matriz de Riesgos; la IRL (ex-ODI) se genera por trabajador desde la
+# Matriz de Riesgos, en el módulo Nómina (docgen.generar_irl). Recordatorio del usuario: "la IRL
+# sale de la matriz de riesgos".
+_ENLACE_MIPER = {'url': '/matriz-riesgos', 'nombre': 'Matriz de Riesgos (MIPER)',
+                 'desc': 'La MIPER se construye y mantiene en el módulo Matriz de Riesgos. Trabájala ahí y, si quieres, adjunta aquí el PDF/Excel exportado como evidencia.'}
+_ENLACE_IRL = {'url': '/nomina', 'nombre': 'Nómina · IRL',
+               'desc': 'La Información de Riesgos Laborales (IRL, ex-ODI) se genera por trabajador desde la Matriz de Riesgos, en el módulo Nómina. Genérala ahí y adjunta aquí el registro firmado.'}
+ENLACES = {n: _ENLACE_MIPER for n in (2, 3, 4, 5, 6)}
+ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL})
+
+
+def enlace_de(n):
+    """Módulo al que se enlaza el ítem FUF n (MIPER / IRL), o None si se gestiona aquí."""
+    try:
+        return ENLACES.get(int(n))
+    except (TypeError, ValueError):
+        return None
+
+
 def documento(tipo_doc):
     return INDEX.get(tipo_doc)
 
@@ -448,6 +468,7 @@ def resumen_para_item(n):
         'evidencia': evidencia_de(n),
         'tipos': [{'tipo_doc': d['tipo_doc'], 'nombre': d['nombre'], 'campos': d['campos']}
                   for d in por_item(n)],
+        'enlace': enlace_de(n),
     }
 
 
@@ -459,6 +480,6 @@ def enriquecer_fuf(secciones):
         items = []
         for it in s['items']:
             r = resumen_para_item(it['n'])
-            items.append({**it, 'ev': r['evidencia'], 'docs': r['tipos']})
+            items.append({**it, 'ev': r['evidencia'], 'docs': r['tipos'], 'enlace': r['enlace']})
         out.append({**s, 'items': items})
     return out
