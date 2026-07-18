@@ -158,6 +158,7 @@
                    {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
                    {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
                    {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
+                   {{ nav('auditoria', 'folder-check', 'Carpeta de Auditoría', 'cargarAuditoria()') }}
                    {{ nav('checklist', 'list-checks', 'Checklist digital', 'cargarVehiculos()') }}
                    {{ nav('iet', 'map-pin', 'Inspección en terreno') }}
                    <div class="side-divider">Más</div>
@@ -387,6 +388,21 @@
             <p class="text-gray-600 mb-5 text-sm">Actualiza los <b>puestos evaluados</b> vs <b>totales</b> de cada protocolo de vigilancia. El % alimenta la Tarjeta 3 del Panel DS 44 en vivo.</p>
             <div id="protoMutual" class="mb-5"></div>
             <div id="protocolosCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-gray-400 text-sm">Cargando…</p></div>
+        </section>
+
+        <!-- VISTA: Carpeta de Auditoría (Módulo 5) — reúne lo que producen todos los módulos -->
+        <section id="vista-auditoria" class="hidden">
+            <div class="flex items-center justify-between gap-3 mb-1 flex-wrap">
+                <h2 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="folder-check" class="w-6 h-6 text-primary"></i> Carpeta de Auditoría</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="cargarAuditoria()" class="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-200"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar</button>
+                    <a href="/api/auditoria/export.zip" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="download" class="w-4 h-4"></i> Descargar carpeta (.zip)</a>
+                </div>
+            </div>
+            <p class="text-gray-600 mb-5 text-sm">Todo lo que la empresa puede presentar en una fiscalización, reunido desde el FUF, los Protocolos, el Comité Paritario, la Nómina y los contratos. La descarga incluye un <b>índice de portada</b> con el contenido y las brechas.</p>
+            <div id="audResumen" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+            <div id="audBrechas" class="mb-5"></div>
+            <div id="audBloques"><p class="text-gray-400 text-sm">Cargando…</p></div>
         </section>
 
         <!-- VISTA: Estadísticas de Prevención (ingreso mensual → gráfico portada Mis Contratos + FUF 47/60) -->
@@ -1322,7 +1338,7 @@
         // ─────────────────────────────────────────────────────────────
         // 'matriz' salió de aquí: la Matriz Legal es ahora una página propia (/matriz-legal),
         // no una sección de este archivo. mostrarVista() no tolera ids inexistentes.
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones', 'auditoria'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -2923,6 +2939,70 @@
                 <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Respaldos / Certificados (aislados a este módulo)</p>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${cert('adhesion', 'Certificado de Adhesión')}${cert('siniestralidad', 'Certificado de Siniestralidad')}${cert('cotizaciones', 'Comprobante de Cotizaciones')}</div>
             </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Módulo 5 · Carpeta de Auditoría ────────────────────────────────────────────
+        // No produce documentos: los reúne. Lo que aporta sobre cada vista suelta son las
+        // BRECHAS — un ítem marcado Cumple sin respaldo es justo lo que se cae en una auditoría.
+        function _escA(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+        async function cargarAuditoria() {
+            const cajaB = document.getElementById('audBloques');
+            let d;
+            try {
+                const r = await fetch('/api/auditoria');
+                if (!r.ok) throw new Error('respuesta ' + r.status);
+                d = await r.json();
+            } catch (e) {
+                cajaB.innerHTML = '<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">No se pudo cargar la carpeta de auditoría. Vuelve a intentarlo con <b>Actualizar</b>.</div>';
+                return;
+            }
+            const r_ = d.resumen;
+            const kpi = (v, l, alerta) => `<div class="bg-white border ${alerta && v ? 'border-amber-300' : 'border-gray-200'} rounded-xl p-3 text-center">
+                <p class="text-2xl font-extrabold ${alerta && v ? 'text-amber-600' : 'text-primary'}">${v}</p>
+                <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wide mt-0.5">${l}</p></div>`;
+            document.getElementById('audResumen').innerHTML =
+                kpi(r_.documentos, 'Documentos') + kpi(r_.bloques_con_contenido, 'Bloques con contenido')
+                + kpi(r_.brechas, 'Brechas', true) + kpi(r_.brechas_altas, 'Atención prioritaria', true);
+
+            const br = d.brechas || [];
+            document.getElementById('audBrechas').innerHTML = !br.length
+                ? `<div class="bg-green-50 border border-green-200 text-green-800 rounded-xl px-4 py-3 text-sm"><b>Sin brechas detectadas.</b> Todo lo declarado tiene respaldo documental.</div>`
+                : `<details class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" open>
+                     <summary class="text-sm font-bold text-amber-800 cursor-pointer">${br.length} brecha(s) detectada(s) — revísalas antes de presentar la carpeta</summary>
+                     <ul class="mt-3 space-y-1.5">${br.map(b => `
+                       <li class="text-[13px] flex items-start gap-2">
+                         <span class="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${b.gravedad === 'alta' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${b.gravedad}</span>
+                         <span class="text-gray-700"><b>${_escA(b.bloque)}</b> — ${_escA(b.texto)}
+                         ${b.detalle ? `<span class="block text-[11px] text-gray-500">${_escA(b.detalle)}</span>` : ''}</span>
+                       </li>`).join('')}</ul></details>`;
+
+            cajaB.innerHTML = d.bloques.map(b => {
+                if (b.error) return `<div class="border border-red-200 bg-red-50 rounded-xl p-4 mb-3">
+                    <p class="font-bold text-red-700 text-sm">${_escA(b.nombre)}</p>
+                    <p class="text-[12px] text-red-600 mt-1">No se pudo armar este bloque: ${_escA(b.error)}. El resto de la carpeta sigue disponible.</p></div>`;
+                const cuerpo = b.n_docs ? b.grupos.map(g => `
+                    <div class="border-t border-gray-100 px-4 py-3">
+                        <p class="text-[12px] font-bold text-gray-700">${_escA(g.titulo)}
+                            ${g.norma ? `<span class="ml-1 text-[10px] font-normal text-gray-400">${_escA(g.norma)}</span>` : ''}</p>
+                        ${g.detalle ? `<p class="text-[11px] text-gray-500 mb-1.5">${_escA(g.detalle)}</p>` : ''}
+                        <div class="space-y-1 mt-1.5">${g.docs.map(doc => `
+                            <div class="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+                                <span class="text-[11.5px] text-gray-700 truncate">${_escA(doc.nombre)}
+                                    <span class="text-gray-400">· ${_escA(doc.fecha || 's/fecha')}${doc.flujo ? ' · ' + _escA(doc.flujo) : ''}</span>
+                                    ${doc.subtitulo ? `<span class="block text-[10px] text-gray-500">${_escA(doc.subtitulo)}</span>` : ''}</span>
+                                <a href="/api/doc/${doc.id}" target="_blank" class="shrink-0 text-primary text-[11px] font-bold hover:underline">Abrir</a>
+                            </div>`).join('')}</div>
+                    </div>`).join('')
+                    : `<p class="px-4 py-4 text-[12px] text-gray-400">Sin documentos en este bloque todavía.</p>`;
+                return `<div class="bg-white border border-gray-200 rounded-xl mb-3 overflow-hidden">
+                    <div class="px-4 py-3 bg-gray-50 flex items-center justify-between gap-2">
+                        <div><p class="font-extrabold text-primary text-sm">${_escA(b.nombre)}</p>
+                             <p class="text-[11px] text-gray-500">${_escA(b.desc)}</p></div>
+                        <span class="shrink-0 text-[11px] font-bold ${b.n_docs ? 'text-gray-600' : 'text-gray-300'}">${b.n_docs}</span>
+                    </div>${cuerpo}</div>`;
+            }).join('');
             if (window.lucide) lucide.createIcons();
         }
 

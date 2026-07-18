@@ -137,6 +137,7 @@ _registrar('matriz_legal', 'matriz_legal')
 _registrar('matriz_riesgos', 'matriz_riesgos')
 _registrar('nomina', 'nomina')
 _registrar('cphs', 'cphs')
+_registrar('auditoria', 'auditoria')
 
 # Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
 # sin la pantalla donde desbloquearse.
