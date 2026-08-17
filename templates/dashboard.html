@@ -122,6 +122,19 @@
                        <i data-lucide="{{ icono }}" class="w-5 h-5"></i> <span>{{ texto }}</span></button>
                    {%- endif %}
                {%- endmacro %}
+               {#- Categoría colapsable: solo el título es visible hasta que se pincha (toggleGroup en el JS
+                   más abajo). El contenido son los mismos <button>/<a> de siempre, sin cambiar su lógica. -#}
+               {%- macro grupo(id, icono, titulo) %}
+                   <div class="nav-group">
+                       <button type="button" onclick="toggleGroup('{{ id }}')" class="nav-item w-full justify-between">
+                           <span class="flex items-center gap-[.6rem]"><i data-lucide="{{ icono }}" class="w-5 h-5"></i> <span>{{ titulo }}</span></span>
+                           <i data-lucide="chevron-down" class="w-4 h-4 transition-transform" id="navchev-{{ id }}"></i>
+                       </button>
+                       <div id="navgroup-{{ id }}" class="hidden flex flex-col gap-1 pl-3 ml-[.9rem] border-l border-white/10">
+                           {{ caller() }}
+                       </div>
+                   </div>
+               {%- endmacro %}
                <nav class="p-2 flex flex-row flex-wrap lg:flex-col gap-1">
                    {% if not onboarding_ok %}
                    <a href="/onboarding" class="block mx-1 mb-1 bg-amber-400/15 border border-amber-300/40 rounded-lg px-3 py-2 text-[11px] font-semibold text-amber-100 hover:bg-amber-400/25">
@@ -133,6 +146,8 @@
                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i> <span>Avance general</span></button>
                    <button type="button" data-nav="contratos" onclick="mostrarVista('contratos'); cargarEmpresaCard()" class="nav-item">
                        <i data-lucide="briefcase" class="w-5 h-5"></i> <span>Mis contratos</span></button>
+
+                   {% call grupo('legal', 'scale', 'Cumplimiento Legal') %}
                    {% if not MODULOS_OK.get('matriz_legal') %}
                    <button type="button" disabled title="Módulo no disponible temporalmente" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz legal (no disponible)</span></button>
@@ -155,7 +170,9 @@
                        <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de riesgos</span></button>
                    {% endif %}
                    {{ nav('faena', 'hard-hat', 'Gestión de faena', 'cargarFaena()') }}
-                   <div class="side-divider">Gestión en prevención</div>
+                   {%- endcall %}
+
+                   {% call grupo('prevencion', 'hard-hat', 'Gestión en Prevención') %}
                    {{ nav('checklist', 'list-checks', 'Checklist digital', 'cargarVehiculos()') }}
                    {{ nav('iet', 'map-pin', 'Inspección en terreno') }}
                    {{ nav('reportes', 'clipboard-list', 'Reporte de condiciones', 'cargarReportes()') }}
@@ -163,6 +180,9 @@
                        <i data-lucide="mic" class="w-5 h-5"></i> <span>Registros de charlas en terreno</span></button>
                    <button type="button" disabled title="Próximamente" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="clipboard-plus" class="w-5 h-5"></i> <span>+ Asignación de actividades</span></button>
+                   {%- endcall %}
+
+                   {% call grupo('salud', 'heart-pulse', 'Salud y Estadísticas') %}
                    {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
                    {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
                    {% if not MODULOS_OK.get('siniestros') %}
@@ -175,9 +195,14 @@
                    <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros</span></button>
                    {% endif %}
+                   {%- endcall %}
+
+                   {% call grupo('auditoria', 'folder-check', 'Capacitación y Auditoría') %}
                    {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
                    {{ nav('auditoria', 'folder-check', 'Auditorías internas (FUF)', 'cargarAuditoria()') }}
-                   <div class="side-divider">Más</div>
+                   {%- endcall %}
+
+                   {% call grupo('mas', 'ellipsis', 'Más') %}
                    {% call nav('pendientes', 'calendar-clock', 'Actividades Pendientes', 'cargarPendientes()') %}
                        <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span>
                    {%- endcall %}
@@ -207,6 +232,7 @@
                        <i data-lucide="users-round" class="w-5 h-5"></i> <span>Comité Paritario (no aplica)</span></button>
                    {% endif %}
                    {{ nav('vocab', 'book-a', 'Vocabulario técnico', 'cargarVocab()') }}
+                   {%- endcall %}
                </nav>
            </div>
        </aside>
@@ -1450,11 +1476,28 @@
         // 'matriz' salió de aquí: la Matriz Legal es ahora una página propia (/matriz-legal),
         // no una sección de este archivo. mostrarVista() no tolera ids inexistentes.
         const VISTAS = ['avance', 'contratos', 'checklist', 'reportes', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones', 'auditoria'];
+        // ── Categorías colapsables del menú lateral: solo el título se ve hasta pinchar ──
+        const GROUP_OF = {
+            ds44: 'legal', faena: 'legal',
+            checklist: 'prevencion', iet: 'prevencion', reportes: 'prevencion',
+            protocolos: 'salud', estadisticas: 'salud',
+            capacitaciones: 'auditoria', auditoria: 'auditoria',
+            pendientes: 'mas', vocab: 'mas',
+        };
+        function toggleGroup(id, forzarAbierto) {
+            const box = document.getElementById('navgroup-' + id), chev = document.getElementById('navchev-' + id);
+            if (!box) return;
+            const abrir = forzarAbierto === true ? true : (forzarAbierto === false ? false : box.classList.contains('hidden'));
+            box.classList.toggle('hidden', !abrir);
+            if (chev) chev.classList.toggle('rotate-180', abrir);
+        }
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
             VISTAS.forEach(v => document.getElementById('vista-' + v).classList.toggle('hidden', v !== id));
             if (id === 'iet') initIET();
+            const g = GROUP_OF[id];
+            if (g) toggleGroup(g, true);   // abre la categoría del ítem activo, sin cerrar las demás
             window.scrollTo({ top: 0, behavior: 'smooth' });
             if (window.lucide) lucide.createIcons();
         }
