@@ -96,6 +96,7 @@ def panel():
                            catalogo=riesgos_isp.agrupado_por_bloque(), tipos_riesgo=riesgos_isp.TIPOS,
                            con_control=iper.codigos_con_control(),
                            biblioteca=db.biblioteca_listar(eid),
+                           cargos=db.cargos_de_empresa(eid),
                            **datos)
 
 
@@ -113,10 +114,28 @@ def api_miper():
     for t in tareas:
         t['riesgos'] = db.riesgos_de_tarea(t['id'])
         t['trabajadores'] = [x['id'] for x in db.trabajadores_de_tarea(t['id'])]
-    return jsonify({'matriz': m, 'tareas': tareas,
+    return jsonify({'matriz': m, 'tareas': tareas, 'procesos': db.procesos_de_matriz(m['id']),
                     'mineros': db.contratos_mineros_de(eid), 'ecf_puntos': iper.ECF_PUNTOS,
                     'gema': iper.GEMA, 'tipos_control': iper.TIPOS_CONTROL,
                     'escala': {'probabilidad': iper.PROBABILIDAD, 'consecuencia': iper.CONSECUENCIA}})
+
+
+@bp.route('/api/miper/proceso', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_miper_proceso():
+    """Incorpora un proceso a la matriz, sin tareas ni riesgos aún."""
+    if (bloqueo := _bloqueada()):
+        return bloqueo
+    f = request.get_json(silent=True) or {}
+    nombre = (f.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica el nombre del proceso.'}), 400
+    eid = empresa_id()
+    m = db.matriz_riesgo_vigente(eid) or {'id': db.crear_matriz_riesgo(eid, session.get('nombre'))}
+    mid = m['id'] if isinstance(m, dict) else m
+    pid = db.proceso_crear(mid, nombre, creado_por=session.get('nombre'))
+    return jsonify({'ok': True, 'proceso_id': pid})
 
 
 @bp.route('/api/miper/tareas', methods=['POST'])

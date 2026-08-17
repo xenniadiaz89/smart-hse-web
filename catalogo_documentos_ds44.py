@@ -383,6 +383,126 @@ def _plantilla_estadisticas(c, empresa):
                            refs=[('Norma', 'D.S. 44/2024 Art. 73-75'), ('Año', anio or '—')])
 
 
+def _plantilla_organigrama(c, empresa):
+    """Organigrama de Seguridad = «estructura organizacional para la gestión preventiva», el
+    componente (b) del SGSST exigido por el ítem FUF 1. Documento de referencia: define quién
+    responde por la SST en cada nivel (liderazgo, prevención, comité/delegado, línea de mando,
+    trabajadores). El experto lo ajusta a la realidad de la empresa."""
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    representante = c.get('representante') or '__________________'
+    encargado = c.get('encargado_prev') or '__________________'
+    cphs_delegado = c.get('cphs_delegado') or '__________________'
+    linea_mando = c.get('linea_mando') or 'Supervisores / jefes de área'
+    fecha = c.get('fecha') or ''
+
+    def caja(rol, quien, sub=''):
+        extra = f'<div class="sub" style="font-size:11px">{_esc(sub)}</div>' if sub else ''
+        return (f'<div style="border:2px solid #006a9b;border-radius:8px;padding:8px 12px;'
+                f'margin:6px auto;max-width:420px;text-align:center;background:#f4f9fc">'
+                f'<b>{_esc(rol)}</b><br><span class="sub">{_esc(quien)}</span>{extra}</div>')
+
+    conector = '<div style="width:2px;height:16px;background:#006a9b;margin:0 auto"></div>'
+
+    def fila(rol, responsabilidades):
+        return (f'<tr><td class="k" style="vertical-align:top">{_esc(rol)}</td>'
+                f'<td>{_esc(responsabilidades)}</td></tr>')
+
+    # Roles adicionales que el experto agrega según la organización de la empresa (campos dinámicos).
+    roles_extra = c.get('roles_extra') or []
+    if not isinstance(roles_extra, list):
+        roles_extra = []
+    roles_extra = [r for r in roles_extra if isinstance(r, dict) and (r.get('rol') or r.get('quien'))]
+    cajas_extra = ''.join(conector + caja(r.get('rol') or 'Rol', r.get('quien') or '',
+                                          r.get('responsabilidades') or '') for r in roles_extra)
+    filas_extra = ''.join(fila(r.get('rol') or 'Rol', r.get('responsabilidades') or '')
+                          for r in roles_extra)
+
+    cuerpo = f"""
+ <h2>1. Estructura organizacional para la gestión preventiva</h2>
+ <p>La siguiente estructura define los niveles de responsabilidad en materia de Seguridad y Salud
+ en el Trabajo de <b>{_esc(nombre_emp)}</b>, en cumplimiento del componente (b) del Sistema de
+ Gestión de la SST (D.S. 44/2024 Art. 7 y 9). Las líneas representan la relación de dependencia y
+ comunicación en materia preventiva.</p>
+ <div style="margin:18px 0">
+   {caja('Representante legal / Gerencia', representante, 'Liderazgo y compromiso — provee recursos')}
+   {conector}
+   {caja('Encargado / Experto en Prevención de Riesgos', encargado, 'Asesora, coordina y controla la gestión preventiva')}
+   {conector}
+   {caja('Comité Paritario de Higiene y Seguridad / Delegado de SST', cphs_delegado, 'Participación de las personas trabajadoras')}
+   {conector}
+   {caja('Línea de mando', linea_mando, 'Aplica y hace cumplir las medidas en terreno')}
+   {conector}
+   {caja('Personas trabajadoras', 'Toda la dotación', 'Cumplen procedimientos y usan EPP; informan riesgos')}
+   {cajas_extra}
+ </div>
+ <h2>2. Responsabilidades por nivel</h2>
+ <table class="meta">
+   <tr><td class="k">Nivel</td><td><b>Responsabilidades principales</b></td></tr>
+   {fila('Representante legal / Gerencia', 'Liderar la SST, aprobar la Política y el Programa de Trabajo, y proporcionar los recursos y el personal necesarios.')}
+   {fila('Encargado / Experto en Prevención', 'Asesorar a la línea de mando, mantener la MIPER, ejecutar el programa preventivo, investigar accidentes y llevar las estadísticas.')}
+   {fila('Comité Paritario / Delegado SST', 'Vigilar el cumplimiento de las medidas, investigar causas, indicar la adopción de medidas y promover la capacitación.')}
+   {fila('Línea de mando', 'Aplicar y supervisar las medidas preventivas, entregar la IRL a su personal y detener tareas ante riesgo grave e inminente.')}
+   {fila('Personas trabajadoras', 'Cumplir los procedimientos y el RIOHS, usar los EPP, participar en las capacitaciones e informar los riesgos y condiciones inseguras.')}
+   {filas_extra}
+ </table>
+ {_firmas(elabora='Prevención de Riesgos', aprueba='Representante legal')}
+ {f'<p class="sub" style="margin-top:18px">Fecha: {_esc(fecha)}</p>' if fecha else ''}"""
+    return _documento_html(
+        'ORGANIGRAMA DE SEGURIDAD — ESTRUCTURA ORGANIZACIONAL DE LA SST',
+        'D.S. 44/2024 · Art. 7 y 9 · Componente (b) del SGSST',
+        empresa, cuerpo,
+        refs=[('Norma', 'D.S. 44/2024 Art. 7 y 9'), ('Ítem FUF', '1 (b)'),
+              ('Fecha', fecha or '—')])
+
+
+def _plantilla_participacion_consulta(c, empresa):
+    """Procedimiento de Consulta y Participación (D.S. 44/2024 Art. 25). Documento de referencia: fija
+    los mecanismos por los que las personas trabajadoras participan y son consultadas en la gestión
+    preventiva. La Tarjeta de Reporte de Actos y Condiciones Subestándar es uno de sus registros."""
+    nombre_emp = (empresa or {}).get('razon_social') or (empresa or {}).get('nombre') or 'la empresa'
+    responsable = c.get('responsable') or '__________________'
+    vigencia = c.get('vigencia') or ''
+    cuerpo = f"""
+ <h2>1. Objetivo</h2>
+ <p>Establecer los mecanismos mediante los cuales <b>{_esc(nombre_emp)}</b> promueve la <b>consulta y
+ participación</b> de las personas trabajadoras y de sus representantes en la gestión de la seguridad y
+ salud en el trabajo (D.S. 44/2024 Art. 25).</p>
+ <h2>2. Alcance</h2>
+ <p>Aplica a todas las personas trabajadoras de la empresa, al Comité Paritario de Higiene y Seguridad
+ o Delegado de SST, a la línea de mando y a las organizaciones sindicales cuando existan.</p>
+ <h2>3. Mecanismos de consulta y participación</h2>
+ <ul>
+   <li><b>Tarjeta de Reporte de Actos y Condiciones Subestándar:</b> cualquier persona trabajadora
+       reporta actos o condiciones subestándar (por QR desde su teléfono o en papel). Es la vía
+       permanente de participación y alimenta el registro de la gestión preventiva.</li>
+   <li>Consulta al Comité Paritario / Delegado de SST ante cambios en procesos, equipos o condiciones de
+       trabajo, y en la investigación de causas de accidentes y enfermedades profesionales.</li>
+   <li>Participación en la elaboración y revisión de la Matriz de Riesgos (MIPER) y del programa de
+       trabajo preventivo.</li>
+   <li>Reuniones, charlas de seguridad y difusión de la información de riesgos laborales (IRL).</li>
+ </ul>
+ <h2>4. Responsabilidades</h2>
+ <ul>
+   <li><b>Encargado / Experto en Prevención:</b> gestiona los reportes recibidos, define medidas y
+       plazos, y da respuesta a quien reporta.</li>
+   <li><b>Línea de mando:</b> promueve el reporte, atiende los de riesgo alto de inmediato y verifica el
+       cierre de las medidas.</li>
+   <li><b>CPHS / Delegado de SST:</b> canaliza la participación, revisa los reportes y propone mejoras.</li>
+   <li><b>Personas trabajadoras:</b> reportan los actos y condiciones subestándar que detecten.</li>
+ </ul>
+ <h2>5. Registros</h2>
+ <p>Los reportes recibidos, las medidas adoptadas y su cierre quedan registrados en la plataforma y
+ constituyen la evidencia de consulta y participación exigida por el ítem FUF 25.</p>
+ {_firmas(elabora='Prevención de Riesgos', revisa='CPHS / Delegado SST', aprueba='Representante legal')}
+ {f'<p class="sub" style="margin-top:18px">Vigencia: {_esc(vigencia)}</p>' if vigencia else ''}"""
+    return _documento_html(
+        'PROCEDIMIENTO DE CONSULTA Y PARTICIPACIÓN',
+        'D.S. 44/2024 · Art. 25 · Participación de las personas trabajadoras',
+        empresa, cuerpo,
+        refs=[('Norma', 'D.S. 44/2024 Art. 25'), ('Ítem FUF', '25'),
+              ('Responsable', responsable), ('Vigencia', vigencia or '—')])
+
+
 CATALOGO = [
     {'tipo_doc': 'politica_sst',
      'nombre': 'Política de Seguridad y Salud en el Trabajo',
@@ -397,6 +517,33 @@ CATALOGO = [
          {'k': 'fecha', 'label': 'Fecha', 'tipo': 'date'},
      ],
      'plantilla': _plantilla_politica_sst},
+
+    {'tipo_doc': 'organigrama_seguridad',
+     'nombre': 'Organigrama de Seguridad (estructura organizacional de la SST)',
+     'items_fuf': [1],
+     'evidencia': 'Estructura organizacional para la gestión preventiva, con los niveles de '
+                  'responsabilidad en SST — componente (b) del SGSST.',
+     'formato_origen': 'D.S. 44/2024 Art. 7 y 9',
+     'campos': [
+         {'k': 'representante', 'label': 'Representante legal / Gerencia', 'tipo': 'text'},
+         {'k': 'encargado_prev', 'label': 'Encargado / Experto en Prevención de Riesgos', 'tipo': 'text'},
+         {'k': 'cphs_delegado', 'label': 'Presidente del CPHS o Delegado de SST', 'tipo': 'text'},
+         {'k': 'linea_mando', 'label': 'Línea de mando (supervisores / jefes de área)', 'tipo': 'text'},
+         {'k': 'fecha', 'label': 'Fecha', 'tipo': 'date'},
+     ],
+     'plantilla': _plantilla_organigrama},
+
+    {'tipo_doc': 'procedimiento_participacion',
+     'nombre': 'Procedimiento de Consulta y Participación',
+     'items_fuf': [25],
+     'evidencia': 'Procedimiento que fija los mecanismos de consulta y participación de las personas '
+                  'trabajadoras (incluida la Tarjeta de Reporte de actos y condiciones subestándar).',
+     'formato_origen': 'D.S. 44/2024 Art. 25',
+     'campos': [
+         {'k': 'responsable', 'label': 'Responsable de elaboración', 'tipo': 'text'},
+         {'k': 'vigencia', 'label': 'Fecha de vigencia', 'tipo': 'date'},
+     ],
+     'plantilla': _plantilla_participacion_consulta},
 
     {'tipo_doc': 'programa_trabajo',
      'nombre': 'Programa de Trabajo Preventivo',
@@ -581,9 +728,16 @@ _ENLACE_PROTOCOLOS = {'vista': 'protocolos', 'nombre': 'Protocolos de Salud',
                       'desc': 'Los programas de vigilancia ambiental y de la salud se gestionan en Protocolos de Salud (PREXOR, TMERT, sílice, UV…). Trabájalos ahí y adjunta aquí el registro.'}
 _ENLACE_CPHS = {'url': '/cphs', 'nombre': 'Comité Paritario',
                 'desc': 'El comité se constituye y se le hace seguimiento (miembros, reuniones, actas y acuerdos) en el módulo Comité Paritario. Trabájalo ahí: su avance respalda solo estos ítems.'}
+# La participación (25) se ejerce con la Tarjeta de Reporte, en la vista Checklist del dashboard.
+_ENLACE_REPORTES = {'vista': 'reportes', 'nombre': 'Tarjeta de Reporte (participación)',
+                    'desc': 'La consulta y participación se ejerce con la Tarjeta de Reporte de Actos y Condiciones Subestándar (QR para los trabajadores). Genera aquí el procedimiento y usa la vista de reportes como su registro.'}
+
+_ENLACE_GRD = {'url': '/grd', 'nombre': 'Plan de Gestión de Emergencias (GRD)',
+               'desc': 'El plan de gestión, reducción y respuesta ante emergencias/desastres se construye en la matriz GRD interactiva (identificar amenazas → evaluar → medidas de control). Trabájalo ahí y adjunta aquí el registro exportado.'}
 
 ENLACES = {n: _ENLACE_MIPER for n in (2, 3, 4, 5, 6, 7)}
-ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL, 54: _ENLACE_PROTOCOLOS, 55: _ENLACE_PROTOCOLOS})
+ENLACES.update({21: _ENLACE_IRL, 22: _ENLACE_IRL, 25: _ENLACE_REPORTES, 27: _ENLACE_GRD,
+                54: _ENLACE_PROTOCOLOS, 55: _ENLACE_PROTOCOLOS})
 ENLACES.update({n: _ENLACE_CPHS for n in range(30, 41)})
 
 

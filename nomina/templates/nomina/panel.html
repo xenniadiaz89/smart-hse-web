@@ -151,31 +151,45 @@
       </div>
     </main>
 
-    <!-- Modal: nuevo trabajador -->
+    <!-- Modal: nuevo trabajador / editar trabajador -->
     <div id="nuevoOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
             <div class="border-b px-6 py-4 flex items-center justify-between">
-                <h3 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="user-plus" class="w-5 h-5 text-primary"></i> Nuevo trabajador</h3>
+                <h3 id="nuevoTitulo" class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="user-plus" class="w-5 h-5 text-primary"></i> Nuevo trabajador</h3>
                 <button type="button" onclick="cerrarNuevo()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-6 space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">RUT</label><input id="n_rut" class="iet-in" placeholder="12.345.678-5"></div>
-                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Nombre</label><input id="n_nombre" class="iet-in"></div>
+                    <div id="n_rol_wrap">
+                        <label class="text-[11px] font-bold text-gray-500 uppercase">Rol crítico</label>
+                        <select id="n_rol" class="iet-in">
+                            {% for k, v in roles.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label class="text-[11px] font-bold text-gray-500 uppercase">Rol crítico</label>
-                    <select id="n_rol" class="iet-in">
-                        {% for k, v in roles.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-                    </select>
-                    <p class="text-[11px] text-gray-500 mt-1">Define qué capacitaciones y exámenes se inyectan automáticamente.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Apellidos</label><input id="n_apellidos" class="iet-in" placeholder="Ej. Díaz Díaz"></div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Nombres</label><input id="n_nombres" class="iet-in" placeholder="Ej. Xennia Nohely"></div>
                 </div>
+                <p id="n_rolAyuda" class="text-[11px] text-gray-500 -mt-1">El rol crítico define qué capacitaciones y exámenes se inyectan automáticamente.</p>
                 <div><label class="text-[11px] font-bold text-gray-500 uppercase">Cargo</label><input id="n_cargo" class="iet-in" placeholder="Ej. Operador de camión aljibe"></div>
-                <label class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
+                <label id="n_conduce_wrap" class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
                     <input id="n_conduce" type="checkbox" class="accent-primary">
                     <span class="text-sm text-gray-700"><b>¿Va a conducir?</b> <span class="text-xs text-gray-500">Si marcas Sí, se inyectan licencia de conducir y examen sicosensotécnico (Ley del Tránsito 18.290).</span></span>
                 </label>
-                <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">¿Tiene personal a cargo?</label>
+                    <select id="n_tienePersonal" class="iet-in" onchange="toggleMaxParticipantes(this.value)">
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                    </select>
+                </div>
+                <div class="hidden" id="n_maxParticipantes_wrap">
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">Máximo de participantes a cargo</label>
+                    <input id="n_maxParticipantes" type="number" min="1" class="iet-in" placeholder="Ej. 10">
+                </div>
+                <div id="n_faenaResp_wrap" class="grid grid-cols-2 gap-3">
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">Faena</label>
                         <select id="n_contrato" class="iet-in">
                             <option value="0">— Sin asignar —</option>
@@ -190,7 +204,7 @@
                 </div>
                 <div class="flex justify-end gap-2 pt-1">
                     <button type="button" onclick="cerrarNuevo()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
-                    <button type="button" onclick="guardarNuevo()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
+                    <button type="button" id="n_btnGuardar" onclick="guardarNuevo()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
                 </div>
             </div>
         </div>
@@ -261,6 +275,7 @@
                         : `<button onclick="reactivar(${t.id})" class="badge bg-gray-200 text-gray-600 hover:bg-green-100 hover:text-green-700" title="Reactivar">Ya no labora</button>`}</td>
                     <td>${badgeSem(t.semaforo)}</td>
                     <td class="text-right">
+                        <button onclick="abrirEditar(${t.id})" class="text-gray-300 hover:text-primary" title="Editar datos"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                         <button onclick="toggleReq(${t.id})" class="text-gray-300 hover:text-primary" title="Ver requisitos"><i data-lucide="chevron-down" class="w-4 h-4"></i></button></td>
                 </tr>
                 <tr id="req_${t.id}" class="hidden"><td colspan="9" class="bg-gray-50 p-0">
@@ -324,17 +339,96 @@
             });
             if (r.ok) cargar();
         }
-        function abrirNuevo() { document.getElementById('nuevoOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
-        function cerrarNuevo() { document.getElementById('nuevoOverlay').classList.add('hidden'); }
+        function toggleMaxParticipantes(val) {
+            const wrap = document.getElementById('n_maxParticipantes_wrap');
+            const input = document.getElementById('n_maxParticipantes');
+            const on = val === 'si';
+            wrap.classList.toggle('hidden', !on);
+            input.required = on;
+            if (!on) input.value = '';
+        }
+
+        let _editId = null;   // null = alta nueva; con valor = editando ese trabajador
+
+        function abrirNuevo() {
+            _editId = null;
+            document.getElementById('nuevoTitulo').innerHTML = '<i data-lucide="user-plus" class="w-5 h-5 text-primary"></i> Nuevo trabajador';
+            document.getElementById('n_btnGuardar').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Agregar';
+            ['n_rut', 'n_apellidos', 'n_nombres', 'n_cargo'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('n_rut').disabled = false;
+            document.getElementById('n_conduce').checked = false;
+            document.getElementById('n_tienePersonal').value = 'no';
+            toggleMaxParticipantes('no');
+            document.getElementById('n_rol_wrap').classList.remove('hidden');
+            document.getElementById('n_rolAyuda').classList.remove('hidden');
+            document.getElementById('n_conduce_wrap').classList.remove('hidden');
+            document.getElementById('n_faenaResp_wrap').classList.remove('hidden');
+            document.getElementById('nuevoOverlay').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function abrirEditar(id) {
+            const t = _trabs.find(x => x.id === id);
+            if (!t) return;
+            _editId = id;
+            document.getElementById('nuevoTitulo').innerHTML = '<i data-lucide="pencil" class="w-5 h-5 text-primary"></i> Editar trabajador';
+            document.getElementById('n_btnGuardar').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Guardar cambios';
+            document.getElementById('n_rut').value = t.rut || '';
+            document.getElementById('n_rut').disabled = true;   // el RUT es la identidad: no se cambia aquí
+            document.getElementById('n_apellidos').value = t.apellidos || '';
+            document.getElementById('n_nombres').value = t.nombres || '';
+            document.getElementById('n_cargo').value = t.cargo || '';
+            const tiene = !!t.tiene_personal_cargo;
+            document.getElementById('n_tienePersonal').value = tiene ? 'si' : 'no';
+            toggleMaxParticipantes(tiene ? 'si' : 'no');
+            document.getElementById('n_maxParticipantes').value = t.max_participantes || '';
+            // Rol/conducción/faena-responsable ya tienen su propio flujo (cambiarRol, asignación masiva);
+            // esta ventana solo corrige identidad + cargo + personal a cargo.
+            document.getElementById('n_rol_wrap').classList.add('hidden');
+            document.getElementById('n_rolAyuda').classList.add('hidden');
+            document.getElementById('n_conduce_wrap').classList.add('hidden');
+            document.getElementById('n_faenaResp_wrap').classList.add('hidden');
+            document.getElementById('nuevoOverlay').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function cerrarNuevo() {
+            document.getElementById('nuevoOverlay').classList.add('hidden');
+            document.getElementById('n_rut').disabled = false;
+            _editId = null;
+        }
+
         async function guardarNuevo() {
             const v = id => document.getElementById(id).value.trim();
-            if (!v('n_rut') || !v('n_nombre')) { alert('Indica RUT y nombre.'); return; }
+            if (!v('n_apellidos') || !v('n_nombres')) { alert('Indica apellidos y nombres.'); return; }
+            const tienePersonal = document.getElementById('n_tienePersonal').value === 'si';
+            if (tienePersonal && !v('n_maxParticipantes')) { alert('Indica el máximo de participantes a cargo.'); return; }
+
+            if (_editId) {
+                const r = await fetch(`/api/trabajadores/${_editId}/editar`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apellidos: v('n_apellidos'), nombres: v('n_nombres'), cargo: v('n_cargo'),
+                        tiene_personal_cargo: tienePersonal,
+                        max_participantes: tienePersonal ? v('n_maxParticipantes') : null,
+                    })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { alert(d.error || 'No se pudo guardar.'); return; }
+                cerrarNuevo(); location.reload();
+                return;
+            }
+
+            if (!v('n_rut')) { alert('Indica el RUT.'); return; }
             const r = await fetch('/api/trabajadores', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    rut: v('n_rut'), nombre: v('n_nombre'), rol: v('n_rol'), cargo: v('n_cargo'),
+                    rut: v('n_rut'), apellidos: v('n_apellidos'), nombres: v('n_nombres'),
+                    rol: v('n_rol'), cargo: v('n_cargo'),
                     contrato_id: v('n_contrato'), responsable_id: v('n_resp') || null,
-                    conduce: document.getElementById('n_conduce').checked
+                    conduce: document.getElementById('n_conduce').checked,
+                    tiene_personal_cargo: tienePersonal,
+                    max_participantes: tienePersonal ? v('n_maxParticipantes') : null,
                 })
             });
             const d = await r.json().catch(() => ({}));

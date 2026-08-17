@@ -69,7 +69,7 @@
                     <h1 class="text-xl font-extrabold text-gray-900">Régimen de Subcontratación · Ley 20.123</h1>
                     <span id="badgeMandante" class="hidden bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full"></span>
                 </div>
-                <p class="text-sm text-gray-600 mt-1">Como Empresa Contratista (EECC) debes acreditar tu sistema de gestión ante la empresa mandante. Esta consola integra los requisitos de acreditación, RESSO V9 y obligaciones de la Ley 16.744.</p>
+                <p class="text-sm text-gray-600 mt-1">Como Empresa Contratista (EECC) debes acreditar tu sistema de gestión ante la empresa mandante. Esta consola integra los requisitos de acreditación y obligaciones de la Ley 16.744.</p>
             </div>
         </div>
 
@@ -109,7 +109,7 @@
         <section>
             <div class="flex items-center gap-3 mb-2">
                 <h2 class="text-2xl font-extrabold text-gray-900">Acreditación de Empresa Contratista</h2>
-                <span class="bg-secondary/10 text-secondary text-xs font-bold px-3 py-1 rounded-full">RESSO V9 · Ley 16.744</span>
+                <span class="bg-secondary/10 text-secondary text-xs font-bold px-3 py-1 rounded-full">Ley 16.744</span>
             </div>
             <p class="text-gray-600 mb-6 text-sm">Evalúe cada requisito: <span class="font-semibold text-secondary">Sí</span> → cargar evidencia · <span class="font-semibold text-amber-600">No</span> → plan de trabajo · <span class="font-semibold text-primary">N/A</span> → generar carta de fundamento.</p>
 
@@ -119,7 +119,7 @@
 
     <script>
         // ── Empresa mandante (desde el modal de demo) ──
-        const MANDANTES = { codelco_rt: 'Codelco División RT', spence: 'Spence', abra: 'Abra' };
+        const MANDANTES = { spence: 'Spence', abra: 'Abra' };
         (function mostrarMandante() {
             const m = new URLSearchParams(window.location.search).get('mandante');
             if (m && MANDANTES[m]) {
@@ -162,7 +162,7 @@
 
         // ── Requisitos de acreditación EECC ──
         const REQUISITOS = [
-            { id: 'r1', titulo: 'Reglamento Especial de Subcontratistas (RESSO V9)',
+            { id: 'r1', titulo: 'Reglamento Interno de Subcontratistas',
               desc: 'Reglamento vigente y firmado, alineado a las exigencias de la empresa mandante.' },
             { id: 'r2', titulo: 'Constitución de CPHS (Art. 66 Ley 16.744)',
               desc: 'Comité Paritario constituido cuando la dotación en faena supera los 25 trabajadores.' },
@@ -175,7 +175,7 @@
         ];
 
         const FUNDAMENTOS_NA = {
-            r1: 'No aplica reglamento independiente: el servicio se rige por el RESSO corporativo de la empresa mandante.',
+            r1: 'No aplica reglamento independiente: el servicio se rige por el reglamento corporativo de la empresa mandante.',
             r2: 'No aplica constitución de CPHS (Art. 66 Ley 16.744): dotación inferior a 25 trabajadores en faena.',
             r3: 'No aplica acreditación de maquinaria autopropulsada (DS 44 §8.2): el contrato no contempla equipos autopropulsados.',
             r4: 'No aplica matriz adicional: las tareas están cubiertas por la matriz de riesgos del mandante (Riesgo Moderado).',
@@ -262,7 +262,7 @@
             const texto = btn.closest('.accion').querySelector('textarea').value;
             const fecha = new Date().toLocaleDateString('es-CL');
             const contenido =
-`SMART HSE — CARTA DE FUNDAMENTO "NO APLICA" (EECC / RESSO V9)
+`SMART HSE — CARTA DE FUNDAMENTO "NO APLICA" (EECC)
 =============================================================
 Fecha: ${fecha}
 Empresa Contratista (ID SNS): 12.345.678-K
@@ -273,7 +273,7 @@ DECLARACIÓN DE NO APLICABILIDAD
 ${texto}
 
 Esta declaración se emite en el marco del régimen de subcontratación (Ley 20.123),
-el Reglamento Especial de Subcontratistas (RESSO V9) y la Ley 16.744, dejando
+el reglamento interno de subcontratistas del mandante y la Ley 16.744, dejando
 constancia del fundamento técnico-legal por el cual el requisito no resulta
 aplicable al contrato evaluado.
 

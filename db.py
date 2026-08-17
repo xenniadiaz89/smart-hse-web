@@ -9,19 +9,20 @@ from datetime import date, timedelta
 from sqlalchemy import inspect, text, or_
 
 import cumplimiento
-from models import (sqla, Empresa, Contrato, Documento, ControlEstado, CarpetaEstado,
-                    FufEstado, MappingReq, Trabajador, AuditoriaEstado,
+from models import (sqla, Empresa, Contrato, Documento, ControlEstado,
+                    FufEstado, Trabajador,
                     Aplicabilidad, DocumentoGenerado, Usuario, Vocabulario,
                     ReglaCumplimiento, DialectoMandante, RequisitoLegal,
                     FuenteLegal, ValidacionCumplimiento, MatrizRiesgo, RiesgoItem,
-                    TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
+                    ProcesoIPER, TareaIPER, EPP, PTS, TareaEPP, TareaPTS, TrabajadorTarea, IRLGenerado,
                     BibliotecaTarea, Vehiculo, ChecklistVehiculo, ProtocoloSalud, Capacitacion,
                     TrabajadorRequisito, EstadisticaMensual,
-                    ComiteParitario, MiembroCPHS, ActividadCPHS)
+                    ComiteParitario, MiembroCPHS, ActividadCPHS, ReporteSubestandar,
+                    GRDAmenaza, GRDPregunta)
 import iper
 import estadisticas as _estadisticas
 import planes
-import resso as _resso
+import roles_criticos as _roles
 
 
 def _hoy():
@@ -120,6 +121,14 @@ _COLUMNAS_NUEVAS = [
     ('matriz_riesgo', 'cerrada_por', 'TEXT'),
     ('matriz_riesgo', 'cerrada_en', 'TEXT'),
     ('matriz_riesgo', 'bitacora_edicion', 'TEXT'),
+    # Documento generado editable: recuerda su tipo del catálogo y los campos usados (para Editar).
+    ('documento', 'tipo_doc', 'TEXT'),
+    ('documento', 'campos_json', 'TEXT'),
+    # Nómina: apellidos/nombres por separado (nombre se sigue poblando, derivado) + personal a cargo.
+    ('trabajador', 'apellidos', 'TEXT'),
+    ('trabajador', 'nombres', 'TEXT'),
+    ('trabajador', 'tiene_personal_cargo', 'INTEGER DEFAULT 0'),
+    ('trabajador', 'max_participantes', 'INTEGER'),
 ]
 
 
@@ -164,16 +173,7 @@ def _migrar_columnas():
 
 
 def seed_mapping():
-    """Siembra mapping_req desde el catálogo canónico (resso.EQUIVALENCIAS)."""
-    import resso
-    for categoria, m in resso.EQUIVALENCIAS.items():
-        row = MappingReq.query.filter_by(categoria=categoria).first()
-        if not row:
-            row = MappingReq(categoria=categoria)
-            sqla.session.add(row)
-        row.arranque_item_n = m.get('carpeta')
-        row.reso_codigo = m.get('reso')
-    _commit()
+    """Siembra vocabulario técnico + Reglas de Cumplimiento al arranque."""
     seed_vocabulario()
     seed_reglas()
 
@@ -220,12 +220,9 @@ def seed_fuentes_legales():
 
 # ── Vocabulario técnico (siglas mineras / términos de faena) ──
 _VOCAB_SEED = [
-    ('ECF', 'sigla', 'Estándar de Control de Fatalidades'),
-    ('RESSO', 'sigla', 'Reglamento Especial para Empresas Contratistas y Subcontratistas (Codelco)'),
     ('IPER', 'sigla', 'Identificación de Peligros y Evaluación de Riesgos'),
     ('MIPER', 'sigla', 'Matriz de Identificación de Peligros y Evaluación de Riesgos'),
     ('EPP', 'sigla', 'Elementos de Protección Personal'),
-    ('DRT', 'sigla', 'División Radomiro Tomic (Codelco)'),
     ('CPHS', 'sigla', 'Comité Paritario de Higiene y Seguridad'),
     ('PREXOR', 'sigla', 'Protocolo de Vigilancia de Riesgos por Exposición a Ruido'),
     ('SERNAGEOMIN', 'sigla', 'Servicio Nacional de Geología y Minería'),
@@ -674,7 +671,7 @@ def _aplicar_vencimiento_req(r):
 
 
 def inyectar_requisitos_de_rol(trabajador_id, responsable_id=None):
-    """Inyecta los requisitos que exige el rol crítico del trabajador (resso.REQUISITOS_POR_ROL).
+    """Inyecta los requisitos que exige el rol crítico del trabajador (roles_criticos.REQUISITOS_POR_ROL).
 
     Vive en db.py y no en nomina/service.py a propósito: la dispara el alta de un trabajador y,
     si viviera dentro del módulo, un fallo del módulo rompería el alta. Mismo criterio que
@@ -687,7 +684,7 @@ def inyectar_requisitos_de_rol(trabajador_id, responsable_id=None):
     t = Trabajador.query.get(trabajador_id)
     if not t:
         return []
-    catalogo = {r['codigo']: r for r in _resso.requisitos_de_rol(t.rol, conduce=bool(t.conduce),
+    catalogo = {r['codigo']: r for r in _roles.requisitos_de_rol(t.rol, conduce=bool(t.conduce),
                                                                  cphs=bool(t.cphs_rol))}
     existentes = {r.codigo: r for r in
                   TrabajadorRequisito.query.filter_by(trabajador_id=trabajador_id).all()}
@@ -838,6 +835,11 @@ def aplicar_reglas_dotacion(empresa_id, quien='Onboarding (automático)'):
 # el experto. Sin ella el motor no sabría cuál puede revertir y borraría criterio humano.
 AUTO_NA = '[Automático · dotación] '
 
+# Mismo criterio que AUTO_NA, para los ítems FUF que aplicar_regla_miper_fuf marca en 'si' leyendo
+# la Matriz de Riesgos. El texto debe coincidir con el que espera templates/dashboard.html (badge
+# "Sincronizado automáticamente") — si se cambia aquí, cambiarlo también ahí.
+AUTO_MIPER = '[Automático · Matriz de Riesgos] '
+
 
 def _carta_na_fuf(empresa_id, rut, n, fundamento):
     """Genera y guarda la carta de no aplicabilidad del ítem n en la carpeta de auditoría."""
@@ -910,6 +912,84 @@ def aplicar_reglas_dotacion_fuf(empresa_id, rut=None):
                 except Exception:      # noqa: BLE001
                     pass
                 salida['reactivados'].append(item_n)
+    return salida
+
+
+def _miper_completa(empresa_id):
+    """Ítem FUF 2 (Art. 7 inc.1): la MIPER incorpora todos los procesos, tareas y puestos de
+    trabajo. Heurística: hay al menos un proceso, y ningún proceso está sin al menos una tarea
+    con al menos un riesgo evaluado."""
+    m = matriz_riesgo_vigente(empresa_id)
+    if not m:
+        return False
+    procesos = procesos_de_matriz(m['id'])
+    if not procesos:
+        return False
+    tareas = tareas_de_matriz(m['id'])
+    if not tareas:
+        return False
+    tareas_con_riesgo = {r.tarea_id for r in RiesgoItem.query
+                         .filter(RiesgoItem.tarea_id.in_([t['id'] for t in tareas])).all()}
+    procesos_cubiertos = {_clave_proceso(t['proceso']) for t in tareas
+                          if t['id'] in tareas_con_riesgo and t.get('proceso')}
+    return all(_clave_proceso(p['nombre']) in procesos_cubiertos for p in procesos)
+
+
+def _miper_factores_criticos(empresa_id):
+    """Ítem FUF 3 (Art. 7 inc.2): exposición a agentes ergonómicos, psicosociales, violencia y
+    acoso. Heurística: existe al menos un RiesgoItem de tipo 'musculo' (ergonómico) o
+    'psicosocial' en la matriz vigente. riesgos_isp.py no distingue "violencia y acoso" como
+    riesgo propio dentro de la familia psicosocial (son 5 riesgos genéricos) — este criterio
+    cubre la familia completa, no cada factor por separado."""
+    m = matriz_riesgo_vigente(empresa_id)
+    if not m:
+        return False
+    tareas = tareas_de_matriz(m['id'])
+    if not tareas:
+        return False
+    return RiesgoItem.query.filter(
+        RiesgoItem.tarea_id.in_([t['id'] for t in tareas]),
+        RiesgoItem.tipo_riesgo.in_(('musculo', 'psicosocial'))
+    ).first() is not None
+
+
+def aplicar_regla_miper_fuf(empresa_id, rut=None):
+    """Cruce automático Matriz de Riesgos → ítems FUF 2 y 3 (MIPER, Art. 7).
+
+    Hermana de aplicar_reglas_dotacion_fuf y de aplicar_herencia_controles, con las mismas
+    invariantes:
+      · IDEMPOTENTE: solo escribe cuando el estado cambia;
+      · BIDIRECCIONAL: si la matriz deja de cumplir el criterio, el ítem vuelve a 'pendiente'.
+        Sin esa vuelta quedaría un "cumple" fósil sobre una MIPER que ya no lo respalda;
+      · NUNCA pisa trabajo humano: solo toca ítems 'pendiente' (o sin fila), y solo revierte los
+        'si' que llevan la marca AUTO_MIPER. Un 'si'/'no'/'na' que el experto puso a mano, aunque
+        coincida con lo que diría el motor, queda intacto — no se lo "adjudica" el sistema.
+
+    Vive en db.py y no en matriz_riesgos/ a propósito: la dispara el render del dashboard; si
+    viviera en el módulo, un fallo de matriz_riesgos rompería el dashboard entero.
+
+    Devuelve {'marcados': [ítems], 'revertidos': [ítems]}.
+    """
+    salida = {'marcados': [], 'revertidos': []}
+    criterios = {2: _miper_completa(empresa_id), 3: _miper_factores_criticos(empresa_id)}
+    estados = {r.item_n: r for r in FufEstado.query.filter_by(empresa_id=empresa_id).all()}
+    for item_n, cumple in criterios.items():
+        row = estados.get(item_n)
+        actual = row.estado if row else 'pendiente'
+        obs = (row.observacion or '') if row else ''
+        auto_activo = actual == 'si' and obs.startswith(AUTO_MIPER)
+        if cumple:
+            if actual != 'pendiente' and not auto_activo:
+                continue   # el experto ya se pronunció — no se toca
+            if auto_activo:
+                continue   # ya estaba marcado por el motor (idempotente)
+            set_fuf_estado(empresa_id, item_n, 'si',
+                           observacion=AUTO_MIPER + 'La Matriz de Riesgos vigente cumple el '
+                                       'criterio de este ítem.', rut=rut)
+            salida['marcados'].append(item_n)
+        elif auto_activo:
+            set_fuf_estado(empresa_id, item_n, 'pendiente', observacion='', rut=rut)
+            salida['revertidos'].append(item_n)
     return salida
 
 
@@ -1064,7 +1144,7 @@ def miembros_con_curso(empresa_id, comite_id):
         return len(miembros), 0
     con = (TrabajadorRequisito.query
            .filter(TrabajadorRequisito.trabajador_id.in_(ids),
-                   TrabajadorRequisito.codigo == _resso.COD_CURSO_CPHS,
+                   TrabajadorRequisito.codigo == _roles.COD_CURSO_CPHS,
                    TrabajadorRequisito.estado_cumplimiento == 'vigente').count())
     return len(miembros), con
 
@@ -1127,16 +1207,13 @@ def crear_contrato(rut, empresa, faena, numero, mandante, datos_json=None,
 def upgrade_a_contratista_minera(rut, contrato_id, mandante):
     """Módulo Puente: eleva una empresa general (0) a contratista minera (1)
     SIN borrar nada. Reutiliza el mismo registro `contrato` (razón social, RUT,
-    rubro, N° trabajadores) y conserva evidencias, carpeta, auditoría y el avance
-    FUF (que es del asesor). Solo fija el flag + mandante y deja el RESSO bloqueado
-    hasta aprobar la Carpeta de Arranque. Devuelve el contrato actualizado o None."""
+    rubro, N° trabajadores) y conserva evidencias y el avance FUF (que es del
+    asesor). Solo fija el flag + mandante. Devuelve el contrato actualizado o None."""
     c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
     if not c:
         return None
     c.es_contratista_minera = 1
     c.mandante = mandante
-    if not c.resso_estado:
-        c.resso_estado = 'bloqueado'
     _commit()
     return c.to_dict()
 
@@ -1152,7 +1229,7 @@ def eliminar_contrato(rut, contrato_id):
     c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
     if not c:
         return
-    for M in (ControlEstado, CarpetaEstado, AuditoriaEstado, Aplicabilidad,
+    for M in (ControlEstado, Aplicabilidad,
               Trabajador, Documento, DocumentoGenerado):
         M.query.filter_by(contrato_id=contrato_id).delete()
     Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).delete()
@@ -1169,7 +1246,7 @@ def registrar_documento(contrato_id, nombre, flujo, tipo, item_n=None,
                         categoria=None, is_master=0, ref_doc_id=None,
                         version=None, fecha_aprobacion=None, firma=None,
                         vigencia_meses=None, fecha_vencimiento=None,
-                        contenido=None, mimetype=None):
+                        contenido=None, mimetype=None, tipo_doc=None, campos_json=None):
     """Inserta un documento (o una referencia si ref_doc_id) y devuelve su id.
     Si `contenido` viene, se guarda el archivo como BLOB en la base."""
     d = Documento(contrato_id=contrato_id, nombre=nombre, flujo=flujo, tipo=tipo,
@@ -1177,10 +1254,28 @@ def registrar_documento(contrato_id, nombre, flujo, tipo, item_n=None,
                   is_master=is_master, ref_doc_id=ref_doc_id, version=version,
                   fecha_aprobacion=fecha_aprobacion, firma=firma,
                   vigencia_meses=vigencia_meses, fecha_vencimiento=fecha_vencimiento,
-                  contenido=contenido, mimetype=mimetype)
+                  contenido=contenido, mimetype=mimetype,
+                  tipo_doc=tipo_doc, campos_json=campos_json)
     sqla.session.add(d)
     _commit()
     return d.id
+
+
+def actualizar_documento_generado(rut, doc_id, contenido, mimetype=None, campos_json=None):
+    """Reemplaza el contenido de un documento GENERADO ya existente (flujo Editar). Valida que
+    pertenezca al asesor (join contrato por rut). Devuelve True si actualizó."""
+    d = (Documento.query.join(Contrato, Contrato.id == Documento.contrato_id)
+         .filter(Documento.id == doc_id, Contrato.rut_asesor == rut).first())
+    if not d:
+        return False
+    d.contenido = contenido
+    if mimetype is not None:
+        d.mimetype = mimetype
+    if campos_json is not None:
+        d.campos_json = campos_json
+    d.fecha = _hoy()
+    _commit()
+    return True
 
 
 def documentos_de(contrato_id):
@@ -1255,11 +1350,6 @@ def existe_referencia(target_cid, master_id):
     return Documento.query.filter_by(contrato_id=target_cid, ref_doc_id=master_id).first() is not None
 
 
-def mapping_de(categoria):
-    r = MappingReq.query.filter_by(categoria=categoria).first()
-    return r.to_dict() if r else None
-
-
 def maestros_vencidos(rut, dias_aviso=30):
     """Documentos maestros vencidos o próximos a vencer, del asesor."""
     limite = (date.today() + timedelta(days=dias_aviso)).isoformat()
@@ -1277,58 +1367,6 @@ def referencias_de(master_id):
     return [d.to_dict() for d in Documento.query.filter_by(ref_doc_id=master_id).all()]
 
 
-# ── Contrato: hito de arranque / estado RESSO ──
-def set_arranque_aprobado(contrato_id, resso_estado='en_progreso'):
-    c = Contrato.query.get(contrato_id)
-    if c:
-        c.arranque_aprobado = 1
-        c.resso_estado = resso_estado
-        _commit()
-
-
-def set_resso_estado(contrato_id, estado):
-    c = Contrato.query.get(contrato_id)
-    if c:
-        c.resso_estado = estado
-        _commit()
-
-
-# ── Auditoría RESSO (estado por punto) ──
-def set_auditoria_estado(contrato_id, punto_key, estado, observacion='', fecha_compromiso=None):
-    row = AuditoriaEstado.query.filter_by(contrato_id=contrato_id, punto_key=punto_key).first()
-    if not row:
-        row = AuditoriaEstado(contrato_id=contrato_id, punto_key=punto_key)
-        sqla.session.add(row)
-    row.estado = estado
-    row.observacion = observacion
-    row.fecha_compromiso = fecha_compromiso
-    row.fecha = _hoy()
-    _commit()
-
-
-def estados_auditoria(contrato_id):
-    return {r.punto_key: r.to_dict()
-            for r in AuditoriaEstado.query.filter_by(contrato_id=contrato_id).all()}
-
-
-# ──────────────────────────── Carpeta de Arranque ─────────────────────────
-def set_item_estado(contrato_id, item_n, estado, observacion='', fecha_compromiso=None):
-    row = CarpetaEstado.query.filter_by(contrato_id=contrato_id, item_n=item_n).first()
-    if not row:
-        row = CarpetaEstado(contrato_id=contrato_id, item_n=item_n)
-        sqla.session.add(row)
-    row.estado = estado
-    row.observacion = observacion
-    row.fecha_compromiso = fecha_compromiso
-    row.fecha = _hoy()
-    _commit()
-
-
-def estados_carpeta(contrato_id):
-    return {r.item_n: r.to_dict()
-            for r in CarpetaEstado.query.filter_by(contrato_id=contrato_id).all()}
-
-
 def eliminar_doc_tipo(contrato_id, item_n, tipo):
     Documento.query.filter_by(contrato_id=contrato_id, item_n=item_n, tipo=tipo).delete()
     _commit()
@@ -1341,13 +1379,6 @@ def docs_por_item(contrato_id):
               .order_by(Documento.id.desc()).all()):
         out.setdefault(d.item_n, []).append(d.to_dict())
     return out
-
-
-def set_carpeta_compromiso(contrato_id, item_n, fecha_compromiso):
-    row = CarpetaEstado.query.filter_by(contrato_id=contrato_id, item_n=item_n).first()
-    if row:
-        row.fecha_compromiso = fecha_compromiso
-        _commit()
 
 
 # ──────────────────── Estado FUF (DS 44) — base por empresa (Ronda 12) ─────
@@ -1395,7 +1426,7 @@ def documentos_fuf(empresa_id, rut, item_n=None):
     if item_n is not None:
         q = q.filter_by(item_n=item_n)
     filas = q.order_by(Documento.id.desc()).all()
-    campos = ['id', 'nombre', 'item_n', 'fecha', 'mimetype', 'flujo']
+    campos = ['id', 'nombre', 'item_n', 'fecha', 'mimetype', 'flujo', 'tipo_doc', 'campos_json']
     docs = [{k: d.to_dict().get(k) for k in campos} for d in filas]
     if item_n is not None:
         return docs
@@ -1423,22 +1454,7 @@ def set_fuf_compromiso(empresa_id, item_n, fecha_compromiso):
         _commit()
 
 
-# ──────────────────────────── Brechas (Carpeta + FUF) ─────────────────────
-def brechas_carpeta(rut, empresa_id=None):
-    """Ítems de Carpeta en estado 'pendiente' de los contratos del asesor
-    (opcionalmente acotado a una empresa)."""
-    q = (sqla.session.query(CarpetaEstado, Contrato)
-         .join(Contrato, Contrato.id == CarpetaEstado.contrato_id)
-         .filter(Contrato.rut_asesor == rut, CarpetaEstado.estado == 'pendiente'))
-    if empresa_id is not None:
-        q = q.filter(Contrato.empresa_id == empresa_id)
-    rows = q.order_by(Contrato.id, CarpetaEstado.item_n).all()
-    return [{'item_n': ce.item_n, 'observacion': ce.observacion,
-             'fecha_compromiso': ce.fecha_compromiso, 'contrato_id': ct.id,
-             'numero': ct.numero, 'empresa': ct.empresa, 'faena': ct.faena}
-            for ce, ct in rows]
-
-
+# ──────────────────────────── Brechas (FUF) ─────────────────────
 def brechas_fuf(empresa_id):
     """Ítems del FUF en estado 'no' (No Cumple) de la empresa."""
     return [{'item_n': r.item_n, 'observacion': r.observacion,
@@ -2169,87 +2185,18 @@ def tareas_de_contrato(empresa_id, contrato_id):
 
 
 def precargar_faena(rut, contrato_id):
-    """Precarga 'lo básico de la Carpeta de Arranque' para un contrato minero:
-    (a) requisitos legales de la CAPA MANDANTE (RC/ECF del mandante) ligados al contrato;
-    (b) actividades/riesgos críticos del mandante en la MIPER, tagueados con contrato_id.
-    Idempotente. Devuelve {legales, riesgos} creados/existentes."""
-    import resso
+    """Asegura que exista una Matriz de Riesgos vigente para la empresa del contrato minero
+    (scaffold vacío). Antes también precargaba un catálogo de riesgos/estándares del mandante;
+    ese catálogo se retiró por estar obsoleto y se reconstruirá más adelante con datos vigentes.
+    Idempotente. Devuelve {legales, riesgos} en 0 (compatibilidad de firma)."""
     c = Contrato.query.filter_by(id=contrato_id, rut_asesor=rut).first()
     if not c:
         return {'error': 'Contrato no encontrado.'}
     empresa_id = c.empresa_id
     mandante = c.mandante or 'Mandante'
-    mid = matriz_riesgo_vigente(empresa_id)
-    mid = mid['id'] if mid else crear_matriz_riesgo(empresa_id, rut)
-
-    legales, riesgos = 0, 0
-    # (a) Capa mandante (RESSO): Riesgos Críticos + ECF + SST (Estándares de Salud) como
-    #     requisitos legales del contrato. NO toca la Matriz Legal transversal (DS 44 base).
-    catalogo = (resso.ECF_RC_EST.get('RC', []) + resso.ECF_RC_EST.get('ECF', [])
-                + resso.ECF_RC_EST.get('SST', []))
-    for item in catalogo:
-        idr = f"F{contrato_id}-{item['codigo']}"
-        if RequisitoLegal.query.filter_by(empresa_id=empresa_id, id_requisito=idr).first():
-            continue
-        sqla.session.add(RequisitoLegal(
-            empresa_id=empresa_id, contrato_id=contrato_id, id_requisito=idr, capa='mandante',
-            is_mandatory=0, origen=mandante, cuerpo_normativo=f"Estándar {mandante} · {item['codigo']}",
-            requisito_legal=item['titulo'], estado_avance='pendiente', fecha=_hoy()))
-        legales += 1
-    _commit()
-    # (b) MIPER faena: Riesgos Críticos del mandante como tareas críticas (contrato_id)
-    for item in resso.ECF_RC_EST.get('RC', []):
-        nombre = f"{item['codigo']} · {item['titulo']}"
-        existe = (sqla.session.query(TareaIPER)
-                  .join(RiesgoItem, RiesgoItem.tarea_id == TareaIPER.id)
-                  .filter(TareaIPER.matriz_id == mid, RiesgoItem.contrato_id == contrato_id,
-                          TareaIPER.nombre == nombre).first())
-        if existe:
-            continue
-        tid = tarea_crear(mid, nombre, proceso=f'Faena {mandante}')
-        rid = riesgo_agregar(mid, item['titulo'], f"Riesgo crítico: {item['titulo']}",
-                             'Control crítico según estándar del mandante (verificación en terreno).',
-                             probabilidad=3, consecuencia=3, es_critico=1, contrato_id=contrato_id)
-        it = RiesgoItem.query.get(rid)
-        if it:
-            it.tarea_id = tid
-        riesgos += 1
-    _commit()
-    # (c) NO se auto-inyecta el contenido MIPER específico de un contrato real (AllScan/Conducción, etc.):
-    #     eso ensucia la matriz con datos ajenos. El asesor llena las tareas reales de SU contrato sobre el
-    #     formato SIGO-F-006 (descargable con docgen_xlsx). `_inyectar_miper_drt`/`miper_drt.py` se conservan
-    #     solo como referencia y NO se llaman en la precarga.
-    return {'legales': legales, 'riesgos': riesgos, 'miper_drt': 0, 'mandante': mandante}
-
-
-def _inyectar_miper_drt(matriz_id, contrato_id):
-    """Inyecta el preset MIPER de Codelco RT (miper_drt.MIPER_DRT): una Tarea por proceso y sus
-    riesgos con contrato_id + categoria='iper' (Carpeta 19 / RESSO B.5.3). Idempotente. VEP=P×C."""
-    import miper_drt
-    creadas = 0
-    for proc in miper_drt.MIPER_DRT:
-        nombre = f"DRT · {proc['proceso']}"
-        existe = TareaIPER.query.filter_by(matriz_id=matriz_id, nombre=nombre).first()
-        if existe:
-            tid = existe.id
-            ya = {(r.peligro, r.riesgo) for r in RiesgoItem.query.filter_by(tarea_id=tid).all()}
-        else:
-            tid = tarea_crear(matriz_id, nombre, proceso='Codelco RT (SIGO-F-006)')
-            ya = set()
-            creadas += 1
-        for r in proc['riesgos']:
-            if (r['peligro'], r['riesgo']) in ya:
-                continue
-            rid = riesgo_agregar(matriz_id, r['peligro'], r['riesgo'], r.get('medida_control'),
-                                 probabilidad=r.get('probabilidad'), consecuencia=r.get('consecuencia'),
-                                 nivel_riesgo=r.get('nivel_texto'), metodo_correcto=r.get('metodo_correcto'),
-                                 es_critico=r.get('es_critico', 0), contrato_id=contrato_id)
-            it = RiesgoItem.query.get(rid)
-            if it:
-                it.tarea_id = tid
-                it.ecf_punto = r.get('codigo')       # código DRT (RC-10, A1, …)
-    _commit()
-    return creadas
+    if not matriz_riesgo_vigente(empresa_id):
+        crear_matriz_riesgo(empresa_id, rut)
+    return {'legales': 0, 'riesgos': 0, 'mandante': mandante}
 
 
 def inyectar_actividades_faena(rut, contrato_id, nombres):
@@ -2527,6 +2474,29 @@ def tareas_de_matriz(matriz_id):
             TareaIPER.query.filter_by(matriz_id=matriz_id).order_by(TareaIPER.id).all()]
 
 
+def _clave_proceso(nombre):
+    return ' '.join((nombre or '').split()).lower()
+
+
+def procesos_de_matriz(matriz_id):
+    return [p.to_dict() for p in
+            ProcesoIPER.query.filter_by(matriz_id=matriz_id).order_by(ProcesoIPER.nombre).all()]
+
+
+def proceso_crear(matriz_id, nombre, creado_por=None):
+    """Crea el proceso, o reutiliza el equivalente si ya existe en la matriz (mismo criterio
+    de comparación insensible a mayúsculas/espacios que _clave_tarea)."""
+    buscado = _clave_proceso(nombre)
+    for p in ProcesoIPER.query.filter_by(matriz_id=matriz_id).all():
+        if _clave_proceso(p.nombre) == buscado:
+            return p.id
+    p = ProcesoIPER(matriz_id=matriz_id, nombre=nombre.strip(), creado_por=creado_por,
+                    creado_en=_dt.utcnow().isoformat())
+    sqla.session.add(p)
+    _commit()
+    return p.id
+
+
 def tareas_de_empresa(empresa_id):
     """Tareas de la matriz de riesgos vigente de la empresa."""
     m = matriz_riesgo_vigente(empresa_id)
@@ -2586,11 +2556,24 @@ def pts_de_tarea(tarea_id):
 
 
 # ── Trabajadores y sus Tareas asignadas ──
-def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=None,
-                     responsable_id=None, conduce=False):
-    t = Trabajador(empresa_id=empresa_id, contrato_id=contrato_id or 0, rut=rut, nombre=nombre,
+def _nombre_completo(apellidos, nombres):
+    return ' '.join(p for p in ((nombres or '').strip(), (apellidos or '').strip()) if p)
+
+
+def trabajador_crear(empresa_id, rut, nombre=None, apellidos=None, nombres=None, cargo=None,
+                     rol=None, contrato_id=None, responsable_id=None, conduce=False,
+                     tiene_personal_cargo=False, max_participantes=None):
+    """`nombre` se deriva de apellidos+nombres cuando vienen; si no, se usa el `nombre` recibido
+    tal cual (compatibilidad hacia atrás). Se guardan ambas formas: `nombre` sigue poblado para
+    los consumidores existentes (IRL, listados), apellidos/nombres quedan disponibles para editar
+    por separado."""
+    nombre_final = _nombre_completo(apellidos, nombres) or (nombre or '').strip() or None
+    t = Trabajador(empresa_id=empresa_id, contrato_id=contrato_id or 0, rut=rut,
+                   nombre=nombre_final, apellidos=apellidos, nombres=nombres,
                    cargo=cargo, rol=rol, fecha_ingreso=_hoy(), estado='activo',
-                   conduce=1 if conduce else 0)
+                   conduce=1 if conduce else 0,
+                   tiene_personal_cargo=1 if tiene_personal_cargo else 0,
+                   max_participantes=max_participantes if tiene_personal_cargo else None)
     sqla.session.add(t)
     _commit()
     inyectar_requisitos_de_rol(t.id, responsable_id=responsable_id)   # cargo crítico → sus exigencias
@@ -2598,11 +2581,47 @@ def trabajador_crear(empresa_id, rut, nombre, cargo=None, rol=None, contrato_id=
     return t.id
 
 
+def trabajador_editar(trabajador_id, empresa_id, apellidos=None, nombres=None, cargo=None,
+                      tiene_personal_cargo=None, max_participantes=None):
+    """Corrige los datos de identidad de un trabajador ya creado (antes no existía forma de
+    arreglar un typo sin desvincular y recrear). No toca rol/rut/tareas — eso ya tiene su propio
+    flujo (trabajador_set_rol, alta con RUT nuevo)."""
+    t = Trabajador.query.filter_by(id=trabajador_id, empresa_id=empresa_id).first()
+    if not t:
+        return None
+    if apellidos is not None:
+        t.apellidos = apellidos
+    if nombres is not None:
+        t.nombres = nombres
+    if apellidos is not None or nombres is not None:
+        t.nombre = _nombre_completo(t.apellidos, t.nombres) or t.nombre
+    if cargo is not None:
+        t.cargo = cargo
+    if tiene_personal_cargo is not None:
+        t.tiene_personal_cargo = 1 if tiene_personal_cargo else 0
+        if not tiene_personal_cargo:
+            t.max_participantes = None
+    if max_participantes is not None and t.tiene_personal_cargo:
+        t.max_participantes = max_participantes
+    _commit()
+    return t.to_dict()
+
+
 def trabajadores_de(empresa_id, solo_activos=False):
     q = Trabajador.query.filter_by(empresa_id=empresa_id)
     if solo_activos:
         q = q.filter((Trabajador.estado == 'activo') | (Trabajador.estado.is_(None)))
     return [t.to_dict() for t in q.order_by(Trabajador.nombre).all()]
+
+
+def cargos_de_empresa(empresa_id):
+    """Cargos únicos ya registrados en la Nómina, para homologar el 'Puesto de trabajo' de la
+    Matriz de Riesgos con lo que realmente existe en la dotación."""
+    filas = (sqla.session.query(Trabajador.cargo)
+             .filter(Trabajador.empresa_id == empresa_id, Trabajador.cargo.isnot(None),
+                     Trabajador.cargo != '')
+             .distinct().order_by(Trabajador.cargo).all())
+    return [c[0] for c in filas]
 
 
 def trabajador_set_estado(trabajador_id, empresa_id, estado, fecha_egreso=None, motivo=None):
@@ -2787,3 +2806,95 @@ def checklists_no_conformes(empresa_id):
             .filter(ChecklistVehiculo.empresa_id == empresa_id, ChecklistVehiculo.conforme == 0)
             .order_by(ChecklistVehiculo.id.desc()).limit(20).all())
     return [{**c.to_dict(), 'patente': p} for c, p in rows]
+
+
+# ── Tarjeta de Reporte de Actos y Condiciones Subestándar (participación — FUF 25) ──
+def empresa_basica(empresa_id):
+    """Datos mínimos de la empresa para la página pública del QR (sin exponer el resto)."""
+    e = Empresa.query.get(empresa_id)
+    return {'id': e.id, 'razon_social': e.razon_social} if e else None
+
+
+def reporte_registrar(empresa_id, data, foto=None, foto_mime=None):
+    """Guarda un reporte enviado desde el teléfono. `data` trae los campos del formulario;
+    `data['peligros']` es una lista de claves. Devuelve el id del reporte."""
+    import json as _json
+    from datetime import datetime as _dt
+    row = ReporteSubestandar(
+        empresa_id=empresa_id,
+        faena=(data.get('faena') or '').strip() or None,
+        area=(data.get('area') or '').strip() or None,
+        fecha=(data.get('fecha') or '').strip() or _hoy(),
+        hora=(data.get('hora') or '').strip() or None,
+        reporta_nombre=(data.get('reporta_nombre') or '').strip() or None,
+        reporta_cargo=(data.get('reporta_cargo') or '').strip() or None,
+        clasificacion=(data.get('clasificacion') or '').strip() or None,
+        peligros_json=_json.dumps(data.get('peligros') or [], ensure_ascii=False),
+        descripcion=(data.get('descripcion') or '').strip() or None,
+        accion_inmediata=(data.get('accion_inmediata') or '').strip() or None,
+        nivel_riesgo=(data.get('nivel_riesgo') or '').strip() or None,
+        foto=foto, foto_mimetype=foto_mime,
+        estado='abierto',
+        creado_ts=_dt.now().isoformat(timespec='seconds'))
+    sqla.session.add(row)
+    _commit()
+    return row.id
+
+
+def _reporte_dict(row):
+    import json as _json
+    d = row.to_dict()
+    try:
+        d['peligros'] = _json.loads(row.peligros_json or '[]')
+    except Exception:
+        d['peligros'] = []
+    d['tiene_foto'] = bool(row.foto)
+    return d
+
+
+def reportes_de(empresa_id, faena=None, nivel=None, estado=None, limite=200):
+    q = ReporteSubestandar.query.filter_by(empresa_id=empresa_id)
+    if faena:
+        q = q.filter(ReporteSubestandar.faena == faena)
+    if nivel:
+        q = q.filter(ReporteSubestandar.nivel_riesgo == nivel)
+    if estado:
+        q = q.filter(ReporteSubestandar.estado == estado)
+    return [_reporte_dict(r) for r in q.order_by(ReporteSubestandar.id.desc()).limit(limite).all()]
+
+
+def reportes_resumen(empresa_id):
+    """KPIs para la portada de la vista: total, por nivel y por estado."""
+    rows = ReporteSubestandar.query.filter_by(empresa_id=empresa_id).all()
+    res = {'total': len(rows), 'bajo': 0, 'medio': 0, 'alto': 0, 'abiertos': 0, 'cerrados': 0,
+           'faenas': sorted({r.faena for r in rows if r.faena})}
+    for r in rows:
+        if (r.nivel_riesgo or '') in res:
+            res[r.nivel_riesgo] += 1
+        res['abiertos' if r.estado != 'cerrado' else 'cerrados'] += 1
+    return res
+
+
+def reporte_foto(empresa_id, rid):
+    """(bytes, mimetype) de la evidencia fotográfica, o (None, None)."""
+    r = ReporteSubestandar.query.filter_by(id=rid, empresa_id=empresa_id).first()
+    if not r or not r.foto:
+        return None, None
+    return r.foto, (r.foto_mimetype or 'image/jpeg')
+
+
+def reporte_cerrar(empresa_id, rid):
+    r = ReporteSubestandar.query.filter_by(id=rid, empresa_id=empresa_id).first()
+    if not r:
+        return False
+    r.estado = 'cerrado'
+    _commit()
+    return True
+
+
+def reportes_abiertos_alto(empresa_id):
+    """Reportes de nivel ALTO aún abiertos — para el panel de pendientes."""
+    rows = (ReporteSubestandar.query
+            .filter_by(empresa_id=empresa_id, nivel_riesgo='alto', estado='abierto')
+            .order_by(ReporteSubestandar.id.desc()).limit(20).all())
+    return [_reporte_dict(r) for r in rows]

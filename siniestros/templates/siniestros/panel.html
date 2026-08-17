@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Registro de Siniestros</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60' } } } };</script>
+    <style>
+        .in { width:100%; border:1px solid #d1d5db; border-radius:.5rem; padding:.4rem .6rem; font-size:.82rem; outline:none; }
+        .in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        th { text-align:left; font-size:.65rem; text-transform:uppercase; color:#6b7280; font-weight:700; padding:.4rem .5rem; }
+        td { padding:.5rem; font-size:.8rem; border-top:1px solid #f3f4f6; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-sidebar text-white">
+        <div class="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-[11px] uppercase tracking-wide text-white/60 font-bold">Registro individual · complementa Estadísticas de Prevención</p>
+                <h1 class="text-xl font-extrabold">Registro de Siniestros</h1>
+            </div>
+            <a href="/dashboard" class="text-sm font-bold text-white/80 hover:text-white inline-flex items-center gap-1"><i data-lucide="arrow-left" class="w-4 h-4"></i> Volver</a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-5 py-6">
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-gray-600 text-sm max-w-2xl">Cada accidente o incidente que registres aquí recalcula al instante la Tasa de Frecuencia, la Tasa de Gravedad (con días cargo) y la Tasa de Accidentabilidad del año. Las horas-hombre y la dotación se toman de la Estadística de Prevención mensual ya cargada.</p>
+            <select id="f_anio" class="in w-28" onchange="cargar()"></select>
+        </div>
+
+        <div id="kpis" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6"></div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+            <p class="font-bold text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Registrar siniestro</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-2">
+                <input id="s_fecha" type="date" class="in">
+                <select id="s_trabajador" class="in"><option value="">— Trabajador (opcional) —</option></select>
+                <input id="s_faena" class="in" placeholder="Faena">
+                <select id="s_tipo_evento" class="in">
+                    <option value="accidente">Accidente</option>
+                    <option value="incidente">Incidente</option>
+                </select>
+                <select id="s_tipo_lesion" class="in"><option value="">— Tipo de lesión (opcional) —</option></select>
+                <input id="s_dias_perdidos" type="number" min="0" class="in" placeholder="Días perdidos reales">
+                <input id="s_dias_cargo_manual" type="number" min="0" class="in" placeholder="Días cargo (override, opcional)">
+                <label class="flex items-center gap-2 text-xs text-gray-600"><input id="s_ctp" type="checkbox" class="w-4 h-4"> Con tiempo perdido (CTP)</label>
+            </div>
+            <input id="s_descripcion" class="in mb-2" placeholder="Descripción breve">
+            <button onclick="crear()" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold">Registrar</button>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+            <table class="w-full">
+                <thead><tr>
+                    <th>Fecha</th><th>Trabajador</th><th>Faena</th><th>Evento</th><th>Lesión</th>
+                    <th>CTP</th><th>Días perdidos</th><th>Días cargo</th><th></th>
+                </tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+            <p id="vacio" class="hidden text-center text-sm text-gray-400 py-8">Sin siniestros registrados este año.</p>
+        </div>
+    </main>
+
+    <script>
+        let DATA = { siniestros: [], kpis: {}, trabajadores: [], tipos_lesion: {} };
+
+        function esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+        function initAnio() {
+            const sel = document.getElementById('f_anio');
+            const actual = new Date().getFullYear();
+            for (let a = actual; a >= actual - 4; a--) {
+                const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
+            }
+            sel.value = actual;
+        }
+
+        async function cargar() {
+            const anio = document.getElementById('f_anio').value;
+            const r = await fetch('/api/siniestros?anio=' + anio);
+            DATA = await r.json();
+            render();
+        }
+
+        function kpiCard(t, v, sub) {
+            return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <p class="text-[11px] font-bold text-gray-400 uppercase">${t}</p>
+                <p class="text-2xl font-extrabold text-gray-900">${v}</p>
+                ${sub ? `<p class="text-[11px] text-gray-400">${sub}</p>` : ''}
+            </div>`;
+        }
+
+        function renderKpis() {
+            const k = DATA.kpis || {};
+            document.getElementById('kpis').innerHTML =
+                kpiCard('Tasa de Frecuencia', k.if ?? 0, k.n_accidentes + ' accidente(s) CTP') +
+                kpiCard('Tasa de Gravedad (con días cargo)', k.ig ?? 0, (k.dias_perdidos_totales || 0) + ' perdidos + ' + (k.dias_cargo_totales || 0) + ' cargo') +
+                kpiCard('Tasa de Accidentabilidad', k.ta ?? 0) +
+                kpiCard('Siniestros del año', k.n_siniestros ?? 0) +
+                kpiCard('HH trabajadas', (k.hh_trabajadas || 0).toLocaleString('es-CL'));
+        }
+
+        function renderCombos() {
+            const selT = document.getElementById('s_trabajador');
+            selT.innerHTML = '<option value="">— Trabajador (opcional) —</option>' +
+                (DATA.trabajadores || []).map(t => `<option value="${t.id}">${esc(t.nombre || t.rut)}</option>`).join('');
+            const selL = document.getElementById('s_tipo_lesion');
+            selL.innerHTML = '<option value="">— Tipo de lesión (opcional) —</option>' +
+                Object.entries(DATA.tipos_lesion || {}).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+        }
+
+        function render() {
+            renderKpis();
+            renderCombos();
+            const tbody = document.getElementById('tbody');
+            const filas = DATA.siniestros || [];
+            document.getElementById('vacio').classList.toggle('hidden', filas.length > 0);
+            tbody.innerHTML = filas.map(s => {
+                const trab = (DATA.trabajadores || []).find(t => t.id === s.trabajador_id);
+                return `<tr>
+                    <td>${esc(s.fecha)}</td>
+                    <td>${esc(trab ? (trab.nombre || trab.rut) : '—')}</td>
+                    <td>${esc(s.faena || '—')}</td>
+                    <td>${esc(s.tipo_evento)}</td>
+                    <td>${esc((DATA.tipos_lesion || {})[s.tipo_lesion] || '—')}</td>
+                    <td>${s.con_tiempo_perdido ? 'Sí' : 'No'}</td>
+                    <td>${s.dias_perdidos || 0}</td>
+                    <td>${s.dias_cargo || 0}</td>
+                    <td><button onclick="eliminar(${s.id})" class="text-red-500 hover:text-red-700" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                </tr>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        async function crear() {
+            const fecha = document.getElementById('s_fecha').value;
+            if (!fecha) { alert('Indica la fecha del siniestro.'); return; }
+            const body = {
+                fecha,
+                trabajador_id: document.getElementById('s_trabajador').value || null,
+                faena: document.getElementById('s_faena').value,
+                tipo_evento: document.getElementById('s_tipo_evento').value,
+                tipo_lesion: document.getElementById('s_tipo_lesion').value,
+                con_tiempo_perdido: document.getElementById('s_ctp').checked,
+                dias_perdidos: document.getElementById('s_dias_perdidos').value || 0,
+                dias_cargo_manual: document.getElementById('s_dias_cargo_manual').value || null,
+                descripcion: document.getElementById('s_descripcion').value,
+            };
+            const r = await fetch('/api/siniestros', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const data = await r.json();
+            if (!r.ok) { alert(data.error || 'No se pudo registrar.'); return; }
+            ['s_fecha', 's_faena', 's_dias_perdidos', 's_dias_cargo_manual', 's_descripcion'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('s_ctp').checked = false;
+            cargar();
+        }
+
+        async function eliminar(sid) {
+            if (!confirm('¿Eliminar este siniestro?')) return;
+            const r = await fetch('/api/siniestros/' + sid + '/eliminar', { method: 'POST' });
+            if (r.ok) cargar(); else alert('No se pudo eliminar.');
+        }
+
+        initAnio();
+        cargar();
+    </script>
+</body>
+</html>

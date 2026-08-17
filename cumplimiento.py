@@ -2,7 +2,7 @@
 
 Módulo de responsabilidad única (Ronda 12). Contiene:
   - REGLAS_CUMPLIMIENTO: base legal + periodicidad + criticidad + ítem FUF por categoría.
-  - DIALECTO_MANDANTE: estándar del mandante por categoría (Codelco Bow Tie/ECF, BHP IEC).
+  - DIALECTO_MANDANTE: estándar del mandante por categoría (BHP IEC).
   - helpers de fecha (vencimiento/estado) puros, sin dependencia de la BD.
 
 La siembra en tablas (`db.seed_reglas`) y la cascada viven en `db.py`/`app.py`; aquí solo
@@ -12,7 +12,7 @@ from datetime import date
 
 
 # ── Reglas de actualización + Cimiento Legal (DS 44 = base) ──
-# categoria (llave común con resso.EQUIVALENCIAS) → regla.
+# categoria → regla.
 REGLAS_CUMPLIMIENTO = {
     'programa_prp':     {'titulo': 'Programa de Trabajo Preventivo (Programa SSO)',
                          'base_legal': 'DS 44/2024 Art. 8 · Ley 16.744',
@@ -35,9 +35,6 @@ REGLAS_CUMPLIMIENTO = {
     'plan_emergencia':  {'titulo': 'Plan de Emergencia',
                          'base_legal': 'DS 44/2024 Art. 19 · DS 594',
                          'periodicidad_meses': 12, 'es_critico': 0, 'fuf_item': 27},
-    'riesgos_criticos': {'titulo': 'Listado RC, ECF y EST',
-                         'base_legal': 'DS 44/2024 Art. 7 · Estándar mandante',
-                         'periodicidad_meses': 12, 'es_critico': 1, 'fuf_item': None},
     'procedimientos':   {'titulo': 'Procedimientos e instructivos (PTS)',
                          'base_legal': 'DS 44/2024 Art. 10 · DS 594',
                          'periodicidad_meses': 24, 'es_critico': 0, 'fuf_item': 12},
@@ -46,27 +43,11 @@ REGLAS_CUMPLIMIENTO = {
 
 # ── Dialecto de Prevención por mandante (traducción legal → faena) ──
 DIALECTO_MANDANTE = {
-    'codelco': {
-        'programa_prp':     {'estandar': 'Programa SSO formalizado bajo SIGO-P004',
-                             'metodologia': 'SIGO / Programa RESSO'},
-        'iper':             {'estandar': 'MIPER con controles de RC vía Bow Tie (SIGO-P006)',
-                             'metodologia': 'Bow Tie'},
-        'riesgos_criticos': {'estandar': 'ECF y Estándares de Control de Fatalidades',
-                             'metodologia': 'ECF / Riesgos Críticos Codelco'},
-        'epp':              {'estandar': 'EPP según estándar Codelco de la División',
-                             'metodologia': 'Estándar EPP Codelco'},
-        'plan_emergencia':  {'estandar': 'Plan de Emergencia concordante con el de la División',
-                             'metodologia': 'Plan concordante Codelco'},
-        'procedimientos':   {'estandar': 'PTS aprobados según estándar SIGO',
-                             'metodologia': 'SIGO-P'},
-    },
     'bhp_spence': {
         'programa_prp':     {'estandar': 'Programa de Salud y Seguridad BHP',
                              'metodologia': 'BHP Operating System'},
         'iper':             {'estandar': 'Evaluación de Riesgos Materiales (IEC 31010)',
                              'metodologia': 'IEC 31010 · Riesgos Materiales'},
-        'riesgos_criticos': {'estandar': 'Controles de Riesgos Materiales y de Fatalidad',
-                             'metodologia': 'Material Risks / Critical Controls'},
         'epp':              {'estandar': 'EPP según estándar BHP',
                              'metodologia': 'Estándar EPP BHP'},
         'plan_emergencia':  {'estandar': 'Plan de respuesta a emergencias BHP',
@@ -231,8 +212,6 @@ def aplica_por_dotacion(regla, n):
 def dialecto_key(mandante):
     """Normaliza el mandante a su dialecto. None → solo base legal (sin traducción)."""
     m = (mandante or '').lower()
-    if 'codelco' in m:
-        return 'codelco'
     if 'spence' in m or 'bhp' in m:
         return 'bhp_spence'
     return None

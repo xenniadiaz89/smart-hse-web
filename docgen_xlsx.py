@@ -1,13 +1,13 @@
-"""Exportación de la Matriz de Riesgos (MIPER) al FORMATO del mandante Codelco RT: SIGO-F-006.
+"""Exportación de la Matriz de Riesgos (MIPER) al formato Excel estándar del mandante.
 
-Toma la plantilla real vendorizada (`plantillas/SIGO-F-006_MIPER.xlsx`, con su cabecera, encabezados de
-columna y celdas combinadas) y la rellena con los datos del contrato (cabecera) y los RiesgoItem de la
-faena (filas de la matriz), para que el asesor descargue el Excel EN EL MISMO ORDEN/LAYOUT del mandante y
-lo suba a su nube. Reusa openpyxl (ya en requirements). Salida: bytes .xlsx.
+Toma la plantilla vendorizada (con su cabecera, encabezados de columna y celdas combinadas) y la
+rellena con los datos del contrato (cabecera) y los RiesgoItem de la faena (filas de la matriz),
+para que el asesor descargue el Excel EN EL MISMO ORDEN/LAYOUT del mandante y lo suba a su nube.
+Reusa openpyxl (ya en requirements). Salida: bytes .xlsx.
 
 Datos de cabecera = los mismos que se piden al ingresar el contrato (contrato.datos_json). Los campos que
 la app aún no modela (evaluación residual, puesto, responsable) quedan en blanco para que el asesor los
-complete: la planilla funciona como guía de llenado de la Carpeta de Arranque ítem 19 / RESSO B.5.3.
+complete.
 """
 import json
 import os
@@ -47,11 +47,11 @@ def build_miper_xlsx(contrato, riesgos):
             del wb[nombre]
 
     d = _datos(contrato)
-    division = contrato.get('mandante') or 'CODELCO'
+    division = contrato.get('mandante') or 'Mandante'
     empresa = contrato.get('empresa') or ''
     numero = contrato.get('numero') or ''
     # Cabecera fila 6 (celdas combinadas B6:F7 / G6:L7 / M6:P7): se rellena junto al rótulo.
-    ws['B6'] = f"CODELCO DIVISIÓN: {division}"
+    ws['B6'] = f"MANDANTE: {division}"
     ws['G6'] = f"GERENCIA: {d.get('gerencia', '')}"
     ws['M6'] = (f"SUPERINTENDENCIA / EE.CC / N° CONTRATO: "
                 f"{d.get('superintendencia', '')} / {empresa} / {numero}")
@@ -112,7 +112,7 @@ def build_mapa_xlsx(contrato, tareas):
     ws.title = 'Mapa de Proceso'
 
     d = _datos(contrato)
-    division = contrato.get('mandante') or 'CODELCO'
+    division = contrato.get('mandante') or 'Mandante'
     empresa = contrato.get('empresa') or ''
     numero = contrato.get('numero') or ''
     # A. Antecedentes (valores en fila 5, bajo las etiquetas de fila 4).

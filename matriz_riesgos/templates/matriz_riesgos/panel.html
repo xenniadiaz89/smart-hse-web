@@ -85,7 +85,7 @@
                         <button type="button" onclick="versionar()" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm" title="Bloquea la matriz vigente y abre una revisión V{{ matriz.version + 1 }}">
                             <i data-lucide="git-branch" class="w-4 h-4"></i> Versionar</button>
                         <a href="/api/faena/0/miper.xlsx" onclick="return descargarSigo(event)" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm">
-                            <i data-lucide="download" class="w-4 h-4"></i> SIGO-F-006</a>
+                            <i data-lucide="download" class="w-4 h-4"></i> Inventario de Riesgos</a>
                     </div>
                 </div>
 
@@ -128,13 +128,15 @@
                 <button type="button" onclick="cerrarProcesos()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-6 space-y-3">
-                <p class="text-[13px] text-gray-500">Un <b>proceso</b> agrupa tareas (ej. <i>Traslado a punto de trabajo</i> → tarea <i>Conducción</i>). Elige uno preestablecido o crea uno nuevo.</p>
-                <p class="text-[11px] uppercase font-bold text-gray-400 pt-1">Preestablecidos (con sus tareas y controles)</p>
-                <div id="listaProcesos" class="space-y-2"></div>
-                <div class="border-t pt-3">
-                    <p class="text-[11px] uppercase font-bold text-gray-400 mb-2">Crear proceso nuevo</p>
-                    <button type="button" onclick="cerrarProcesos(); abrirAgregar()" class="w-full inline-flex items-center justify-center gap-2 border-2 border-dashed border-primary/40 text-primary font-semibold px-4 py-2.5 rounded-lg hover:bg-primary/5">
-                        <i data-lucide="edit-3" class="w-4 h-4"></i> Ingresar un proceso a mano (Proceso → Tarea → Riesgo)</button>
+                <p class="text-[13px] text-gray-500">Un <b>proceso</b> agrupa tareas (ej. <i>Conducción</i>, <i>Mantención de equipos</i>). Escribe su nombre para incorporarlo a la matriz; luego podrás agregarle tareas y riesgos con <b>“Ingresar Matriz de Riesgo”</b>.</p>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase">Nombre del proceso</label>
+                    <input id="p_nombre" class="iet-in" placeholder="Ej. Conducción" onkeydown="if(event.key==='Enter'){event.preventDefault();guardarProceso();}">
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="cerrarProcesos()" class="text-gray-500 font-bold text-sm px-4 py-2">Cancelar</button>
+                    <button type="button" onclick="guardarProceso()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm">
+                        <i data-lucide="save" class="w-4 h-4"></i> Agregar</button>
                 </div>
             </div>
         </div>
@@ -161,14 +163,19 @@
                 <div id="camposTarea" class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="text-[11px] font-bold text-gray-500 uppercase">Proceso</label><input id="t_proceso" class="iet-in" placeholder="Ej. Conducción"></div>
-                        <div><label class="text-[11px] font-bold text-gray-500 uppercase">Puesto de trabajo</label><input id="t_puesto" class="iet-in" placeholder="Ej. Conductor"></div>
+                        <div><label class="text-[11px] font-bold text-gray-500 uppercase">Puesto de trabajo</label>
+                            <select id="t_puesto" class="iet-in" onchange="togglePuestoOtro(this.value)">
+                                <option value="">— Seleccione —</option>
+                                {% for c in cargos %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                                <option value="__otro__">+ Otro (escribir)</option>
+                            </select>
+                            <input id="t_puesto_otro" class="iet-in hidden mt-2" placeholder="Escribe el puesto">
+                            <p class="text-[10px] text-gray-400 mt-1">Cargos de tu Nómina. Si no está el que necesitas, agrégalo primero en Nómina o escríbelo aquí.</p>
+                        </div>
                     </div>
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">Tarea</label><input id="t_nombre" class="iet-in" placeholder="Ej. Traslado a faena"></div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div><label class="text-[11px] font-bold text-gray-500 uppercase">Responsable</label><input id="t_resp" class="iet-in"></div>
-                        <div><label class="text-[11px] font-bold text-gray-500 uppercase">Tipo</label>
-                            <select id="t_rutinaria" class="iet-in"><option value="rutinaria">Rutinaria</option><option value="no_rutinaria">No rutinaria</option></select></div>
-                    </div>
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Tipo</label>
+                        <select id="t_rutinaria" class="iet-in"><option value="rutinaria">Rutinaria</option><option value="no_rutinaria">No rutinaria</option><option value="emergencia">Emergencia</option></select></div>
                 </div>
                 <hr class="my-2">
 
@@ -201,17 +208,22 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Identificación del riesgo</label>
+                        <select id="r_identificacion" class="iet-in">
+                            <option value="salud">Salud</option>
+                            <option value="seguridad">Seguridad</option>
+                        </select></div>
                     <div><label class="text-[11px] font-bold text-gray-500 uppercase">GEMA <span class="text-gray-400 normal-case font-normal">(Anexo 3)</span></label>
                         <select id="r_gema" class="iet-in">
                             <option value="">—</option>
                             {% for k, v in gema.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
                         </select></div>
-                    <div><label class="text-[11px] font-bold text-gray-500 uppercase">Jerarquía del control</label>
-                        <select id="r_tipo" class="iet-in">
-                            <option value="">—</option>
-                            {% for k, v in tipos_control.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-                        </select></div>
                 </div>
+                <div><label class="text-[11px] font-bold text-gray-500 uppercase">Jerarquía del control</label>
+                    <select id="r_tipo" class="iet-in">
+                        <option value="">—</option>
+                        {% for k, v in tipos_control.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                    </select></div>
                 <div><label class="text-[11px] font-bold text-gray-500 uppercase">Peligro</label><input id="r_peligro" class="iet-in"></div>
                 <div><label class="text-[11px] font-bold text-gray-500 uppercase">Riesgo</label><input id="r_riesgo" class="iet-in"></div>
                 <div class="grid grid-cols-2 gap-3">
@@ -263,6 +275,21 @@
         function badgeMag(m) {
             if (!m) return '<span class="text-gray-300">—</span>';
             return `<span class="badge ${MAG_COLOR[m] || 'bg-gray-100 text-gray-600'}">${esc(m)}</span>`;
+        }
+        // Las 4 familias del catálogo Anexo 2 (seguridad/higienico/psicosocial/musculo) se agrupan
+        // en 2 para mostrar y agrupar con Protocolos de Salud: solo 'seguridad' queda como
+        // Seguridad, el resto (exposición ambiental/ergonómica/psicosocial) es Salud.
+        function saludSeg(tipoRiesgo) {
+            return tipoRiesgo === 'seguridad' ? 'seguridad' : 'salud';
+        }
+        function selectSaludSeg(r) {
+            const DIS = CERRADA ? ' disabled' : '';
+            const v = r.tipo_riesgo ? saludSeg(r.tipo_riesgo) : '';
+            return `<select onchange="editar(${r.id},'tipo_riesgo',this.value)" class="cel"${DIS}>
+                <option value="">—</option>
+                <option value="salud" ${v === 'salud' ? 'selected' : ''}>Salud</option>
+                <option value="seguridad" ${v === 'seguridad' ? 'selected' : ''}>Seguridad</option>
+            </select>`;
         }
 
         // ── Candado de edición ──────────────────────────────────────────────────────────────
@@ -335,8 +362,8 @@
                    ${badgeMag(r.nivel_riesgo_residual)}
                    ${validado && r.vep_residual < r.vep ? `<span class="block text-[9px] text-green-700 font-bold">▼ desde ${r.vep}</span>` : ''}`;
             return `<tr class="${r.es_critico ? 'bg-red-50/40' : ''}">
-                <td class="font-mono text-[10px] text-gray-400">${r.riesgo_codigo ? esc(r.riesgo_codigo) : '—'}
-                    ${r.tipo_riesgo ? `<span class="block text-[8px] text-gray-300">${esc(r.tipo_riesgo)}</span>` : ''}</td>
+                <td class="font-mono text-[10px] text-gray-400">${r.riesgo_codigo ? esc(r.riesgo_codigo) : '—'}</td>
+                <td>${selectSaludSeg(r)}</td>
                 <td><select onchange="editar(${r.id},'gema',this.value)" class="cel"${DIS}>${opts(GEMA, r.gema)}</select></td>
                 <td class="text-gray-800">${esc(r.peligro)}</td>
                 <td class="text-gray-800">${esc(r.riesgo)}</td>
@@ -353,34 +380,29 @@
             </tr>`;
         }
 
-        // ── Ingresar Proceso: menú de presets ──
-        let _presets = [];
-        async function cargarPresets() {
-            try { const r = await fetch('/api/miper/presets'); if (r.ok) _presets = await r.json(); } catch (e) { }
-            document.getElementById('listaProcesos').innerHTML = _presets.length ? _presets.map(p =>
-                `<button type="button" onclick="insertarProceso('${p.id}','${esc(p.proceso)}')" class="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 hover:border-secondary hover:bg-secondary/5 flex items-center gap-2 text-[13px] font-semibold text-gray-700">
-                    <i data-lucide="workflow" class="w-4 h-4 text-secondary"></i> ${esc(p.proceso)}
-                    <i data-lucide="plus" class="w-3.5 h-3.5 ml-auto text-gray-400"></i></button>`).join('')
-                : '<p class="text-[12px] text-gray-400">Sin procesos preestablecidos.</p>';
+        // ── Ingresar Proceso: solo el nombre, sin tareas ni riesgos ──
+        function abrirProcesos() {
+            document.getElementById('p_nombre').value = '';
+            document.getElementById('procesoOverlay').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
         }
-        function abrirProcesos() { document.getElementById('procesoOverlay').classList.remove('hidden'); if (window.lucide) lucide.createIcons(); }
         function cerrarProcesos() { document.getElementById('procesoOverlay').classList.add('hidden'); }
-        async function insertarProceso(pid, label) {
-            cerrarProcesos();
-            if (!confirm(`Insertar el proceso "${label}" con sus tareas, riesgos y controles preestablecidos?\n\nQuedarán editables: podrás ajustar los controles y agregar más.`)) return;
-            const r = await fetch('/api/miper/preset', {
+        async function guardarProceso() {
+            const nombre = document.getElementById('p_nombre').value.trim();
+            if (!nombre) { alert('Indica el nombre del proceso.'); return; }
+            const r = await fetch('/api/miper/proceso', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ preset_id: pid })
+                body: JSON.stringify({ nombre })
             });
             const d = await r.json().catch(() => ({}));
-            if (!r.ok) { alert(d.error || 'No se pudo insertar.'); return; }
-            location.reload();
+            if (!r.ok) { alert(d.error || 'No se pudo agregar el proceso.'); return; }
+            cerrarProcesos();
+            cargar();
         }
 
         // Cabecera de la tabla de riesgos (misma en cada tarjeta de proceso).
         const THEAD = `<thead><tr>
-            <th class="w-14">Cód.</th><th class="w-16">GEMA</th><th class="w-1/12">Peligro</th><th class="w-1/12">Riesgo</th>
+            <th class="w-14">Cód.</th><th class="w-20">Tipo</th><th class="w-16">GEMA</th><th class="w-1/12">Peligro</th><th class="w-1/12">Riesgo</th>
             <th class="w-10">P</th><th class="w-10">C</th><th class="w-12">VEP</th><th>Magnitud</th>
             <th class="w-1/6">Medida de control</th><th class="w-24">Jerarquía</th>
             <th class="w-32">Residual</th><th class="w-40">Control</th><th class="w-8"></th></tr></thead>`;
@@ -391,13 +413,17 @@
         }
 
         let _tareas = [];
+        let _procesos = [];
         async function cargar() {
-            let d = { tareas: [] };
+            let d = { tareas: [], procesos: [] };
             try { const r = await fetch('/api/miper'); if (r.ok) d = await r.json(); } catch (e) { }
             _tareas = d.tareas || [];
+            _procesos = d.procesos || [];
             if (d.matriz) pintarCandado(d.matriz);   // antes de filaHTML: define si las celdas salen bloqueadas
             const body = document.getElementById('miperBody');
             const porProceso = {};
+            // Procesos reales primero (aunque tengan 0 tareas), para que se vean apenas se incorporan.
+            _procesos.forEach(p => { const n = (p.nombre || '').trim(); if (n) porProceso[n] = porProceso[n] || []; });
             (d.tareas || []).forEach(t => {
                 const p = (t.proceso || '').trim() || 'Sin proceso asignado';
                 (porProceso[p] = porProceso[p] || []).push(t);
@@ -413,16 +439,18 @@
                 const tareas = porProceso[p];
                 const riesgos = tareas.flatMap(t => t.riesgos || []);
                 const nCrit = riesgos.filter(esCritico).length;
-                const cuerpo = tareas.map(t => `
+                const cuerpo = !tareas.length
+                    ? `<div class="p-6 text-center text-gray-400 text-[12px]">Sin tareas aún. Usa <b>“Ingresar Matriz de Riesgo”</b> para agregarle una a este proceso.</div>`
+                    : `<table class="tbl w-full text-xs min-w-[1400px]">${THEAD}<tbody>${tareas.map(t => `
                     <tr class="bg-gray-50">
-                        <td colspan="13" class="px-2 py-1.5 text-[11px]">
+                        <td colspan="14" class="px-2 py-1.5 text-[11px]">
                             <i data-lucide="check-square" class="w-3 h-3 inline text-secondary"></i>
                             <span class="font-bold text-gray-700">${esc(t.nombre)}</span>
                             ${t.puesto ? `<span class="ml-2 text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Puesto: ${esc(t.puesto)}</span>` : ''}
                             ${t.rutinaria ? `<span class="ml-2 text-[10px] text-gray-400">${esc(t.rutinaria.replace('_', ' '))}</span>` : ''}
                             ${CERRADA ? '' : `<button type="button" onclick="agregarRiesgoATarea(${t.id})" class="ml-2 text-[10px] text-primary font-semibold hover:underline">+ riesgo</button>`}
                         </td>
-                    </tr>` + (t.riesgos || []).map(filaHTML).join('')).join('');
+                    </tr>` + (t.riesgos || []).map(filaHTML).join('')).join('')}</tbody></table>`;
                 return `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                     <button type="button" onclick="togglePanel(${idx})" class="w-full flex items-center justify-between gap-2 px-4 py-3 bg-sidebar/5 hover:bg-sidebar/10 border-b border-gray-100">
@@ -433,9 +461,7 @@
                             ${nCrit ? `<span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">${nCrit} crítico(s)</span>` : ''}
                             <i data-lucide="chevron-down" class="w-4 h-4 chev-${idx}"></i></span>
                     </button>
-                    <div id="proc-${idx}" class="overflow-x-auto">
-                        <table class="tbl w-full text-xs min-w-[1400px]">${THEAD}<tbody>${cuerpo}</tbody></table>
-                    </div>
+                    <div id="proc-${idx}" class="overflow-x-auto">${cuerpo}</div>
                 </div>`;
             }).join('');
             if (window.lucide) lucide.createIcons();
@@ -483,6 +509,8 @@
             const sel = document.getElementById('destino');
             sel.querySelectorAll('optgroup').forEach(g => g.remove());
             const porProceso = {};
+            // Procesos reales primero (aunque no tengan tareas aún) para poder elegirlos como destino.
+            _procesos.forEach(p => { const n = (p.nombre || '').trim(); if (n) porProceso[n] = porProceso[n] || []; });
             _tareas.forEach(t => {
                 const p = (t.proceso || '').trim() || 'Sin proceso asignado';
                 (porProceso[p] = porProceso[p] || []).push(t);
@@ -512,6 +540,8 @@
             });
             sel.value = 'nueva';
             toggleDestino();
+            const ident = document.getElementById('r_identificacion');
+            ident.disabled = false; ident.classList.remove('bg-gray-100', 'text-gray-500'); ident.value = 'salud';
             document.getElementById('tareaOverlay').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
         }
@@ -561,12 +591,21 @@
         async function usarCatalogo(codigo) {
             const av = document.getElementById('catAviso');
             const med = document.getElementById('medAviso');
-            if (!codigo) { av.textContent = 'Al elegir un riesgo, su familia define sola la evaluación.'; return; }
+            const ident = document.getElementById('r_identificacion');
+            if (!codigo) {
+                av.textContent = 'Al elegir un riesgo, su familia define sola la evaluación.';
+                ident.disabled = false; ident.classList.remove('bg-gray-100', 'text-gray-500');
+                return;
+            }
             let d = {};
             try { const r = await fetch(`/api/miper/catalogo?q=${encodeURIComponent(codigo)}`); if (r.ok) d = await r.json(); } catch (e) { }
             const x = (d.riesgos || []).find(r => r.codigo === codigo);
             if (!x) return;
             document.getElementById('r_riesgo').value = x.riesgo;
+            // La familia del catálogo (Anexo 2) manda: fija Salud/Seguridad y bloquea el selector
+            // para que no quede una identificación manual que contradiga lo que se va a guardar.
+            ident.value = x.tipo === 'seguridad' ? 'seguridad' : 'salud';
+            ident.disabled = true; ident.classList.add('bg-gray-100', 'text-gray-500');
             av.innerHTML = `<b>[${x.codigo}]</b> ${esc(x.familia)} → evaluación <b>${esc(d.tipos[x.tipo])}</b>` +
                 (x.definicion ? `<span class="block text-gray-400 mt-0.5">${esc(x.definicion)}</span>` : '');
             if (x.control) {
@@ -613,7 +652,10 @@
                 medida_control: document.getElementById('r_medida').value,
                 medida_emergencia: (document.getElementById('r_emergencia') || {}).value || null,
                 probabilidad: v('r_p'), consecuencia: v('r_c'),
-                tipo_control: v('r_tipo') || null, gema: v('r_gema') || null
+                tipo_control: v('r_tipo') || null, gema: v('r_gema') || null,
+                // Manual: solo se respeta si el riesgo no viene del catálogo Anexo 2, que la
+                // fija automáticamente según su familia (_desde_catalogo la sobrescribe igual).
+                tipo_riesgo: v('r_identificacion') || null
             };
             let r;
             if (destino === 'nueva' || destino.startsWith('proc:')) {
@@ -623,8 +665,8 @@
                 r = await fetch('/api/miper/tareas', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        nombre: v('t_nombre'), proceso: proceso, puesto: v('t_puesto'),
-                        responsable: v('t_resp'), rutinaria: v('t_rutinaria'), riesgos: [riesgo],
+                        nombre: v('t_nombre'), proceso: proceso, puesto: valPuesto(),
+                        rutinaria: v('t_rutinaria'), riesgos: [riesgo],
                         guardar_biblioteca: document.getElementById('r_guardar_biblio').checked ? 1 : 0
                     })
                 });
@@ -637,19 +679,26 @@
             }
             const d = await r.json().catch(() => ({}));
             if (!r.ok) { alert(d.error || 'No se pudo guardar.'); return; }
-            ['t_proceso', 't_puesto', 't_nombre', 't_resp', 'r_peligro', 'r_riesgo', 'r_medida'].forEach(i => document.getElementById(i).value = '');
+            ['t_proceso', 't_puesto', 't_puesto_otro', 't_nombre', 'r_peligro', 'r_riesgo', 'r_medida'].forEach(i => document.getElementById(i).value = '');
+            togglePuestoOtro('');
             cerrarNuevaTarea(); location.reload();
+        }
+        function togglePuestoOtro(v) {
+            document.getElementById('t_puesto_otro').classList.toggle('hidden', v !== '__otro__');
+        }
+        function valPuesto() {
+            const sel = document.getElementById('t_puesto').value;
+            return sel === '__otro__' ? document.getElementById('t_puesto_otro').value.trim() : sel;
         }
         function descargarSigo(e) {
             e.preventDefault();
             const m = {{ mineros | tojson }};
-            if (!m.length) { alert('El export SIGO-F-006 es el formato de Codelco: requiere un contrato minero registrado en “Mis contratos”.'); return false; }
+            if (!m.length) { alert('Este export requiere un contrato minero registrado en “Mis contratos”.'); return false; }
             location.href = `/api/faena/${m[0].id}/miper.xlsx`;
             return false;
         }
 
         cargar();
-        cargarPresets();
         if (window.lucide) lucide.createIcons();
     </script>
 </body>

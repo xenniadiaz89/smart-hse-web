@@ -1,5 +1,5 @@
-"""Lógica del módulo Nómina. Solo depende de db/models/planes/resso — nunca de app.py ni de otro
-módulo (aislamiento por carpeta)."""
+"""Lógica del módulo Nómina. Solo depende de db/models/planes/roles_criticos — nunca de app.py ni
+de otro módulo (aislamiento por carpeta)."""
 import db
 import planes
 

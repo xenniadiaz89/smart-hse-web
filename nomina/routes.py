@@ -11,7 +11,7 @@ from flask import Blueprint, render_template, request, jsonify, session
 import db
 import docgen
 import planes
-import resso
+import roles_criticos
 from core_auth import empresa_required, onboarding_required, empresa_id
 
 from . import service
@@ -28,7 +28,7 @@ def panel():
     db.refrescar_vencimientos_requisitos(eid)      # el tiempo pasa: lo de ayer puede estar vencido
     return render_template('nomina/panel.html',
                            empresa=db.empresa_de(session.get('rut'), eid),
-                           roles=resso.ROLES_CRITICOS,
+                           roles=roles_criticos.ROLES_CRITICOS,
                            **service.cargar(eid, session.get('rut')))
 
 
@@ -54,11 +54,16 @@ def api_trabajador_crear():
     from core_auth import normalizar_rut, rut_valido
     f = request.get_json(silent=True) or request.form
     rut = (f.get('rut') or '').strip()
-    nombre = (f.get('nombre') or '').strip()
-    if not (rut and nombre):
-        return jsonify({'error': 'Indica RUT y nombre del trabajador.'}), 400
+    apellidos = (f.get('apellidos') or '').strip()
+    nombres = (f.get('nombres') or '').strip()
+    if not (rut and apellidos and nombres):
+        return jsonify({'error': 'Indica RUT, apellidos y nombres del trabajador.'}), 400
     if not rut_valido(rut):
         return jsonify({'error': 'El RUT del trabajador no es válido.'}), 400
+    tiene_personal_cargo = str(f.get('tiene_personal_cargo')) in ('1', 'true', 'True', 'on', 'si')
+    max_part = f.get('max_participantes')
+    if tiene_personal_cargo and not max_part:
+        return jsonify({'error': 'Indica el máximo de participantes a cargo.'}), 400
     eid = empresa_id()
     emp = db.empresa_de(session['rut'], eid) or {}
     # El tope es por tramo comercial y solo cuenta ACTIVOS: un desvinculado no consume cupo.
@@ -71,13 +76,39 @@ def api_trabajador_crear():
                                    f"y ya tienes {activos} activos. Para agregar más necesitas el "
                                    f"{sug['nombre']}."}), 403
     resp = f.get('responsable_id')
-    db.trabajador_crear(eid, normalizar_rut(rut), nombre,
+    db.trabajador_crear(eid, normalizar_rut(rut), apellidos=apellidos, nombres=nombres,
                         cargo=(f.get('cargo') or '').strip() or None,
                         rol=(f.get('rol') or '').strip() or None,
                         contrato_id=f.get('contrato_id') or None,
                         responsable_id=int(resp) if resp else None,
-                        conduce=str(f.get('conduce')) in ('1', 'true', 'True', 'on', 'si'))
+                        conduce=str(f.get('conduce')) in ('1', 'true', 'True', 'on', 'si'),
+                        tiene_personal_cargo=tiene_personal_cargo,
+                        max_participantes=int(max_part) if tiene_personal_cargo and max_part else None)
     return jsonify(db.trabajadores_de(eid))
+
+
+@bp.route('/api/trabajadores/<int:tid>/editar', methods=['POST'])
+@empresa_required
+@onboarding_required
+def api_trabajador_editar(tid):
+    """Corrige apellidos/nombres/cargo/personal a cargo de un trabajador ya creado."""
+    f = request.get_json(silent=True) or {}
+    tiene_personal_cargo = f.get('tiene_personal_cargo')
+    if tiene_personal_cargo is not None:
+        tiene_personal_cargo = str(tiene_personal_cargo) in ('1', 'true', 'True', 'on', 'si')
+        if tiene_personal_cargo and not f.get('max_participantes'):
+            return jsonify({'error': 'Indica el máximo de participantes a cargo.'}), 400
+    max_part = f.get('max_participantes')
+    apellidos = (f.get('apellidos') or '').strip() or None if 'apellidos' in f else None
+    nombres = (f.get('nombres') or '').strip() or None if 'nombres' in f else None
+    cargo = (f.get('cargo') or '').strip() or None if 'cargo' in f else None
+    t = db.trabajador_editar(
+        tid, empresa_id(), apellidos=apellidos, nombres=nombres, cargo=cargo,
+        tiene_personal_cargo=tiene_personal_cargo,
+        max_participantes=int(max_part) if max_part else None)
+    if not t:
+        return jsonify({'error': 'Trabajador no encontrado.'}), 404
+    return jsonify({'ok': True, 'trabajador': t})
 
 
 @bp.route('/api/trabajadores/<int:tid>/estado', methods=['POST'])

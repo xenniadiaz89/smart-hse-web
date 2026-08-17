@@ -14,14 +14,23 @@ def cargar(empresa_id, quien=None):
     tareas = db.tareas_de_matriz(m['id'])
     for t in tareas:
         t['riesgos'] = db.riesgos_de_tarea(t['id'])
-    return {'matriz': m, 'procesos': agrupar_por_proceso(tareas),
+    procesos = db.procesos_de_matriz(m['id'])
+    return {'matriz': m, 'procesos': agrupar_por_proceso(tareas, procesos),
             'resumen': resumen(tareas), 'mineros': db.contratos_mineros_de(empresa_id)}
 
 
-def agrupar_por_proceso(tareas):
+def agrupar_por_proceso(tareas, procesos=None):
     """[tarea] → [{'proceso', 'tareas': [...]}]. El eje de la IPER es Proceso → Tarea → Puesto.
-    Las tareas sin proceso caen en 'Sin proceso asignado', al final."""
+
+    Parte de los procesos reales (ProcesoIPER) para que uno recién incorporado se vea aunque
+    todavía no tenga tareas; las tareas legacy cuyo texto libre no calza con ningún proceso real
+    arman su propio grupo igual que antes (compatibilidad hacia atrás)."""
     grupos, orden = {}, []
+    for p in (procesos or []):
+        nombre = (p.get('nombre') or '').strip()
+        if nombre and nombre not in grupos:
+            grupos[nombre] = []
+            orden.append(nombre)
     for t in tareas:
         p = (t.get('proceso') or '').strip() or 'Sin proceso asignado'
         if p not in grupos:

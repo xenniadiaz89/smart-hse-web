@@ -138,10 +138,10 @@
                        <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz legal (no disponible)</span></button>
                    {% elif onboarding_ok %}
                    <a href="/matriz-legal" class="nav-item">
-                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></a>
+                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz legal (Cerebro Legal)</span></a>
                    {% else %}
                    <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
-                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Cumplimiento de Matriz legal</span></button>
+                       <i data-lucide="table-2" class="w-5 h-5"></i> <span>Matriz legal (Cerebro Legal)</span></button>
                    {% endif %}
                    {{ nav('ds44', 'clipboard-check', 'Cumplimiento DS 44', 'cargarDS44()') }}
                    {% if not MODULOS_OK.get('matriz_riesgos') %}
@@ -155,12 +155,28 @@
                        <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de riesgos</span></button>
                    {% endif %}
                    {{ nav('faena', 'hard-hat', 'Gestión de faena', 'cargarFaena()') }}
-                   {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
-                   {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
-                   {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
-                   {{ nav('auditoria', 'folder-check', 'Carpeta de Auditoría', 'cargarAuditoria()') }}
+                   <div class="side-divider">Gestión en prevención</div>
                    {{ nav('checklist', 'list-checks', 'Checklist digital', 'cargarVehiculos()') }}
                    {{ nav('iet', 'map-pin', 'Inspección en terreno') }}
+                   {{ nav('reportes', 'clipboard-list', 'Reporte de condiciones', 'cargarReportes()') }}
+                   <button type="button" disabled title="Próximamente" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="mic" class="w-5 h-5"></i> <span>Registros de charlas en terreno</span></button>
+                   <button type="button" disabled title="Próximamente" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="clipboard-plus" class="w-5 h-5"></i> <span>+ Asignación de actividades</span></button>
+                   {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
+                   {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
+                   {% if not MODULOS_OK.get('siniestros') %}
+                   <button type="button" disabled title="Módulo no disponible temporalmente" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros (no disponible)</span></button>
+                   {% elif onboarding_ok %}
+                   <a href="/siniestros" class="nav-item">
+                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros</span></a>
+                   {% else %}
+                   <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
+                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros</span></button>
+                   {% endif %}
+                   {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
+                   {{ nav('auditoria', 'folder-check', 'Auditorías internas (FUF)', 'cargarAuditoria()') }}
                    <div class="side-divider">Más</div>
                    {% call nav('pendientes', 'calendar-clock', 'Actividades Pendientes', 'cargarPendientes()') %}
                        <span id="pendBadge" class="hidden ml-auto bg-red-500 text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full items-center justify-center"></span>
@@ -305,9 +321,6 @@
                     <span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">DS N°44/2024</span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" onclick="abrirFUF()" class="inline-flex items-center gap-2 bg-primary hover:brightness-95 text-white px-4 py-2.5 rounded-xl font-bold text-sm">
-                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Cuestionario FUF
-                    </button>
                     <button type="button" onclick="descargarReporteDS44()" class="inline-flex items-center gap-2 border border-primary/40 text-primary hover:bg-primary/5 px-4 py-2.5 rounded-xl font-bold text-sm">
                         <i data-lucide="download" class="w-4 h-4"></i> Descargar Reporte
                     </button>
@@ -383,7 +396,10 @@
         <section id="vista-protocolos" class="hidden">
             <div class="flex items-center justify-between gap-3 mb-1">
                 <h2 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="heart-pulse" class="w-6 h-6 text-primary"></i> Protocolos de Salud (MINSAL)</h2>
-                <button type="button" onclick="agregarProtocolo()" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="plus" class="w-4 h-4"></i> Añadir protocolo extra</button>
+                <div class="flex items-center gap-2">
+                    <a href="/protocolos-gantt" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="calendar-range" class="w-4 h-4"></i> Ver Carta Gantt</a>
+                    <button type="button" onclick="agregarProtocolo()" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="plus" class="w-4 h-4"></i> Añadir protocolo extra</button>
+                </div>
             </div>
             <p class="text-gray-600 mb-5 text-sm">Actualiza los <b>puestos evaluados</b> vs <b>totales</b> de cada protocolo de vigilancia. El % alimenta la Tarjeta 3 del Panel DS 44 en vivo.</p>
             <div id="protoMutual" class="mb-5"></div>
@@ -395,11 +411,14 @@
             <div class="flex items-center justify-between gap-3 mb-1 flex-wrap">
                 <h2 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="folder-check" class="w-6 h-6 text-primary"></i> Carpeta de Auditoría</h2>
                 <div class="flex items-center gap-2">
+                    <button type="button" onclick="abrirFUF()" class="inline-flex items-center gap-2 bg-primary hover:brightness-95 text-white px-4 py-2.5 rounded-xl font-bold text-sm">
+                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Cuestionario FUF
+                    </button>
                     <button type="button" onclick="cargarAuditoria()" class="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-200"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar</button>
                     <a href="/api/auditoria/export.zip" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:brightness-95"><i data-lucide="download" class="w-4 h-4"></i> Descargar carpeta (.zip)</a>
                 </div>
             </div>
-            <p class="text-gray-600 mb-5 text-sm">Todo lo que la empresa puede presentar en una fiscalización, reunido desde el FUF, los Protocolos, el Comité Paritario, la Nómina y los contratos. La descarga incluye un <b>índice de portada</b> con el contenido y las brechas.</p>
+            <p class="text-gray-600 mb-5 text-sm">Todo lo que la empresa puede presentar en una fiscalización, reunido desde el FUF, los Protocolos, el Comité Paritario, la Nómina y los contratos — incluido aquí el <b>Cuestionario FUF</b>. La descarga incluye un <b>índice de portada</b> con el contenido y las brechas.</p>
             <div id="audResumen" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
             <div id="audBrechas" class="mb-5"></div>
             <div id="audBloques"><p class="text-gray-400 text-sm">Cargando…</p></div>
@@ -412,7 +431,10 @@
                 <label class="text-sm text-gray-500 flex items-center gap-2">Año
                     <input id="estAnio" type="number" min="2000" max="2100" class="iet-in !py-1.5 !w-28" onchange="cargarEstadisticas()"></label>
             </div>
-            <p class="text-gray-600 mb-5 text-sm">Carga los datos mensuales de la empresa (transversal). El sistema calcula los índices de <b>Frecuencia</b>, <b>Gravedad</b> y <b>Accidentabilidad</b>, dibuja el gráfico en la portada de <b>Mis Contratos</b> y alimenta el documento del FUF (ítems 47 y 60) para la carpeta de auditoría.</p>
+            <p class="text-gray-600 mb-1 text-sm">Carga los datos mensuales de la empresa (transversal). El sistema calcula los índices de <b>Frecuencia</b>, <b>Gravedad</b> y <b>Accidentabilidad</b>, dibuja el gráfico en la portada de <b>Mis Contratos</b> y alimenta el documento del FUF (ítems 47 y 60) para la carpeta de auditoría.</p>
+            {% if MODULOS_OK.get('siniestros') and onboarding_ok %}
+            <p class="mb-5 text-sm"><a href="/siniestros" class="text-primary font-bold hover:underline inline-flex items-center gap-1">Ir al registro de siniestros individuales <i data-lucide="arrow-right" class="w-4 h-4"></i></a></p>
+            {% endif %}
             <div id="estIndicadores" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 overflow-x-auto">
                 <table class="w-full text-sm min-w-[720px]" id="estTabla"></table>
@@ -573,7 +595,7 @@
                 <i data-lucide="calendar-clock" class="w-5 h-5 text-primary"></i>
                 <h2 class="text-xl font-extrabold text-gray-900">Panel de Actividades Pendientes</h2>
             </div>
-            <p class="text-gray-600 text-sm mb-5">Alertas <b>unificadas</b>: legales (anualidad DS 44), contractuales (Carpeta/RESSO) y operativas (Matriz Legal). Actualiza un documento aquí y cubres tu obligación legal <b>y</b> la exigencia del mandante simultáneamente (cascada).</p>
+            <p class="text-gray-600 text-sm mb-5">Alertas <b>unificadas</b>: legales (anualidad DS 44), contractuales (mandante) y operativas (Matriz Legal). Actualiza un documento aquí y cubres tu obligación legal <b>y</b> la exigencia del mandante simultáneamente (cascada).</p>
             <div id="pendientesLista" class="space-y-3"></div>
         </section>
 
@@ -585,11 +607,10 @@
                 <i data-lucide="hard-hat" class="w-5 h-5 text-primary"></i>
                 <h2 class="text-xl font-extrabold text-gray-900">Gestión de faena</h2>
             </div>
-            <p class="text-gray-600 text-sm mb-4">Configura cada <b>contrato/faena</b>: precarga lo básico de la <b>Carpeta de Arranque</b> (requisitos legales del mandante + riesgos críticos ECF/RC) e inyecta procesos/actividades a la <b>Matriz de Riesgos</b> de esa faena. Todo se sincroniza con los <b>IRL</b> de los trabajadores asignados.</p>
+            <p class="text-gray-600 text-sm mb-4">Configura cada <b>contrato/faena</b>: agrega los requisitos legales del mandante e inyecta procesos/actividades a la <b>Matriz de Riesgos</b> de esa faena. Todo se sincroniza con los <b>IRL</b> de los trabajadores asignados.</p>
             <div class="flex flex-wrap items-center gap-3 mb-5">
                 <label class="text-xs text-gray-600">Contrato / faena
                     <select id="faenaSel" onchange="cargarFaenaDetalle()" class="iet-in !py-1 !inline-block !w-auto ml-1"></select></label>
-                <button type="button" onclick="precargarFaena()" class="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="download-cloud" class="w-4 h-4"></i> Precargar desde Carpeta de Arranque</button>
             </div>
             <div id="faenaDetalle" class="space-y-6"></div>
         </section>
@@ -658,8 +679,63 @@
            </div>
         </section>
 
+        <!-- VISTA: Reporte de Actos y Condiciones Subestándar (participación — FUF 25) -->
+        <section id="vista-reportes" class="hidden">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-primary"></i>
+                    <h2 class="text-xl font-extrabold text-gray-900">Reporte de actos y condiciones subestándar</h2>
+                    <span class="bg-secondary/10 text-secondary text-xs font-bold px-3 py-1 rounded-full">Participación · FUF 25</span>
+                </div>
+                <button type="button" onclick="mostrarQRReporte()" class="inline-flex items-center gap-2 bg-primary hover:bg-[#005580] text-white px-4 py-2 rounded-xl font-bold text-sm shrink-0">
+                    <i data-lucide="qr-code" class="w-4 h-4"></i> QR para la faena
+                </button>
+            </div>
+
+            <p class="text-gray-500 text-sm mb-5">Imprime el <b>QR</b> y pégalo en la faena. Cualquier trabajador lo escanea y reporta un acto o condición subestándar desde su teléfono, sin clave. Es el mecanismo de <b>consulta y participación</b> del D.S. 44 (ítem 25).</p>
+
+            <!-- QR (se muestra al pedirlo) -->
+            <div id="qrReporteBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 text-center">
+                <img id="qrReporteImg" alt="QR de reporte" class="mx-auto w-52 h-52">
+                <p class="text-xs text-gray-500 mt-3">Escanéalo con la cámara del teléfono para abrir la tarjeta de reporte.</p>
+                <a id="qrReporteDl" download="QR_reporte_subestandar.png" class="inline-flex items-center gap-1.5 text-primary hover:underline text-sm font-bold mt-2"><i data-lucide="download" class="w-4 h-4"></i> Descargar QR</a>
+            </div>
+
+            <!-- KPIs -->
+            <div id="reportesKpis" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
+            <!-- Tabla consolidada -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                            <tr>
+                                <th class="text-left px-4 py-3">Fecha</th>
+                                <th class="text-left px-4 py-3">Faena / Área</th>
+                                <th class="text-left px-4 py-3">Tipo</th>
+                                <th class="text-left px-4 py-3">Descripción</th>
+                                <th class="text-left px-4 py-3">Nivel</th>
+                                <th class="text-left px-4 py-3">Estado</th>
+                                <th class="text-right px-4 py-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportesBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+                <div id="reportesVacio" class="hidden text-center text-gray-400 text-sm py-10">Aún no hay reportes. Muestra el QR en la faena para empezar a recibirlos.</div>
+            </div>
+        </section>
+
         <!-- VISTA: Mis Contratos Asesorados -->
         <section id="vista-contratos" class="hidden">
+            <!-- ── Accesos rápidos ── -->
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button type="button" onclick="mostrarVista('estadisticas'); cargarEstadisticas();" class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl font-bold text-sm hover:brightness-95">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Reporte Mensual de Estadística</button>
+                <a href="/siniestros" class="inline-flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:brightness-95">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> Registro de Siniestro</a>
+            </div>
+
             <!-- ── Empresa / Adhesión (Ronda 18: registro y Mutual dentro de la consola) ── -->
             <div id="empresaCard" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6"></div>
 
@@ -684,7 +760,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer border border-gray-200 rounded-lg p-3 hover:border-primary">
                             <input type="radio" name="ct_es_minera" value="si" onchange="onDerivacion()" class="accent-primary mt-0.5">
-                            <span><b>Escenario A — Contratista Minero</b><br><span class="text-xs text-gray-500">Presta servicios a una minería. Carga el Dialecto de Prevención (RESSO/ECF) sobre tu base DS 44.</span></span>
+                            <span><b>Escenario A — Contratista Minero</b><br><span class="text-xs text-gray-500">Presta servicios a una minería. Carga el Dialecto de Prevención del mandante sobre tu base DS 44.</span></span>
                         </label>
                         <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer border border-gray-200 rounded-lg p-3 hover:border-primary">
                             <input type="radio" name="ct_es_minera" value="no" onchange="onDerivacion()" class="accent-primary mt-0.5">
@@ -705,7 +781,7 @@
                     <label id="ct_mandante_wrap" class="block hidden"><span class="text-xs font-semibold text-gray-600">Mandante (minería)</span>
                         <select id="ct_mandante" class="iet-in">
                             <option value="">Seleccione…</option>
-                            <option>Codelco DRT</option><option>Minera Spence (BHP)</option>
+                            <option>Minera Spence (BHP)</option>
                             <option>Minera El Abra</option><option>Minera Centinela</option><option>Otra minería</option>
                         </select></label>
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Faena / Centro de Trabajo</span>
@@ -722,10 +798,6 @@
                         <input id="ct_admin_eecc" type="text" class="iet-in" placeholder="Nombre"></label>
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Experto en Prevención EE.CC.</span>
                         <input id="ct_experto_eecc" type="text" class="iet-in" placeholder="Nombre"></label>
-                    <label class="block"><span class="text-xs font-semibold text-gray-600">Administrador Contrato CODELCO</span>
-                        <input id="ct_admin_codelco" type="text" class="iet-in" placeholder="Nombre"></label>
-                    <label class="block"><span class="text-xs font-semibold text-gray-600">Experto en Prevención CODELCO</span>
-                        <input id="ct_experto_codelco" type="text" class="iet-in" placeholder="Nombre"></label>
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Fecha inicio</span>
                         <input id="ct_fecha_inicio" type="date" class="iet-in"></label>
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Fecha término</span>
@@ -751,65 +823,6 @@
             <div id="contratosLista" class="grid grid-cols-1 xl:grid-cols-2 gap-5"></div>
         </section>
 
-        <!-- Panel Carpeta de Arranque (overlay) -->
-        <div id="carpetaOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
-            <div class="bg-[#f4f7f6] rounded-2xl shadow-2xl w-full max-w-4xl my-6">
-                <div class="sticky top-0 bg-white rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-3 z-10">
-                    <div class="min-w-0">
-                        <h2 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="folder-check" class="w-5 h-5 text-primary"></i> Carpeta de Arranque <span class="text-xs font-normal text-gray-400">RESSO Anexo 2</span></h2>
-                        <p id="carpetaSub" class="text-xs text-gray-500"></p>
-                    </div>
-                    <div class="flex items-center gap-3 shrink-0">
-                        <span id="carpetaPct" class="text-sm font-extrabold text-secondary"></span>
-                        <button type="button" id="btnAprobarArranque" onclick="aprobarArranque()" class="hidden inline-flex items-center gap-1.5 bg-secondary hover:bg-[#6a9e32] text-white text-[11px] font-bold px-3 py-1.5 rounded">
-                            <i data-lucide="badge-check" class="w-3.5 h-3.5"></i> Aprobar Arranque y habilitar RESSO
-                        </button>
-                        <button type="button" onclick="cerrarCarpeta()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
-                    </div>
-                </div>
-                <!-- Carga masiva con clasificación automática -->
-                <div class="px-4 sm:px-6 pt-4">
-                    <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div class="flex items-center gap-2 text-primary shrink-0">
-                            <i data-lucide="sparkles" class="w-5 h-5"></i>
-                            <span class="font-bold text-sm">Carga inteligente</span>
-                        </div>
-                        <p class="text-xs text-gray-600 flex-1">Sube una <b>carpeta completa</b> o <b>varios documentos</b>; el sistema los analiza y los ordena en los 29 ítems.</p>
-                        <div class="flex gap-2 shrink-0">
-                            <label class="cam-btn cursor-pointer">
-                                <i data-lucide="folder-up" class="w-3.5 h-3.5"></i> Subir carpeta
-                                <input type="file" webkitdirectory multiple class="hidden" onchange="subirBulk(this)">
-                            </label>
-                            <label class="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-50">
-                                <i data-lucide="files" class="w-3.5 h-3.5"></i> Varios archivos
-                                <input type="file" multiple class="hidden" onchange="subirBulk(this)">
-                            </label>
-                        </div>
-                    </div>
-                    <div id="bulkReporte" class="hidden mt-3"></div>
-                </div>
-                <div id="carpetaItems" class="p-4 sm:p-6 space-y-3"></div>
-            </div>
-        </div>
-
-        <!-- ── Modal: Auditoría RESSO (puntos heredados de la Carpeta) ── -->
-        <div id="auditoriaOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
-            <div class="bg-[#f4f7f6] rounded-2xl shadow-2xl w-full max-w-4xl my-6">
-                <div class="sticky top-0 bg-white rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-3 z-10">
-                    <div class="min-w-0">
-                        <h2 class="font-extrabold text-gray-900 flex items-center gap-2"><i data-lucide="clipboard-check" class="w-5 h-5 text-primary"></i> Auditoría RESSO <span class="text-xs font-normal text-gray-400">RESSO V9</span></h2>
-                        <p id="auditoriaSub" class="text-xs text-gray-500"></p>
-                    </div>
-                    <div class="flex items-center gap-3 shrink-0">
-                        <span id="auditoriaEstadoBadge" class="text-[11px] font-bold px-2.5 py-1 rounded-full"></span>
-                        <span id="auditoriaPct" class="text-sm font-extrabold text-secondary"></span>
-                        <button type="button" onclick="cerrarAuditoria()" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
-                    </div>
-                </div>
-                <div id="auditoriaBody" class="p-4 sm:p-6 space-y-3"></div>
-            </div>
-        </div>
-
         <!-- ── Módulo Puente: convertir empresa general → contratista minera ── -->
         <div id="convertirOverlay" class="hidden fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-10">
@@ -822,7 +835,7 @@
                     <label class="block"><span class="text-xs font-semibold text-gray-600">Mandante (minería)</span>
                         <select id="conv_mandante" class="iet-in">
                             <option value="">Seleccione…</option>
-                            <option>Codelco DRT</option><option>Minera Spence (BHP)</option>
+                            <option>Minera Spence (BHP)</option>
                             <option>Minera El Abra</option><option>Minera Centinela</option><option>Otra minería</option>
                         </select></label>
                     <div id="convGap" class="hidden"></div>
@@ -916,17 +929,36 @@
 
         const estado = {}; // n -> 'si' | 'no' | 'na'
 
+        function sugerenciaBox(it) {
+            const s = it.sugerencia;
+            if (!s) return '';
+            return `
+            <div class="mt-2">
+                <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1">
+                    <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> Sugerencia</button>
+                <div class="hidden mt-1.5 bg-gray-50 border-l-4 border-primary rounded-r-lg p-3">
+                    <p class="text-[12px] text-gray-700">${s.descripcion}</p>
+                    <ul class="mt-1.5 space-y-1 list-disc pl-4">
+                        ${(s.requisitos_clave || []).map(r => `<li class="text-[11px] text-gray-600">${r}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>`;
+        }
+
         function tarjetaItem(it) {
             return `
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" data-item="${it.n}">
                 <div class="p-5 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div class="pr-4">
-                        <div class="flex items-center gap-2 mb-1">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
                             <span class="bg-gray-100 text-gray-700 text-xs font-bold px-2 py-0.5 rounded">${it.n}</span>
                             <span class="text-[11px] font-semibold text-primary">${it.art}</span>
+                            <span id="autoMiper_${it.n}" class="hidden text-[10px] font-bold bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full items-center gap-1">
+                                <i data-lucide="zap" class="w-3 h-3"></i> Sincronizado automáticamente con Matriz de Riesgos</span>
                         </div>
                         <p class="text-sm text-gray-700">${it.t}</p>
                         ${it.ev ? `<p class="text-[11px] text-gray-500 mt-1.5 flex items-start gap-1"><i data-lucide="paperclip" class="w-3 h-3 mt-0.5 shrink-0"></i><span><b>Evidencia requerida:</b> ${it.ev}</span></p>` : ''}
+                        ${sugerenciaBox(it)}
                     </div>
                     <div class="flex gap-2 shrink-0">
                         <button type="button" onclick="setEstado(${it.n},'si')" data-opt="si" class="opt px-4 py-2 rounded-lg text-xs font-bold border transition whitespace-nowrap">Cumple</button>
@@ -979,11 +1011,17 @@
             const enlace = item.enlace;
             const docs = item.docs || [];
             // Botones de Generar (solo ítems con plantilla). Regla: Generar vive en "No Cumple".
-            const genBtns = docs.length ? `
+            // Formato Word ya hecho (con logo Smart HSE) descargable cuando el ítem lo tiene.
+            const formatoBtn = item.formato ? `
+                <a href="/api/fuf/${n}/formato" class="inline-flex items-center gap-2 bg-white border border-primary/40 text-primary px-3 py-2 rounded-lg text-xs font-bold hover:bg-primary/5"><i data-lucide="file-down" class="w-4 h-4"></i> Descargar formato Smart HSE (Word)</a>` : '';
+            // Ocultar "Generar" de los tipos que ya se generaron (quedan bloqueados: se editan en Cumple).
+            const yaGen = (DOCS_GEN[n] || []).map(d => d.tipo_doc);
+            const docsPend = docs.filter(d => !yaGen.includes(d.tipo_doc));
+            const genBtns = docsPend.length ? `
                 <div class="mt-4 pt-3 border-t border-amber-200">
                     <p class="text-sm font-bold text-primary mb-2 flex items-center gap-2"><i data-lucide="file-plus-2" class="w-4 h-4"></i> ¿No lo tienes? Genéralo conforme a la ley</p>
                     <div class="flex flex-wrap gap-2">
-                        ${docs.map(d => `<button type="button" onclick="abrirFormGenerar(${n}, '${d.tipo_doc}')" class="bg-primary text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:brightness-95"><i data-lucide="wand-2" class="w-4 h-4"></i> Generar ${d.nombre}</button>`).join('')}
+                        ${docsPend.map(d => `<button type="button" onclick="abrirFormGenerar(${n}, '${d.tipo_doc}')" class="bg-primary text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:brightness-95"><i data-lucide="wand-2" class="w-4 h-4"></i> Generar ${d.nombre}</button>`).join('')}
                     </div>
                     <div id="genform_${n}" class="mt-3"></div>
                 </div>` : '';
@@ -1017,6 +1055,7 @@
                     <input type="file" class="hidden" onchange="subirDocFUF(${n}, this)">
                 </label>
                 <div id="analisis_${n}" class="mt-3"></div>
+                <div id="editform_${n}" class="mt-3"></div>
                 <div id="docs_${n}" class="mt-3"></div>`;
             }
             if (valor === 'no') {
@@ -1029,6 +1068,7 @@
                         <input type="date" data-f="fecha" class="w-full p-2 border rounded-lg text-sm"></label>
                 </div>
                 <p class="text-xs text-amber-600 mt-2 font-semibold">Observación obligatoria. Pulsa <span class="underline">Guardar cambios</span>; la brecha aparecerá en el Panel de Brechas.</p>
+                ${formatoBtn ? `<div class="mt-4 pt-3 border-t border-amber-200"><p class="text-sm font-bold text-primary mb-2 flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> ¿No lo tienes? Descarga el formato listo para rellenar</p>${formatoBtn}</div>` : ''}
                 ${genBtns}${enlaceBtn}`;
             }
             if (valor === 'na') {
@@ -1046,7 +1086,7 @@
             return '';
         }
 
-        // Formato ESTÁNDAR de Carta N/A (HTML imprimible → PDF). Sin jerga RESSO; encuadre DS 44.
+        // Formato ESTÁNDAR de Carta N/A (HTML imprimible → PDF), encuadre DS 44.
         function cartaNAHtml({ titulo, empresa, fecha, refs, requisito, fundamento }) {
             const e = s => (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const filas = refs.map(([k, v]) => `<tr><td class="k">${e(k)}</td><td>${e(v)}</td></tr>`).join('');
@@ -1090,6 +1130,9 @@
         // ── FUF con documentos: cargar el que se tiene o generar el que falta ──
         function _escFUF(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 
+        // Documentos generados por ítem (para bloquear "Generar" y precargar "Editar").
+        const DOCS_GEN = {};
+
         async function cargarDocsItem(n) {
             const cont = document.getElementById('docs_' + n);
             if (!cont) return;
@@ -1098,55 +1141,113 @@
                 if (!r.ok) return;
                 const data = await r.json();
                 const docs = data.documentos || [];
+                DOCS_GEN[n] = docs.filter(d => d.flujo === 'generado' && d.tipo_doc);
                 cont.innerHTML = docs.length ? `
                     <p class="text-xs font-bold text-gray-700 mb-1">Documentos del ítem</p>
-                    <div class="space-y-1">${docs.map(d => `
-                        <div class="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
-                            <span class="text-xs text-gray-700 truncate flex items-center gap-2"><i data-lucide="file-check-2" class="w-4 h-4 text-secondary"></i> ${_escFUF(d.nombre)}${d.flujo === 'generado' ? ' <span class=\'text-[10px] text-primary font-bold\'>(generado)</span>' : ''}</span>
-                            <a href="/api/doc/${d.id}" target="_blank" class="text-primary text-xs font-bold shrink-0 ml-2">Abrir</a>
-                        </div>`).join('')}</div>` : '';
+                    <div class="space-y-1">${docs.map(d => {
+                        const gen = d.flujo === 'generado';
+                        const acciones = gen ? `
+                            <a href="/api/doc/${d.id}" target="_blank" class="text-primary text-xs font-bold shrink-0">Abrir</a>
+                            <a href="/api/doc/${d.id}/word" class="text-primary text-xs font-bold shrink-0">Word</a>
+                            <button type="button" onclick="descargarPDF(${d.id})" class="text-primary text-xs font-bold shrink-0">PDF</button>
+                            ${d.tipo_doc ? `<button type="button" onclick='editarDocFUF(${n}, ${JSON.stringify(d.tipo_doc)}, ${d.id})' class="text-amber-600 text-xs font-bold shrink-0 inline-flex items-center gap-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar</button>` : ''}`
+                            : `<a href="/api/doc/${d.id}" target="_blank" class="text-primary text-xs font-bold shrink-0">Abrir</a>`;
+                        return `
+                        <div class="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                            <span class="text-xs text-gray-700 truncate flex items-center gap-2"><i data-lucide="file-check-2" class="w-4 h-4 text-secondary"></i> ${_escFUF(d.nombre)}${gen ? ' <span class=\'text-[10px] text-primary font-bold\'>(generado · bloqueado)</span>' : ''}</span>
+                            <span class="flex items-center gap-3 shrink-0 ml-2">${acciones}</span>
+                        </div>`; }).join('')}</div>` : '';
                 if (window.lucide) lucide.createIcons();
             } catch (e) { }
         }
 
-        function abrirFormGenerar(n, tipo) {
+        // Abrir e imprimir → "Guardar como PDF" (sin dependencia server-side).
+        function descargarPDF(id) {
+            const w = window.open('/api/doc/' + id, '_blank');
+            if (w) w.addEventListener('load', () => setTimeout(() => { try { w.print(); } catch (e) { } }, 400));
+        }
+
+        function editarDocFUF(n, tipo, docId) {
+            const prev = (DOCS_GEN[n] || []).find(d => d.id === docId);
+            let campos = {};
+            try { campos = prev && prev.campos_json ? JSON.parse(prev.campos_json) : {}; } catch (e) { }
+            abrirFormGenerar(n, tipo, docId, campos);
+        }
+
+        // Fila de rol adicional del organigrama (campos dinámicos).
+        function _orgRolRow(r) {
+            r = r || {};
+            return `<div class="org-rol grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2 items-start">
+                <input data-org="rol" placeholder="Rol / Nivel" value="${_escFUF(r.rol || '')}" class="p-2 border rounded-lg text-sm">
+                <input data-org="quien" placeholder="Nombre / Responsable" value="${_escFUF(r.quien || '')}" class="p-2 border rounded-lg text-sm">
+                <div class="flex gap-2"><input data-org="responsabilidades" placeholder="Responsabilidades" value="${_escFUF(r.responsabilidades || '')}" class="p-2 border rounded-lg text-sm flex-1">
+                    <button type="button" onclick="this.closest('.org-rol').remove()" class="text-red-500 text-xs font-bold px-2">✕</button></div>
+            </div>`;
+        }
+        function agregarRolOrg(n) {
+            document.getElementById('orgroles_' + n).insertAdjacentHTML('beforeend', _orgRolRow());
+        }
+
+        function abrirFormGenerar(n, tipo, docId, camposPrev) {
             const info = ITEM_INDEX[n];
             const doc = ((info && info.item && info.item.docs) || []).find(d => d.tipo_doc === tipo);
-            const cont = document.getElementById('genform_' + n);
+            const editando = !!docId;
+            const cont = document.getElementById((editando ? 'editform_' : 'genform_') + n);
             if (!doc || !cont) return;
+            const prev = camposPrev || {};
+            const esOrg = tipo === 'organigrama_seguridad';
+            const rolesPrev = Array.isArray(prev.roles_extra) ? prev.roles_extra : [];
+            const orgBlock = esOrg ? `
+                <div class="mt-1 mb-3 border-t border-gray-100 pt-3">
+                    <p class="text-[11px] font-bold text-gray-600 mb-1">Roles adicionales (según tu organización)</p>
+                    <div id="orgroles_${n}">${rolesPrev.map(_orgRolRow).join('')}</div>
+                    <button type="button" onclick="agregarRolOrg(${n})" class="text-primary text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus-circle" class="w-4 h-4"></i> Agregar rol / campo</button>
+                </div>` : '';
             cont.innerHTML = `
                 <div class="bg-white border border-primary/30 rounded-xl p-4">
-                    <p class="text-xs font-bold text-gray-700 mb-2">${_escFUF(doc.nombre)} — completa los datos</p>
+                    <p class="text-xs font-bold text-gray-700 mb-2">${_escFUF(doc.nombre)} — ${editando ? 'edita los datos' : 'completa los datos'}</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                         ${doc.campos.map(c => `<label class="block text-[11px] text-gray-500">${_escFUF(c.label)}
-                            <input data-gk="${c.k}" type="${c.tipo === 'date' ? 'date' : 'text'}" class="w-full p-2 border rounded-lg text-sm text-gray-800"></label>`).join('')}
+                            <input data-gk="${c.k}" type="${c.tipo === 'date' ? 'date' : 'text'}" value="${_escFUF(prev[c.k] || '')}" class="w-full p-2 border rounded-lg text-sm text-gray-800"></label>`).join('')}
                     </div>
-                    <button type="button" onclick="generarDocFUF(${n}, '${tipo}', this)" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><i data-lucide="file-check-2" class="w-4 h-4"></i> Generar documento</button>
+                    ${orgBlock}
+                    <button type="button" onclick="generarDocFUF(${n}, '${tipo}', this, ${docId || 'null'})" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><i data-lucide="file-check-2" class="w-4 h-4"></i> ${editando ? 'Guardar cambios' : 'Generar documento'}</button>
                 </div>`;
             if (window.lucide) lucide.createIcons();
         }
 
-        async function generarDocFUF(n, tipo, btn) {
-            const cont = document.getElementById('genform_' + n);
+        async function generarDocFUF(n, tipo, btn, docId) {
+            const cont = btn.closest('div');
             const campos = {};
             cont.querySelectorAll('[data-gk]').forEach(inp => { campos[inp.dataset.gk] = inp.value; });
+            if (tipo === 'organigrama_seguridad') {
+                const roles = [];
+                cont.querySelectorAll('.org-rol').forEach(row => {
+                    const g = k => (row.querySelector(`[data-org="${k}"]`) || {}).value || '';
+                    if (g('rol') || g('quien')) roles.push({ rol: g('rol'), quien: g('quien'), responsabilidades: g('responsabilidades') });
+                });
+                campos.roles_extra = roles;
+            }
+            const payload = { tipo_doc: tipo, campos };
+            if (docId) payload.doc_id = docId;
             btn.disabled = true;
             const r = await fetch(`/api/fuf/${n}/generar`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tipo_doc: tipo, campos })
+                body: JSON.stringify(payload)
             });
             btn.disabled = false;
             if (!r.ok) { alert('No se pudo generar el documento.'); return; }
             const data = await r.json();
             if (data.descargar && data.doc_id) {
-                // Documento Word fiel: se descarga el .docx generado.
-                window.open('/api/doc/' + data.doc_id, '_blank');
+                window.open('/api/doc/' + data.doc_id, '_blank');   // Word fiel
             } else if (data.html) {
                 const w = window.open('', '_blank');
                 if (w) { w.document.write(data.html); w.document.close(); }
             }
-            // Generado = ahora lo tienes → el ítem pasa a "Cumple" y se muestra el documento guardado.
+            // Generado/editado → el ítem pasa a "Cumple"; refrescamos la lista (queda bloqueado en Editar).
+            const ef = document.getElementById('editform_' + n); if (ef) ef.innerHTML = '';
             setEstado(n, 'si');
+            await cargarDocsItem(n);
             actualizarKPIs();
             if (typeof actualizarDS44Live === 'function') actualizarDS44Live();
         }
@@ -1227,6 +1328,10 @@
             if (typeof cargarBrechas === 'function') cargarBrechas();
         }
 
+        // Debe coincidir con db.AUTO_MIPER — marca los ítems que aplicar_regla_miper_fuf autocompletó
+        // leyendo la Matriz de Riesgos (no bloquea los botones: el experto puede pisarlo igual).
+        const AUTO_MIPER = '[Automático · Matriz de Riesgos] ';
+
         async function cargarFUF() {
             try {
                 const r = await fetch('/api/fuf');
@@ -1244,6 +1349,12 @@
                         if (fch && row.fecha_compromiso) fch.value = row.fecha_compromiso;
                         const rsp = card.querySelector('[data-f="resp"]');
                         if (rsp && row.responsable) rsp.value = row.responsable;
+                    }
+                    const badge = document.getElementById('autoMiper_' + n);
+                    if (badge) {
+                        const auto = row.estado === 'si' && (row.observacion || '').startsWith(AUTO_MIPER);
+                        badge.classList.toggle('hidden', !auto);
+                        badge.classList.toggle('flex', auto);
                     }
                 });
             } catch (e) { /* sin datos previos */ }
@@ -1338,7 +1449,7 @@
         // ─────────────────────────────────────────────────────────────
         // 'matriz' salió de aquí: la Matriz Legal es ahora una página propia (/matriz-legal),
         // no una sección de este archivo. mostrarVista() no tolera ids inexistentes.
-        const VISTAS = ['avance', 'contratos', 'checklist', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones', 'auditoria'];
+        const VISTAS = ['avance', 'contratos', 'checklist', 'reportes', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones', 'auditoria'];
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));
@@ -1906,6 +2017,12 @@
                         <input id="er_razon" class="iet-in sm:col-span-2" placeholder="Razón Social">
                         <input id="er_rut" class="iet-in" placeholder="RUT empresa">
                         <input id="er_rubro" class="iet-in" placeholder="Rubro / giro">
+                        <select id="er_mutual" class="iet-in">
+                            <option value="">— Organismo Administrador (Mutual) —</option>
+                            ${_mutuales.map(m => `<option value="${escM(m)}">${escM(m)}</option>`).join('')}
+                        </select>
+                        <input id="er_adherente" class="iet-in" placeholder="N° Adherente (opcional)">
+                        <input id="er_dotacion" type="number" min="0" class="iet-in" placeholder="Dotación total">
                     </div>
                     <button type="button" onclick="crearEmpresa()" class="mt-3 inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm"><i data-lucide="save" class="w-4 h-4"></i> Registrar empresa</button>`;
                 if (window.lucide) lucide.createIcons();
@@ -1915,6 +2032,21 @@
             let ad = { mutual: '', n_adherente: '', docs: {}, cumple: false };
             try { const r = await fetch('/api/empresa/adhesion'); if (r.ok) ad = await r.json(); } catch (e) { }
             const empresas = data.empresas, activa = data.activa;
+            // Modelo Operativo: derivado de los contratos reales de la empresa activa (Escenario A/B),
+            // no un texto fijo — mismo criterio que ya pinta renderContratos().
+            let modeloOperativo = 'Sin contrato ingresado aún';
+            try {
+                const rc = await fetch('/api/contratos');
+                if (rc.ok) {
+                    const contratos = await rc.json();
+                    if (contratos.length) {
+                        const nMinera = contratos.filter(c => c.es_contratista_minera).length;
+                        if (nMinera === contratos.length) modeloOperativo = 'Contratista Minero (Escenario A)';
+                        else if (nMinera === 0) modeloOperativo = 'Empresa General · Gestión DS 44 (Escenario B)';
+                        else modeloOperativo = 'Mixto: Contratista Minero + Empresa General';
+                    }
+                }
+            } catch (e) { /* sin contratos aún */ }
             const cert = (t, label) => `<label class="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 text-xs cursor-pointer hover:border-primary">
                 <span>${label} ${ad.docs && ad.docs[t] ? '<span class="text-green-600 font-bold">✓</span>' : '<span class="text-gray-400">(pendiente)</span>'}</span>
                 <span class="text-primary font-bold">${ad.docs && ad.docs[t] ? 'Reemplazar' : 'Subir'}<input type="file" class="hidden" onchange="subirCert('${t}', this)"></span>
@@ -1930,23 +2062,41 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${empresas.length >= 30 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}" title="Plan Básico: máximo 30 empresas">Plan Básico · ${empresas.length}/30 empresas</span>
-                        <button type="button" onclick="nuevaEmpresa()" class="text-primary text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Otra empresa</button>
+                        <button type="button" onclick="nuevaEmpresa()" class="text-primary text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Agregar empresa</button>
                     </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 text-xs">
+                    <div class="border border-gray-100 rounded-lg px-3 py-2"><p class="text-gray-400 font-bold uppercase text-[10px]">Modelo Operativo</p><p class="text-gray-800 font-semibold">${modeloOperativo}</p></div>
+                    <div class="border border-gray-100 rounded-lg px-3 py-2"><p class="text-gray-400 font-bold uppercase text-[10px]">Organismo Administrador</p><p class="text-gray-800 font-semibold">${escM(ad.mutual) || 'Sin definir'}</p></div>
+                    <a href="/onboarding" class="border border-primary/30 text-primary rounded-lg px-3 py-2 flex items-center justify-center font-bold hover:bg-primary/5">Ver detalles de empresa</a>
                 </div>
                 <div id="nuevaEmpresaForm" class="hidden grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4">
                     <input id="er_razon" class="iet-in sm:col-span-2" placeholder="Razón Social"><input id="er_rut" class="iet-in" placeholder="RUT"><input id="er_rubro" class="iet-in" placeholder="Rubro">
+                    <select id="er_mutual" class="iet-in">
+                        <option value="">— Organismo Administrador (Mutual) —</option>
+                        ${_mutuales.map(m => `<option value="${escM(m)}">${escM(m)}</option>`).join('')}
+                    </select>
+                    <input id="er_adherente" class="iet-in" placeholder="N° Adherente (opcional)">
+                    <input id="er_dotacion" type="number" min="0" class="iet-in" placeholder="Dotación total">
                     <button type="button" onclick="crearEmpresa()" class="sm:col-span-4 justify-self-start inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-bold text-sm">Registrar</button>
                 </div>
                 <div class="border border-dashed border-primary/30 rounded-lg px-3 py-2.5 flex items-center gap-2 text-xs text-gray-600">
                     <i data-lucide="heart-pulse" class="w-4 h-4 text-primary shrink-0"></i>
-                    <span>La gestión del <b>Organismo Administrador (Mutualidad)</b> y sus certificados vive ahora en <button type="button" onclick="mostrarVista('protocolos'); cargarProtocolos()" class="text-primary font-bold underline">Protocolos de Salud</button>. ${ad.cumple ? '<span class="text-green-600 font-bold">Adhesión: Cumple ✓</span>' : '<span class="text-amber-600 font-bold">Adhesión: pendiente</span>'}</span>
+                    <span>Mutual y N° Adherente ya se configuran directamente al registrar/agregar la empresa aquí arriba. Solo falta subir los 3 certificados de adhesión en <button type="button" onclick="mostrarVista('protocolos'); cargarProtocolos()" class="text-primary font-bold underline">Protocolos de Salud</button>. ${ad.cumple ? '<span class="text-green-600 font-bold">Adhesión: Cumple ✓</span>' : '<span class="text-amber-600 font-bold">Adhesión: pendiente</span>'}</span>
                 </div>`;
             if (window.lucide) lucide.createIcons();
         }
         async function crearEmpresa() {
             const razon = (document.getElementById('er_razon') || {}).value || '';
             if (!razon.trim()) { alert('Indica la Razón Social.'); return; }
-            const r = await fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ razon_social: razon, rut_empresa: (document.getElementById('er_rut') || {}).value || '', rubro: (document.getElementById('er_rubro') || {}).value || '' }) });
+            const r = await fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                razon_social: razon,
+                rut_empresa: (document.getElementById('er_rut') || {}).value || '',
+                rubro: (document.getElementById('er_rubro') || {}).value || '',
+                mutual: (document.getElementById('er_mutual') || {}).value || '',
+                n_adherente: (document.getElementById('er_adherente') || {}).value || '',
+                dotacion: (document.getElementById('er_dotacion') || {}).value || '',
+            }) });
             if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.mensaje || d.error || 'No se pudo registrar la empresa.'); return; }
             location.reload();
         }
@@ -2031,7 +2181,7 @@
         }
 
         const CT_DATOS = ['nombre_servicio', 'gerencia', 'superintendencia', 'admin_eecc',
-            'experto_eecc', 'admin_codelco', 'experto_codelco', 'fecha_inicio', 'fecha_termino',
+            'experto_eecc', 'fecha_inicio', 'fecha_termino',
             'n_trabajadores', 'n_riesgos_criticos', 'organismo_seguro', 'n_subcontratistas'];
 
         // Selector de escenario: A (minero) muestra el detalle del contrato + mandante;
@@ -2043,7 +2193,7 @@
             const detalle = document.getElementById('ctDetalle');
             if (detalle) detalle.classList.toggle('hidden', !sel || !esMinera);
             document.getElementById('derivacionHint').textContent = esMinera
-                ? 'Escenario A: se creará el contrato y se cargará el Dialecto de Prevención (Carpeta/RESSO) sobre tu base DS 44.'
+                ? 'Escenario A: se creará el contrato y se cargará el Dialecto de Prevención del mandante sobre tu base DS 44.'
                 : (sel ? 'Escenario B: tu empresa mantiene su gestión en la base FUF/DS 44 (ya activa). No se crea contrato.' : '');
         }
 
@@ -2103,19 +2253,12 @@
         }
         function renderGap(gap) {
             if (!gap) return '';
-            const b = gap.base_ds44 || {}, m = gap.estandar_minero || {};
+            const b = gap.base_ds44 || {};
             return `<div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 text-sm">
                 <div>
                     <div class="flex items-center justify-between mb-1"><span class="font-bold text-gray-700">${b.titulo || 'Base DS 44'}</span><span class="font-extrabold text-secondary">${b.pct || 0}%</span></div>
                     <div class="h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-full bg-secondary" style="width:${b.pct || 0}%"></div></div>
                     <p class="text-[11px] text-gray-500 mt-1">${b.cumplidos || 0}/${b.total || 0} ítems FUF cumplidos — se conservan como base.</p>
-                </div>
-                <div class="pt-1 border-t border-gray-200">
-                    <p class="font-bold text-gray-700 mb-1">Estándar minero pendiente</p>
-                    <ul class="text-[12px] text-gray-600 space-y-0.5">
-                        <li>Carpeta de Arranque: <b>${m.carpeta_cumple || 0}</b> cumplidos · <b class="text-amber-600">${m.carpeta_pendientes || 0}</b> pendientes (${m.carpeta_total || 0} ítems)</li>
-                        <li>RESSO: <b>${m.resso_estado || 'bloqueado'}</b></li>
-                    </ul>
                 </div>
                 <p class="text-[12px] text-primary font-semibold">${gap.mensaje || ''}</p>
             </div>`;
@@ -2147,7 +2290,7 @@
             if (!input.files.length) return;
             const fd = new FormData();
             fd.append('archivo', input.files[0]);
-            fd.append('flujo', 'RESSO');
+            fd.append('flujo', 'Matriz');
             const r = await fetch(`/api/contratos/${cid}/matriz`, { method: 'POST', body: fd });
             input.value = '';
             if (!r.ok) { alert('No se pudo procesar la matriz.'); return; }
@@ -2173,12 +2316,6 @@
             cargarContratos();
         }
 
-        async function cargarCarpetaArranque(cid, input) {
-            if (!input.files.length) return;
-            await abrirCarpeta(cid);   // abre el panel de la carpeta
-            await subirBulk(input);    // sube y clasifica los archivos de la carpeta conformada
-        }
-
         async function subirLogo(cid, input) {
             if (!input.files.length) return;
             const fd = new FormData();
@@ -2198,9 +2335,8 @@
                 cont.innerHTML = `<p class="text-sm text-gray-400">Aún no hay contratos. Agrégalos en <b>Mis Contratos</b>.</p>`;
                 return;
             }
-            // métrica por contrato: carpeta (Codelco) o controles
+            // métrica por contrato: controles
             const fila = c => {
-                if (c.carpeta) return { pct: c.carpeta.pct, pend: c.carpeta.pendientes, etiqueta: 'Carpeta de Arranque' };
                 const total = c.controles.length || 1;
                 return { pct: Math.round(c.cerradas / total * 100), pend: c.pendientes, etiqueta: 'Controles' };
             };
@@ -2213,8 +2349,7 @@
                 <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-700 font-bold">${totalPend} pendientes</span>`;
             cont.innerHTML = filas.map(({ c, pct, pend, etiqueta }) => {
                 const color = pct >= 80 ? 'bg-secondary' : pct >= 40 ? 'bg-amber-500' : 'bg-red-400';
-                const accion = c.es_codelco ? `abrirCarpeta(${c.id})` : `mostrarVista('contratos')`;
-                return `<button type="button" onclick="${accion}" class="w-full text-left group">
+                return `<button type="button" onclick="mostrarVista('contratos')" class="w-full text-left group">
                     <div class="flex items-center justify-between gap-3 mb-1.5">
                         <span class="text-sm font-bold text-gray-800 truncate group-hover:text-primary">${c.empresa} <span class="text-gray-400 font-normal">· N° ${c.numero}</span></span>
                         <span class="text-xs text-gray-500 shrink-0">${pct}% · <span class="text-amber-600 font-semibold">${pend} pend.</span></span>
@@ -2237,7 +2372,6 @@
                 ['Gerencia', d.gerencia],
                 ['Superintendencia / Dirección', d.superintendencia],
                 ['Administrador EE.CC.', d.admin_eecc],
-                ['Administrador CODELCO', d.admin_codelco],
             ].filter(([, v]) => v);
             if (!filas.length) return '';
             return `<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] mb-3 bg-gray-50/70 rounded-lg p-2.5">
@@ -2292,18 +2426,11 @@
                     <div class="mb-4">${ctrls}</div>
 
                     <div class="flex flex-wrap gap-2 mb-3">
-                        <button type="button" onclick="${c.es_contratista_minera ? `abrirCarpeta(${c.id})` : `mostrarVista('ds44')`}" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95">
+                        <button type="button" onclick="mostrarVista('${c.es_contratista_minera ? 'faena' : 'ds44'}')" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95">
                             <i data-lucide="arrow-right-circle" class="w-3.5 h-3.5"></i> Continuar trabajando</button>
                         ${!c.es_contratista_minera ? `
                         <button type="button" onclick="abrirConvertir(${c.id}, '${(c.empresa || '').replace(/'/g, '')}')" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95">
                             <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> Convertir a Contrato Minero</button>` : ''}
-                        ${c.es_codelco ? `
-                        <label class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:brightness-95">
-                            <i data-lucide="folder-up" class="w-3.5 h-3.5"></i> Cargar Carpeta de Arranque
-                            <input type="file" webkitdirectory multiple class="hidden" onchange="cargarCarpetaArranque(${c.id}, this)">
-                        </label>
-                        <button type="button" onclick="abrirAuditoria(${c.id})" class="inline-flex items-center gap-1.5 ${c.resso_estado === 'en_progreso' ? 'bg-secondary text-white hover:brightness-95' : 'bg-gray-100 text-gray-500'} text-[11px] font-bold px-2.5 py-1.5 rounded">
-                            <i data-lucide="${c.resso_estado === 'en_progreso' ? 'clipboard-check' : 'lock'}" class="w-3.5 h-3.5"></i> Auditoría RESSO${c.resso_estado === 'en_progreso' ? '' : ' (bloqueada)'}</button>` : ''}
                         <label class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-200">
                             <i data-lucide="image" class="w-3.5 h-3.5"></i> ${(c.datos && c.datos.logo_doc_id) ? 'Cambiar logo' : 'Subir logo empresa'}
                             <input type="file" accept="image/*" class="hidden" onchange="subirLogo(${c.id}, this)">
@@ -2322,251 +2449,6 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        // ── Hito ARRANQUE_APROBADO → habilita RESSO ──
-        async function aprobarArranque() {
-            if (!_carpetaCid) return;
-            if (!confirm('¿Confirmas que la Carpeta de Arranque está aprobada y las FIRMAS OFICIALES (acta de aprobación / Anexo 1) están cargadas?\n\nSe habilitará el módulo RESSO y se pre-cargarán los documentos equivalentes.')) return;
-            const r = await fetch(`/api/contratos/${_carpetaCid}/arranque/aprobar`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firmas_ok: true }) });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok) { alert(d.error || 'No se pudo aprobar el arranque.'); return; }
-            alert(`✅ ${d.aviso}\n\nDocumentos pre-cargados al RESO: ${d.sincronizados}.`);
-            const cid = _carpetaCid;
-            cerrarCarpeta();
-            cargarContratos();
-            abrirAuditoria(cid);
-        }
-
-        // ── Módulo Auditoría RESSO ──
-        const AUD_BADGE = { pendiente: 'bg-gray-100 text-gray-500', cumple: 'bg-green-100 text-green-700', na: 'bg-slate-200 text-slate-600' };
-        const AUD_LABEL = { pendiente: 'Pendiente', cumple: 'Cumple', na: 'N/A' };
-        let _auditoriaCid = null;
-
-        async function abrirAuditoria(cid) {
-            _auditoriaCid = cid;
-            const c = (window._contratos || []).find(x => x.id === cid) || {};
-            document.getElementById('auditoriaSub').textContent =
-                `${c.empresa || ''} · N° ${c.numero || ''}${c.faena ? ' · ' + c.faena : ''}`;
-            document.getElementById('auditoriaOverlay').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            const r = await fetch(`/api/contratos/${cid}/auditoria`);
-            if (r.ok) renderAuditoria(await r.json());
-            else { const e = await r.json().catch(() => ({})); alert(e.error || 'Error al abrir la auditoría.'); cerrarAuditoria(); }
-        }
-
-        function cerrarAuditoria() {
-            document.getElementById('auditoriaOverlay').classList.add('hidden');
-            document.body.style.overflow = '';
-            _auditoriaCid = null;
-        }
-
-        function renderAuditoria(data) {
-            const bloqueado = data.resso_estado !== 'en_progreso';
-            const badge = document.getElementById('auditoriaEstadoBadge');
-            badge.textContent = bloqueado ? 'Bloqueado' : 'En Progreso';
-            badge.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full ' +
-                (bloqueado ? 'bg-gray-200 text-gray-600' : 'bg-green-100 text-green-700');
-            document.getElementById('auditoriaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
-            const body = document.getElementById('auditoriaBody');
-            if (bloqueado) {
-                body.innerHTML = `<div class="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-500">
-                    <i data-lucide="lock" class="w-8 h-8 mx-auto mb-2 text-gray-400"></i>
-                    <p class="font-bold text-gray-700">Módulo RESSO bloqueado</p>
-                    <p class="text-sm mt-1">Aprueba la <b>Carpeta de Arranque</b> (100% + firmas) para habilitar el RESO y heredar los documentos equivalentes.</p>
-                </div>`;
-                if (window.lucide) lucide.createIcons();
-                return;
-            }
-            body.innerHTML = data.puntos.map(p => {
-                const docs = p.docs.length
-                    ? `<ul class="mt-2 text-[11px] space-y-0.5">${p.docs.map(d => `
-                        <li class="text-primary font-semibold flex items-center gap-1">
-                            <i data-lucide="link" class="w-3 h-3"></i> ${d.nombre}
-                            <span class="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Heredado de Arranque</span>
-                            <span class="text-[10px] text-gray-400">${d.version || 'v1'} · aprob. ${d.fecha_aprobacion || '—'}${d.firma ? ' · firma: ' + d.firma : ''}</span>
-                        </li>`).join('')}</ul>` : '<p class="mt-1 text-[11px] text-gray-400">Sin documento heredado.</p>';
-                return `<div class="bg-white rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <p class="font-bold text-sm text-gray-900"><span class="text-primary">${p.punto_key}</span> · ${p.titulo}</p>
-                            <p class="text-[11px] text-gray-500 mt-0.5">${p.evidencia}</p>
-                        </div>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${AUD_BADGE[p.estado]}">${AUD_LABEL[p.estado]}</span>
-                    </div>
-                    ${docs}
-                </div>`;
-            }).join('');
-            if (window.lucide) lucide.createIcons();
-        }
-
-        // ── Carpeta de Arranque (RESSO Anexo 2) ──
-        const CARP_BADGE = { pendiente: 'bg-gray-100 text-gray-500', cumple: 'bg-green-100 text-green-700', na: 'bg-slate-200 text-slate-600' };
-        const CARP_LABEL = { pendiente: 'Pendiente', cumple: 'Cumple', na: 'N/A' };
-        let _carpetaCid = null;
-
-        async function abrirCarpeta(cid) {
-            _carpetaCid = cid;
-            const c = (window._contratos || []).find(x => x.id === cid) || {};
-            document.getElementById('carpetaSub').textContent =
-                `${c.empresa || ''} · N° ${c.numero || ''}${c.faena ? ' · ' + c.faena : ''}`;
-            document.getElementById('carpetaOverlay').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            const r = await fetch(`/api/contratos/${cid}/carpeta`);
-            if (r.ok) renderCarpeta(await r.json());
-            else { const e = await r.json(); alert(e.error || 'Error al abrir la carpeta.'); cerrarCarpeta(); }
-        }
-
-        function cerrarCarpeta() {
-            document.getElementById('carpetaOverlay').classList.add('hidden');
-            document.body.style.overflow = '';
-            _carpetaCid = null;
-        }
-
-        // Estado en memoria de la Carpeta abierta (guardado explícito por ítem).
-        let _carpItems = [];
-
-        function renderCarpeta(data) {
-            document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
-            document.getElementById('btnAprobarArranque').classList.toggle('hidden', (data.cumplimiento_pct || 0) < 100);
-            _carpItems = data.items.map(it => ({ ...it, _saved: false }));
-            pintarCarpeta();
-        }
-
-        function _carpItem(n) { return _carpItems.find(x => x.n === n); }
-
-        function pintarCarpeta() {
-            document.getElementById('carpetaItems').innerHTML = _carpItems.map(it => {
-                const opts = ['cumple', 'na', 'pendiente'].map(v =>
-                    `<button type="button" onclick="stageEstado(${it.n},'${v}')" class="text-[10px] font-bold px-2 py-1 rounded border ${it.estado === v ? 'border-transparent ' + CARP_BADGE[v] : 'border-gray-300 text-gray-500'}">${CARP_LABEL[v]}</button>`).join('');
-                const docs = it.docs.length
-                    ? `<ul class="mt-2 text-[11px] space-y-0.5">${it.docs.map(d => {
-                        const carta = d.tipo === 'carta_na';
-                        const ico = carta ? 'file-signature' : 'file';
-                        const col = carta ? 'text-primary font-semibold' : 'text-gray-500';
-                        const tag = carta ? ' <span class="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Carta N/A</span>' : '';
-                        return `<li class="truncate ${col}"><i data-lucide="${ico}" class="w-3 h-3 inline"></i> <a href="/api/doc/${d.id}" class="hover:underline" target="_blank">${d.nombre}</a>${tag}</li>`;
-                      }).join('')}</ul>` : '';
-                const esPend = it.estado === 'pendiente';
-                const obsFalta = esPend && !(it.observacion || '').trim();
-                const fechaField = esPend
-                    ? `<input type="date" value="${it.fecha_compromiso || ''}" oninput="stageFecha(${it.n}, this.value)"
-                              title="Fecha de compromiso de cierre"
-                              class="text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-primary">` : '';
-                const guardar = it._saved
-                    ? `<span class="text-[11px] font-bold text-green-600 px-2">Guardado ✓</span>`
-                    : `<button type="button" onclick="guardarItem(${it.n})" class="inline-flex items-center gap-1 bg-secondary hover:bg-[#6a9e32] text-white text-[11px] font-bold px-3 py-1.5 rounded"><i data-lucide="save" class="w-3.5 h-3.5"></i> Guardar</button>`;
-                const cartaDoc = (it.docs || []).find(d => d.tipo === 'carta_na');
-                const btnCarta = it.estado === 'na'
-                    ? (cartaDoc
-                        ? `<a href="/api/doc/${cartaDoc.id}" target="_blank" class="inline-flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar carta</a>`
-                        : `<button type="button" onclick="generarCartaCarpeta(${it.n})" class="inline-flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar carta</button>`)
-                    : '';
-                return `<div class="bg-white rounded-xl border ${obsFalta ? 'border-amber-300' : 'border-gray-100'} p-4">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <p class="font-bold text-sm text-gray-900"><span class="text-primary">${String(it.n).padStart(2, '0')}.</span> ${it.titulo}</p>
-                            <p class="text-[11px] text-gray-500 mt-0.5">${it.evidencia}</p>
-                            <p class="text-[10px] text-gray-400 mt-0.5">Responsable: ${it.a_quien}</p>
-                        </div>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${CARP_BADGE[it.estado]}">${CARP_LABEL[it.estado]}</span>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2 mt-3">
-                        <div class="flex gap-1">${opts}</div>
-                        <label class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold px-2.5 py-1.5 rounded cursor-pointer hover:bg-gray-200">
-                            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Subir evidencia
-                            <input type="file" multiple class="hidden" onchange="subirEvidencia(${it.n}, this)">
-                        </label>
-                        <input type="text" value="${(it.observacion || '').replace(/"/g, '&quot;')}"
-                               placeholder="${esPend ? 'Observación (obligatoria)…' : 'Observación…'}"
-                               oninput="stageObs(${it.n}, this.value)"
-                               class="flex-1 min-w-[8rem] text-xs border ${obsFalta ? 'border-amber-400' : 'border-gray-200'} rounded px-2 py-1.5 outline-none focus:border-primary">
-                        ${fechaField}
-                        ${btnCarta}
-                        ${guardar}
-                    </div>
-                    ${docs}
-                </div>`;
-            }).join('');
-            if (window.lucide) lucide.createIcons();
-        }
-
-        function stageEstado(n, v) { const it = _carpItem(n); if (!it) return; it.estado = v; it._saved = false; pintarCarpeta(); }
-        function stageObs(n, v) { const it = _carpItem(n); if (it) { it.observacion = v; it._saved = false; } }
-        function stageFecha(n, v) { const it = _carpItem(n); if (it) { it.fecha_compromiso = v; it._saved = false; } }
-
-        async function guardarItem(n) {
-            const it = _carpItem(n);
-            if (!it) return;
-            if (it.estado === 'pendiente' && !(it.observacion || '').trim()) {
-                alert('La observación es obligatoria para una brecha (Pendiente).');
-                pintarCarpeta();
-                return;
-            }
-            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/${n}/estado`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ estado: it.estado, observacion: it.observacion || '', fecha_compromiso: it.fecha_compromiso || '' }) });
-            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'No se pudo guardar.'); return; }
-            const data = await r.json();
-            document.getElementById('carpetaPct').textContent = 'Cumplimiento: ' + data.cumplimiento_pct + '%';
-            document.getElementById('btnAprobarArranque').classList.toggle('hidden', (data.cumplimiento_pct || 0) < 100);
-            // merge: refrescar solo el ítem guardado, preservando ediciones locales de otros
-            const fresh = data.items.find(x => x.n === n);
-            const idx = _carpItems.findIndex(x => x.n === n);
-            if (fresh && idx >= 0) _carpItems[idx] = { ...fresh, _saved: true };
-            pintarCarpeta();
-            cargarContratos();
-            if (typeof cargarBrechas === 'function') cargarBrechas();
-        }
-
-        // Genera la carta N/A del ítem de Carpeta: guarda el estado (el backend crea la carta) y la abre.
-        async function generarCartaCarpeta(n) {
-            const it = _carpItem(n);
-            if (!it || it.estado !== 'na') { alert('Marca el ítem como N/A primero.'); return; }
-            await guardarItem(n);
-            const fresh = _carpItem(n);
-            const carta = (fresh && fresh.docs || []).find(d => d.tipo === 'carta_na');
-            if (carta) window.open(`/api/doc/${carta.id}`, '_blank');
-            else alert('La carta se generó y quedó adjunta al ítem. Ábrela desde el listado del ítem.');
-        }
-
-        async function subirEvidencia(n, input) {
-            if (!input.files.length) return;
-            const fd = new FormData();
-            for (const f of input.files) fd.append('archivo', f);
-            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/${n}/documento`, { method: 'POST', body: fd });
-            input.value = '';
-            if (r.ok) renderCarpeta(await r.json());
-            else alert('No se pudo subir la evidencia.');
-        }
-
-        async function subirBulk(input) {
-            if (!input.files.length) return;
-            const fd = new FormData();
-            for (const f of input.files) fd.append('archivos', f);
-            const box = document.getElementById('bulkReporte');
-            box.classList.remove('hidden');
-            box.innerHTML = `<p class="text-xs text-gray-500 flex items-center gap-2"><i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Analizando ${input.files.length} archivo(s)…</p>`;
-            if (window.lucide) lucide.createIcons();
-            const r = await fetch(`/api/contratos/${_carpetaCid}/carpeta/bulk`, { method: 'POST', body: fd });
-            input.value = '';
-            if (!r.ok) { box.innerHTML = '<p class="text-xs text-red-600">No se pudieron procesar los archivos.</p>'; return; }
-            const data = await r.json();
-            renderCarpeta(data.carpeta);
-            const rows = data.reporte.map(x => {
-                const ok = x.fuente !== 'sin_clasificar';
-                return `<li class="flex items-center justify-between gap-2 py-1 border-b border-gray-50 last:border-0">
-                    <span class="truncate text-gray-700"><i data-lucide="file" class="w-3 h-3 inline"></i> ${x.archivo}</span>
-                    <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">${String(x.item).padStart(2, '0')}. ${x.titulo}${ok ? '' : ' (revisar)'}</span>
-                </li>`;
-            }).join('');
-            box.innerHTML = `<div class="bg-white border border-gray-100 rounded-xl p-3">
-                <p class="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-primary"></i> Clasificación automática (${data.reporte.length})</p>
-                <ul class="text-[11px] space-y-0.5 max-h-48 overflow-y-auto">${rows}</ul>
-                <p class="text-[10px] text-gray-400 mt-2">Los marcados "(revisar)" quedaron en el ítem 29 (Otros). Puedes recolocarlos subiéndolos al ítem correcto.</p>
-            </div>`;
-            if (window.lucide) lucide.createIcons();
-            cargarContratos();
-        }
 
         // ── Vocabulario técnico ──
         // ── Motor de Cumplimiento: Actividades Pendientes ──
@@ -2646,6 +2528,69 @@
 
         // ── Flota / Vehículos con QR (Ronda 22) ──
         function toggleFormVehiculo() { document.getElementById('formVehiculo').classList.toggle('hidden'); }
+        // ── Reporte de actos y condiciones subestándar (participación — FUF 25) ──
+        const REP_NIVEL = {
+            bajo:  { txt: 'Bajo',  cls: 'bg-green-100 text-green-700' },
+            medio: { txt: 'Medio', cls: 'bg-amber-100 text-amber-700' },
+            alto:  { txt: 'Alto',  cls: 'bg-red-100 text-red-700' },
+        };
+        function mostrarQRReporte() {
+            const box = document.getElementById('qrReporteBox');
+            const img = document.getElementById('qrReporteImg');
+            const dl = document.getElementById('qrReporteDl');
+            const src = '/api/reportes/qr?t=' + Date.now();
+            img.src = src; dl.href = src;
+            box.classList.toggle('hidden');
+        }
+        async function cerrarReporte(id) {
+            if (!confirm('¿Marcar este reporte como cerrado?')) return;
+            try { await fetch('/api/reportes/' + id + '/cerrar', { method: 'POST' }); } catch (e) { }
+            cargarReportes();
+        }
+        function kpiCard(label, valor, cls) {
+            return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">${label}</p>
+                <p class="text-2xl font-extrabold ${cls || 'text-gray-900'}">${valor}</p></div>`;
+        }
+        async function cargarReportes() {
+            let resumen = { total: 0, bajo: 0, medio: 0, alto: 0, abiertos: 0, cerrados: 0 };
+            let data = [];
+            try {
+                const [rr, rd] = await Promise.all([fetch('/api/reportes/resumen'), fetch('/api/reportes')]);
+                if (rr.ok) resumen = await rr.json();
+                if (rd.ok) data = await rd.json();
+            } catch (e) { }
+            const kpis = document.getElementById('reportesKpis');
+            if (kpis) kpis.innerHTML =
+                kpiCard('Total reportes', resumen.total, 'text-primary') +
+                kpiCard('Riesgo alto', resumen.alto, 'text-red-600') +
+                kpiCard('Abiertos', resumen.abiertos, 'text-amber-600') +
+                kpiCard('Cerrados', resumen.cerrados, 'text-green-600');
+            const body = document.getElementById('reportesBody');
+            const vacio = document.getElementById('reportesVacio');
+            if (!body) return;
+            if (!data.length) { body.innerHTML = ''; vacio.classList.remove('hidden'); return; }
+            vacio.classList.add('hidden');
+            body.innerHTML = data.map(x => {
+                const n = REP_NIVEL[x.nivel_riesgo] || { txt: x.nivel_riesgo || '—', cls: 'bg-gray-100 text-gray-500' };
+                const tipo = x.clasificacion === 'acto' ? 'Acto' : (x.clasificacion === 'condicion' ? 'Condición' : '—');
+                const foto = x.tiene_foto ? `<a href="/api/reportes/${x.id}/foto" target="_blank" class="text-primary hover:underline inline-flex items-center gap-1"><i data-lucide="image" class="w-3.5 h-3.5"></i> Foto</a>` : '';
+                const cerrar = x.estado === 'cerrado'
+                    ? '<span class="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Cerrado</span>'
+                    : `<button onclick="cerrarReporte(${x.id})" class="text-[11px] font-bold text-primary hover:underline">Cerrar</button>`;
+                return `<tr>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-600">${escM(x.fecha || '')}${x.hora ? '<br><span class="text-[10px] text-gray-400">' + escM(x.hora) + '</span>' : ''}</td>
+                    <td class="px-4 py-3"><span class="font-bold text-gray-800">${escM(x.faena || '—')}</span>${x.area ? '<br><span class="text-[11px] text-gray-400">' + escM(x.area) + '</span>' : ''}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${tipo}</td>
+                    <td class="px-4 py-3 max-w-xs"><span class="text-gray-700">${escM((x.descripcion || '').slice(0, 90))}${(x.descripcion || '').length > 90 ? '…' : ''}</span> ${foto}</td>
+                    <td class="px-4 py-3"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${n.cls}">${n.txt}</span></td>
+                    <td class="px-4 py-3">${x.estado === 'cerrado' ? '<span class="text-[11px] text-gray-400">—</span>' : '<span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Abierto</span>'}</td>
+                    <td class="px-4 py-3 text-right">${cerrar}</td>
+                </tr>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
         async function cargarVehiculos() {
             let data = [];
             try { const r = await fetch('/api/vehiculos'); if (r.ok) data = await r.json(); } catch (e) { }
@@ -2703,14 +2648,13 @@
             document.getElementById('faenaDetalle').innerHTML = `
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                     <div class="flex items-center justify-between gap-2 mb-2">
-                        <h3 class="font-bold text-gray-900 flex items-center gap-2"><i data-lucide="scale" class="w-4 h-4 text-primary"></i> Requisitos del mandante (RESSO: Riesgos Críticos · ECF · SST)</h3>
+                        <h3 class="font-bold text-gray-900 flex items-center gap-2"><i data-lucide="scale" class="w-4 h-4 text-primary"></i> Requisitos del mandante</h3>
                         <div class="flex flex-wrap gap-2">
-                            <a href="/api/faena/${cid}/miper.xlsx" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="sheet" class="w-3.5 h-3.5"></i> Descargar MIPER (Excel SIGO-F-006)</a>
-                            <a href="/api/faena/${cid}/mapa.xlsx" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="git-branch" class="w-3.5 h-3.5"></i> Descargar Mapa de Proceso (SIGO-F-011)</a>
-                            <a href="/api/faena/${cid}/pauta" target="_blank" class="inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Generar Pauta de Arranque</a>
+                            <a href="/api/faena/${cid}/miper.xlsx" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="sheet" class="w-3.5 h-3.5"></i> Descargar MIPER (Excel)</a>
+                            <a href="/api/faena/${cid}/mapa.xlsx" class="inline-flex items-center gap-1.5 bg-secondary text-white text-[11px] font-bold px-3 py-1.5 rounded hover:brightness-95"><i data-lucide="git-branch" class="w-3.5 h-3.5"></i> Descargar Mapa de Proceso</a>
                         </div>
                     </div>
-                    <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500"><th class="p-2">ID</th><th class="p-2">Cuerpo/Estándar</th><th class="p-2">Requisito</th><th class="p-2">Estado</th></tr></thead><tbody>${legal || '<tr><td colspan="4" class="p-3 text-gray-400">Sin requisitos de faena. Usa “Precargar desde Carpeta de Arranque”.</td></tr>'}</tbody></table></div>
+                    <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500"><th class="p-2">ID</th><th class="p-2">Cuerpo/Estándar</th><th class="p-2">Requisito</th><th class="p-2">Estado</th></tr></thead><tbody>${legal || '<tr><td colspan="4" class="p-3 text-gray-400">Sin requisitos de faena. Usa “+ Agregar requisito de mandante”.</td></tr>'}</tbody></table></div>
                     <div class="mt-3 flex flex-wrap gap-2 items-end">
                         <input id="fl_cuerpo" class="iet-in !py-1 !text-xs" placeholder="Cuerpo/estándar (ej. ECF-04)" style="max-width:160px">
                         <input id="fl_req" class="iet-in !py-1 !text-xs" placeholder="Requisito del mandante" style="max-width:220px">
@@ -2727,14 +2671,6 @@
                     </div>
                 </div>`;
             if (window.lucide) lucide.createIcons();
-        }
-        async function precargarFaena() {
-            const cid = document.getElementById('faenaSel').value; if (!cid) return;
-            const r = await fetch(`/api/faena/${cid}/precargar`, { method: 'POST' });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok) { alert(d.error || 'No se pudo precargar.'); return; }
-            alert(`✔ Precarga lista: ${d.legales} requisitos legales del mandante y ${d.riesgos} riesgos críticos (ECF/RC) para ${d.mandante}.`);
-            cargarFaenaDetalle();
         }
         async function agregarLegalFaena(cid) {
             const cuerpo = document.getElementById('fl_cuerpo').value.trim(), req = document.getElementById('fl_req').value.trim();

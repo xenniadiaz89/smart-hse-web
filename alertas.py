@@ -2,8 +2,7 @@
 
 Consolida en un único Panel de Actividades Pendientes:
   (a) legales      → docs por vencer / vencidos (anualidad DS 44) vía db.pendientes_legales
-  (b) contractuales→ brechas de Carpeta/RESSO (ya existentes) vía db.brechas_carpeta
-  (c) operativas   → Matriz Legal con estado_avance='pendiente' → alerta al responsable
+  (b) operativas   → Matriz Legal con estado_avance='pendiente' → alerta al responsable
                      del Control_Operativo.
 
 No envía correos aquí (hook desacoplado para una extensión futura); expone la lista priorizada
@@ -32,19 +31,7 @@ def actividades_pendientes(db, empresa_id):
             'prioridad': 0 if p['estado'] == 'pendiente_actualizacion' else 1,
         })
 
-    # (b) Contractuales (brechas de Carpeta/RESSO)
-    for b in db.brechas_carpeta(_rut_de(db, empresa_id), empresa_id):
-        items.append({
-            'tipo': 'contractual',
-            'titulo': f"Carpeta N°{b['item_n']:02d}",
-            'estado': 'pendiente',
-            'detalle': b.get('observacion') or 'Ítem de Carpeta pendiente.',
-            'contrato': f"{b.get('empresa','')} · N° {b.get('numero','')}",
-            'fecha_compromiso': b.get('fecha_compromiso'),
-            'prioridad': 2,
-        })
-
-    # (c) Operativas (Matriz Legal — responsable del Control_Operativo)
+    # (b) Operativas (Matriz Legal — responsable del Control_Operativo)
     for r in db.matriz_legal(empresa_id):
         if (r.get('estado_avance') or '').lower() != 'pendiente':
             continue
@@ -60,7 +47,7 @@ def actividades_pendientes(db, empresa_id):
             'prioridad': 1 if r.get('capa') == 'core' else 2,
         })
 
-    # (d) Vehículos: checklists de terreno con no conformidad / fatiga (Ronda 22)
+    # (c) Vehículos: checklists de terreno con no conformidad / fatiga (Ronda 22)
     try:
         for c in db.checklists_no_conformes(empresa_id):
             items.append({
@@ -77,10 +64,3 @@ def actividades_pendientes(db, empresa_id):
 
     items.sort(key=lambda x: x.get('prioridad', 9))
     return items
-
-
-def _rut_de(db, empresa_id):
-    """RUT asesor dueño de la empresa (para consultar brechas de Carpeta)."""
-    from models import Empresa
-    e = Empresa.query.get(empresa_id)
-    return e.rut_asesor if e else ''

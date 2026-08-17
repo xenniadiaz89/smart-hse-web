@@ -64,8 +64,7 @@ class Contrato(_DictMixin, sqla.Model):
     creado = sqla.Column(sqla.Text)
     datos_json = sqla.Column(sqla.Text)
     arranque_aprobado = sqla.Column(sqla.Integer, default=0)
-    resso_estado = sqla.Column(sqla.Text)
-    # 1 = presta servicios como contratista a una minería (flujo Carpeta/RESSO);
+    # 1 = presta servicios como contratista a una minería;
     # 0 = empresa general (flujo educativo DS 44 / FUF). Un contrato evoluciona 0→1
     # sin perder evidencias (Módulo Puente).
     es_contratista_minera = sqla.Column(sqla.Integer, default=0)
@@ -93,6 +92,8 @@ class Documento(_DictMixin, sqla.Model):
     mimetype = sqla.Column(sqla.Text)
     base_legal = sqla.Column(sqla.Text)             # Ronda 12: cimiento legal (snapshot de la regla)
     estado_cumplimiento = sqla.Column(sqla.Text)    # 'vigente'|'por_vencer'|'pendiente_actualizacion'
+    tipo_doc = sqla.Column(sqla.Text)               # tipo_doc del catálogo (documento generado editable)
+    campos_json = sqla.Column(sqla.Text)            # campos usados al generar (para reabrir/Editar)
 
 
 class ControlEstado(_DictMixin, sqla.Model):
@@ -105,18 +106,6 @@ class ControlEstado(_DictMixin, sqla.Model):
     origen_contrato_id = sqla.Column(sqla.Integer)
     fecha = sqla.Column(sqla.Text)
     __table_args__ = (sqla.UniqueConstraint('contrato_id', 'control_key'),)
-
-
-class CarpetaEstado(_DictMixin, sqla.Model):
-    __tablename__ = 'carpeta_estado'
-    id = sqla.Column(sqla.Integer, primary_key=True)
-    contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)
-    item_n = sqla.Column(sqla.Integer, nullable=False)
-    estado = sqla.Column(sqla.Text, nullable=False, default='pendiente')
-    observacion = sqla.Column(sqla.Text)
-    fecha_compromiso = sqla.Column(sqla.Text)
-    fecha = sqla.Column(sqla.Text)
-    __table_args__ = (sqla.UniqueConstraint('contrato_id', 'item_n'),)
 
 
 class FufEstado(_DictMixin, sqla.Model):
@@ -133,22 +122,17 @@ class FufEstado(_DictMixin, sqla.Model):
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'item_n'),)
 
 
-class MappingReq(_DictMixin, sqla.Model):
-    __tablename__ = 'mapping_req'
-    id = sqla.Column(sqla.Integer, primary_key=True)
-    categoria = sqla.Column(sqla.Text, nullable=False, unique=True)
-    arranque_item_n = sqla.Column(sqla.Integer)
-    reso_codigo = sqla.Column(sqla.Text)
-
-
 class Trabajador(_DictMixin, sqla.Model):
     __tablename__ = 'trabajador'
     id = sqla.Column(sqla.Integer, primary_key=True)
     contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)  # 0 = sin faena asignada
     empresa_id = sqla.Column(sqla.Integer, index=True)   # Ronda 15: trabajador por empresa
     rut = sqla.Column(sqla.Text, nullable=False)
-    nombre = sqla.Column(sqla.Text)
-    rol = sqla.Column(sqla.Text)                          # rol crítico (resso.ROLES_CRITICOS): gatilla sus requisitos
+    nombre = sqla.Column(sqla.Text)                       # derivado de nombres+apellidos (ver db.trabajador_crear/_editar);
+                                                            # se mantiene poblado para no tocar consumidores existentes (IRL, etc.)
+    apellidos = sqla.Column(sqla.Text)
+    nombres = sqla.Column(sqla.Text)
+    rol = sqla.Column(sqla.Text)                          # rol crítico (roles_criticos.ROLES_CRITICOS): gatilla sus requisitos
     cargo = sqla.Column(sqla.Text)                        # Ronda 15: cargo (ej. Analista Geofísico)
     fecha_ingreso = sqla.Column(sqla.Text)
     # Ronda 26 — Desvinculación. La baja NO borra: un trabajador desvinculado conserva su historial
@@ -158,11 +142,13 @@ class Trabajador(_DictMixin, sqla.Model):
     motivo_egreso = sqla.Column(sqla.Text)
     conduce = sqla.Column(sqla.Integer, default=0)        # Ronda 28: conduce → requisitos Ley Tránsito
     cphs_rol = sqla.Column(sqla.Text)                     # 'titular'|'suplente' → curso de orientación CPHS
+    tiene_personal_cargo = sqla.Column(sqla.Integer, default=0)   # 1 = supervisa a otras personas
+    max_participantes = sqla.Column(sqla.Integer)                 # dotación a su cargo (solo si tiene_personal_cargo)
 
 
 class TrabajadorRequisito(_DictMixin, sqla.Model):
     """Ronda 26 — Requisito exigible a UNA persona (capacitación, examen o documento), inyectado
-    automáticamente según su rol crítico (resso.REQUISITOS_POR_ROL).
+    automáticamente según su rol crítico (roles_criticos.REQUISITOS_POR_ROL).
 
     Es el registro por persona que antes no existía: Capacitacion y ProtocoloSalud son contadores
     agregados por cargo y no permiten saber QUIÉN está capacitado.
@@ -179,7 +165,7 @@ class TrabajadorRequisito(_DictMixin, sqla.Model):
     nombre = sqla.Column(sqla.Text)
     tipo = sqla.Column(sqla.Text)                         # 'capacitacion'|'examen'|'documento'
     origen = sqla.Column(sqla.Text)                       # 'todos'|'rol:conductor'|'rol_anterior'
-    carpeta_item = sqla.Column(sqla.Integer)              # ítem de la Carpeta de Arranque que lo pide
+    carpeta_item = sqla.Column(sqla.Integer)              # referencia interna del catálogo de origen (opcional)
     responsable_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'))  # nombre+RUT reales
     fecha_emision = sqla.Column(sqla.Text)
     vigencia_meses = sqla.Column(sqla.Integer)
@@ -188,18 +174,6 @@ class TrabajadorRequisito(_DictMixin, sqla.Model):
     doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))   # evidencia (blob)
     creado = sqla.Column(sqla.Text)
     __table_args__ = (sqla.UniqueConstraint('trabajador_id', 'codigo'),)
-
-
-class AuditoriaEstado(_DictMixin, sqla.Model):
-    __tablename__ = 'auditoria_estado'
-    id = sqla.Column(sqla.Integer, primary_key=True)
-    contrato_id = sqla.Column(sqla.Integer, index=True, nullable=False)
-    punto_key = sqla.Column(sqla.Text, nullable=False)
-    estado = sqla.Column(sqla.Text, nullable=False, default='pendiente')
-    observacion = sqla.Column(sqla.Text)
-    fecha_compromiso = sqla.Column(sqla.Text)
-    fecha = sqla.Column(sqla.Text)
-    __table_args__ = (sqla.UniqueConstraint('contrato_id', 'punto_key'),)
 
 
 class Aplicabilidad(_DictMixin, sqla.Model):
@@ -405,6 +379,16 @@ class DocumentoGenerado(_DictMixin, sqla.Model):
 
 
 # ══════════ Ronda 15 — Motor de Generación Documental (IRL) ══════════
+class ProcesoIPER(_DictMixin, sqla.Model):
+    """Proceso que agrupa tareas dentro de una Matriz de Riesgos (IPER)."""
+    __tablename__ = 'proceso_iper'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    matriz_id = sqla.Column(sqla.Integer, sqla.ForeignKey('matriz_riesgo.id'), index=True, nullable=False)
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    creado_por = sqla.Column(sqla.Text)
+    creado_en = sqla.Column(sqla.Text)
+
+
 class TareaIPER(_DictMixin, sqla.Model):
     """Tarea/actividad que agrupa riesgos dentro de una Matriz de Riesgos (IPER)."""
     __tablename__ = 'tarea_iper'
@@ -413,7 +397,7 @@ class TareaIPER(_DictMixin, sqla.Model):
     proceso = sqla.Column(sqla.Text)
     nombre = sqla.Column(sqla.Text, nullable=False)         # la Tarea (ej. 'Análisis de leyes en ripios')
     puesto = sqla.Column(sqla.Text)                         # Ronda 25: Puesto de Trabajo (columna E del SIGO-F-006)
-    rutinaria = sqla.Column(sqla.Text)                      # 'rutinaria'|'no_rutinaria'
+    rutinaria = sqla.Column(sqla.Text)                      # 'rutinaria'|'no_rutinaria'|'emergencia'
     responsable = sqla.Column(sqla.Text)
     fecha_evaluacion = sqla.Column(sqla.Text)
     estado_avance = sqla.Column(sqla.Text, default='Pendiente')
@@ -541,6 +525,24 @@ class ProtocoloSalud(_DictMixin, sqla.Model):
     orden = sqla.Column(sqla.Integer, default=0)
 
 
+class ProtocoloEtapaEstado(_DictMixin, sqla.Model):
+    """Avance de una actividad de la Carta Gantt de Protocolos MINSAL (protocolos_gantt/catalogo.py),
+    por empresa. `etapa_clave` referencia el catálogo (ej. '2.3'); no hay FK porque el catálogo es
+    dato puro en Python, no una tabla."""
+    __tablename__ = 'protocolo_etapa_estado'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    etapa_clave = sqla.Column(sqla.Text, nullable=False)
+    estado = sqla.Column(sqla.Text, default='pendiente')    # 'pendiente'|'en_proceso'|'cumple'
+    responsable = sqla.Column(sqla.Text)
+    fecha_inicio = sqla.Column(sqla.Text)
+    fecha_termino = sqla.Column(sqla.Text)
+    observacion = sqla.Column(sqla.Text)
+    evidencia_doc_id = sqla.Column(sqla.Integer, sqla.ForeignKey('documento.id'))
+    fecha = sqla.Column(sqla.Text)
+    __table_args__ = (sqla.UniqueConstraint('empresa_id', 'etapa_clave'),)
+
+
 class EstadisticaMensual(_DictMixin, sqla.Model):
     """Ronda 28 — Estadística de Prevención mensual por empresa (transversal, no por contrato).
     Alimenta el gráfico de la portada de Mis Contratos y el documento FUF 47/60. Los índices
@@ -556,6 +558,30 @@ class EstadisticaMensual(_DictMixin, sqla.Model):
     n_trabajadores = sqla.Column(sqla.Integer, default=0)
     hh_trabajadas = sqla.Column(sqla.Integer, default=0)
     __table_args__ = (sqla.UniqueConstraint('empresa_id', 'anio', 'mes'),)
+
+
+class Siniestro(_DictMixin, sqla.Model):
+    """Registro individual de un siniestro (accidente/incidente), a diferencia de
+    EstadisticaMensual que solo guarda el agregado mensual sin trazabilidad de quién ni qué pasó.
+
+    Complementario, no reemplaza EstadisticaMensual: ese sigue siendo el valor "oficial" que
+    alimenta el FUF 47/60 (ver estadisticas.py). Este alimenta el panel /siniestros, cuyos KPIs
+    se calculan en tiempo real sumando también los "días cargo" (dias_cargo.py, tabla ISP) para
+    lesiones con incapacidad permanente parcial sin días de reposo tabulados."""
+    __tablename__ = 'siniestro'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    trabajador_id = sqla.Column(sqla.Integer, sqla.ForeignKey('trabajador.id'), index=True)
+    fecha = sqla.Column(sqla.Text, nullable=False)
+    faena = sqla.Column(sqla.Text)
+    tipo_evento = sqla.Column(sqla.Text, default='accidente')   # 'accidente'|'incidente'
+    tipo_lesion = sqla.Column(sqla.Text)                         # llave de dias_cargo.TABLA_DIAS_CARGO
+    con_tiempo_perdido = sqla.Column(sqla.Integer, default=0)    # 1 = CTP (cuenta para el IF)
+    dias_perdidos = sqla.Column(sqla.Integer, default=0)
+    dias_cargo_manual = sqla.Column(sqla.Integer)                 # override; si es None se usa la tabla ISP
+    descripcion = sqla.Column(sqla.Text)
+    creado_por = sqla.Column(sqla.Text)
+    creado = sqla.Column(sqla.Text)
 
 
 class Capacitacion(_DictMixin, sqla.Model):
@@ -618,3 +644,61 @@ class ActividadCPHS(_DictMixin, sqla.Model):
     acuerdo_comunicado = sqla.Column(sqla.Integer, default=0)   # comunicado por escrito (FUF 36)
     doc_id = sqla.Column(sqla.Integer)     # acta cargada/generada (FUF 35)
     estado = sqla.Column(sqla.Text, default='realizada')        # 'realizada'|'pendiente'
+
+
+class ReporteSubestandar(_DictMixin, sqla.Model):
+    """Tarjeta de Reporte de Actos y Condiciones Subestándar (participación — FUF 25). Cada trabajador
+    la completa al escanear el QR de la faena. La foto va como BLOB (Render no persiste disco)."""
+    __tablename__ = 'reporte_subestandar'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    faena = sqla.Column(sqla.Text)             # 1. Faena / Frente
+    area = sqla.Column(sqla.Text)              #    Área / Lugar específico
+    fecha = sqla.Column(sqla.Text)             # YYYY-MM-DD
+    hora = sqla.Column(sqla.Text)
+    reporta_nombre = sqla.Column(sqla.Text)    #    Nombre de quien reporta
+    reporta_cargo = sqla.Column(sqla.Text)
+    clasificacion = sqla.Column(sqla.Text)     # 2. 'acto' | 'condicion'
+    peligros_json = sqla.Column(sqla.Text)     # 3. claves de peligros marcados (JSON list)
+    descripcion = sqla.Column(sqla.Text)       # 4. ¿Qué pasó / qué vio?
+    accion_inmediata = sqla.Column(sqla.Text)  #    Acción inmediata / medida preventiva sugerida
+    nivel_riesgo = sqla.Column(sqla.Text)      # 5. 'bajo' | 'medio' | 'alto'
+    foto = sqla.Column(sqla.LargeBinary)       # 6. Evidencia fotográfica (BLOB)
+    foto_mimetype = sqla.Column(sqla.Text)
+    estado = sqla.Column(sqla.Text, default='abierto')          # 'abierto' | 'cerrado'
+    creado_ts = sqla.Column(sqla.Text)
+
+    def to_dict(self):
+        # Excluye el blob de la foto (se sirve aparte por /api/reportes/<id>/foto).
+        return {c.name: getattr(self, c.name)
+                for c in self.__table__.columns if c.name != 'foto'}
+
+
+class GRDAmenaza(_DictMixin, sqla.Model):
+    """Amenaza del Plan de Gestión de Riesgos de Desastres (GRD, ítem FUF 27). Genéricas del estándar
+    SUSESO (sismo, incendio, cortes…) + específicas que agrega la empresa."""
+    __tablename__ = 'grd_amenaza'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    empresa_id = sqla.Column(sqla.Integer, index=True, nullable=False)
+    codigo = sqla.Column(sqla.Text)
+    nombre = sqla.Column(sqla.Text, nullable=False)
+    descripcion = sqla.Column(sqla.Text)
+    tipo = sqla.Column(sqla.Text, default='generica')      # 'generica' | 'especifica'
+    identificada = sqla.Column(sqla.Integer, default=0)     # 1 = presente en el centro de trabajo
+    orden = sqla.Column(sqla.Integer, default=0)
+
+
+class GRDPregunta(_DictMixin, sqla.Model):
+    """Pregunta de evaluación de una amenaza GRD + su medida de control. NA = NP × NC."""
+    __tablename__ = 'grd_pregunta'
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    amenaza_id = sqla.Column(sqla.Integer, sqla.ForeignKey('grd_amenaza.id'), index=True, nullable=False)
+    empresa_id = sqla.Column(sqla.Integer, index=True)
+    codigo = sqla.Column(sqla.Text)
+    texto = sqla.Column(sqla.Text, nullable=False)
+    cumplimiento = sqla.Column(sqla.Text, default='')      # 'si' | 'no' | 'na' | ''
+    np = sqla.Column(sqla.Integer)                         # Nivel de Probabilidad
+    nc = sqla.Column(sqla.Integer)                         # Nivel de Consecuencia
+    accion = sqla.Column(sqla.Text)
+    medida = sqla.Column(sqla.Text)
+    evidencia = sqla.Column(sqla.Text)

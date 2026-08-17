@@ -31,6 +31,14 @@ def indice_gravedad(dias_perdidos, hh_trabajadas):
     return round(_num(dias_perdidos) * _MILLON / hh, 2) if hh else 0.0
 
 
+def indice_gravedad_con_cargo(dias_perdidos, dias_cargo, hh_trabajadas):
+    """IG detallado (módulo /siniestros): suma días cargo (dias_cargo.py, tabla ISP) a los días
+    perdidos reales. No reemplaza indice_gravedad(), que sigue alimentando /api/estadisticas y
+    el FUF 47/60 sin cambios."""
+    hh = _num(hh_trabajadas)
+    return round((_num(dias_perdidos) + _num(dias_cargo)) * _MILLON / hh, 2) if hh else 0.0
+
+
 def tasa_accidentabilidad(n_accidentes, n_trabajadores):
     nt = _num(n_trabajadores)
     return round(_num(n_accidentes) * 100 / nt, 2) if nt else 0.0

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de actos y condiciones subestándar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038' } } } };</script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 font-sans">
+    <div class="max-w-md mx-auto">
+        <div class="bg-primary text-white rounded-2xl p-5 mb-4 shadow">
+            <p class="text-[11px] uppercase tracking-wide text-white/70 font-bold">Reporte de actos y condiciones subestándar</p>
+            <h1 class="text-xl font-extrabold">{{ empresa.razon_social }}</h1>
+            <p class="text-white/85 text-sm">Tu reporte ayuda a prevenir. Es anónimo si lo dejas sin nombre.</p>
+        </div>
+
+        <div id="resultado" class="hidden rounded-2xl p-4 mb-4 shadow text-sm"></div>
+
+        <form id="repForm" class="space-y-4">
+            <!-- 1. Información general -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">1. Información general</p>
+                <input name="faena" placeholder="Faena / Frente" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary">
+                <input name="area" placeholder="Área / Lugar específico" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary">
+                <div class="flex gap-2 mb-2">
+                    <input name="fecha" type="date" value="{{ hoy }}" class="w-1/2 p-3 border border-gray-300 rounded-lg outline-none focus:border-primary">
+                    <input name="hora" type="time" class="w-1/2 p-3 border border-gray-300 rounded-lg outline-none focus:border-primary">
+                </div>
+                <input name="reporta_nombre" placeholder="Nombre de quien reporta (opcional)" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary">
+                <input name="reporta_cargo" placeholder="Cargo (opcional)" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary">
+            </div>
+
+            <!-- 2. Clasificación -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">2. Clasificación del reporte</p>
+                {% for c in clasificacion %}
+                <label class="flex items-start gap-3 py-2 cursor-pointer">
+                    <input type="radio" name="clasificacion" value="{{ c.k }}" class="mt-1 accent-primary">
+                    <span><span class="text-sm font-bold text-gray-800">{{ c.txt }}</span><br><span class="text-xs text-gray-500">{{ c.desc }}</span></span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <!-- 3. Peligros -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-1">3. Peligros asociados</p>
+                <p class="text-xs text-gray-500 mb-3">Marca todos los que apliquen.</p>
+                {% for p in peligros %}
+                <label class="flex items-center gap-3 py-1.5 cursor-pointer">
+                    <input type="checkbox" name="peligros" value="{{ p.k }}" class="accent-primary w-4 h-4">
+                    <span class="text-sm text-gray-700">{{ p.txt }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <!-- 4. Detalles -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">4. Detalles del evento</p>
+                <textarea name="descripcion" required rows="3" placeholder="¿Qué pasó / qué vio?" class="w-full p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:border-primary"></textarea>
+                <textarea name="accion_inmediata" rows="2" placeholder="Acción inmediata tomada / medida preventiva sugerida" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary"></textarea>
+            </div>
+
+            <!-- 5. Nivel de riesgo -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">5. Nivel de riesgo operativo</p>
+                <div class="grid grid-cols-3 gap-2">
+                    {% for n in niveles %}
+                    <label class="cursor-pointer">
+                        <input type="radio" name="nivel_riesgo" value="{{ n.k }}" class="peer hidden">
+                        <div class="text-center p-2 rounded-lg border text-xs font-bold
+                            {% if n.color == 'green' %}peer-checked:bg-green-500{% elif n.color == 'amber' %}peer-checked:bg-amber-500{% else %}peer-checked:bg-red-500{% endif %}
+                            peer-checked:text-white peer-checked:border-transparent">
+                            {{ n.txt }}<br><span class="font-normal text-[10px] opacity-80">{{ n.accion }}</span>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 6. Evidencia fotográfica -->
+            <div class="bg-white rounded-2xl p-4 shadow">
+                <p class="font-bold text-gray-900 mb-3">6. Evidencia fotográfica</p>
+                <input name="foto" type="file" accept="image/*" capture="environment" class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white file:font-bold">
+                <p class="text-[11px] text-gray-400 mt-2">Toma la foto en el lugar (evidencia in situ).</p>
+            </div>
+
+            <button type="submit" class="w-full bg-secondary hover:bg-[#6a9e32] text-white py-4 rounded-2xl font-extrabold text-lg shadow">Enviar reporte</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('repForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const box = document.getElementById('resultado');
+            const r = await fetch(location.pathname, { method: 'POST', body: fd });
+            const d = await r.json().catch(() => ({}));
+            box.classList.remove('hidden');
+            if (!r.ok) { box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-red-100 text-red-700'; box.textContent = d.error || 'No se pudo enviar.'; return; }
+            if (d.urgente) {
+                box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-red-100 text-red-800';
+                box.innerHTML = '<b>⚠ Reporte de riesgo ALTO enviado.</b><br>' + (d.nivel || '') + '<br><br>Avisa de inmediato al supervisor. Se notificó en la plataforma.';
+            } else {
+                box.className = 'rounded-2xl p-4 mb-4 shadow text-sm bg-green-100 text-green-800';
+                box.innerHTML = '<b>✅ Reporte enviado. Gracias por participar.</b><br>' + (d.nivel || '') + '<br>Registro guardado en la plataforma.';
+            }
+            e.target.classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>

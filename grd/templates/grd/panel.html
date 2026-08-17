@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART HSE | Plan de Gestión de Riesgos de Desastres (GRD)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>tailwind.config = { theme: { extend: { colors: { primary: '#006a9b', secondary: '#7ab038', sidebar: '#0B3B60' } } } };</script>
+    <style>
+        .in { width:100%; border:1px solid #d1d5db; border-radius:.5rem; padding:.4rem .6rem; font-size:.82rem; outline:none; }
+        .in:focus { border-color:#7ab038; box-shadow:0 0 0 2px rgba(122,176,56,.2); }
+        .badge { display:inline-flex; align-items:center; gap:.25rem; padding:.15rem .5rem; border-radius:9999px; font-weight:700; font-size:.65rem; }
+        .b-green{background:#dcfce7;color:#15803d} .b-amber{background:#fef3c7;color:#b45309} .b-red{background:#fee2e2;color:#b91c1c} .b-gray{background:#f3f4f6;color:#6b7280}
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-sidebar text-white">
+        <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-[11px] uppercase tracking-wide text-white/60 font-bold">Plan de emergencia · FUF 27</p>
+                <h1 class="text-xl font-extrabold">Gestión de Riesgos de Desastres (GRD)</h1>
+            </div>
+            <a href="/dashboard" class="text-sm font-bold text-white/80 hover:text-white inline-flex items-center gap-1"><i data-lucide="arrow-left" class="w-4 h-4"></i> Volver</a>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-5 py-6">
+        <p class="text-gray-600 text-sm mb-4">Identifica las amenazas de tu centro de trabajo, evalúa su cumplimiento y define las medidas de control. Se guarda solo y se mantiene actualizado. <b>NA = NP × NC</b> (Nivel de Amenaza = Probabilidad × Consecuencia).</p>
+
+        <div id="resumen" class="grid grid-cols-3 gap-3 mb-6"></div>
+        <div id="amenazas" class="space-y-3"></div>
+
+        <div class="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <p class="font-bold text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i> Agregar amenaza específica</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                <input id="na_nombre" class="in" placeholder="Nombre (ej. Inundación por crecida)">
+                <input id="na_desc" class="in" placeholder="Descripción (opcional)">
+            </div>
+            <button onclick="crearAmenaza()" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold">Agregar</button>
+        </div>
+    </main>
+
+    <script>
+        const NP_NC = [1, 2, 3, 4];
+        let DATA = { amenazas: [], resumen: {} };
+        function esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+        async function cargar() {
+            const r = await fetch('/api/grd'); DATA = await r.json(); render();
+        }
+        async function post(url, body) {
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+            if (r.ok) { DATA = await r.json(); render(); } else { alert('No se pudo guardar.'); }
+        }
+        function guardarPregunta(pid, patch) { post('/api/grd/pregunta/' + pid, patch); }
+        function toggleIdent(aid, val) { post('/api/grd/amenaza/' + aid, { identificada: val }); }
+        function eliminarAmenaza(aid) { if (confirm('¿Eliminar esta amenaza y sus preguntas?')) post('/api/grd/amenaza/' + aid + '/eliminar', {}); }
+        function crearAmenaza() {
+            const nombre = document.getElementById('na_nombre').value.trim();
+            if (!nombre) { alert('Indica el nombre.'); return; }
+            post('/api/grd/amenaza', { nombre, descripcion: document.getElementById('na_desc').value });
+            document.getElementById('na_nombre').value = ''; document.getElementById('na_desc').value = '';
+        }
+
+        function kpi(t, v, c) { return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">${t}</p><p class="text-2xl font-extrabold ${c || 'text-gray-900'}">${v}</p></div>`; }
+
+        function selNum(val, cur, cb) {
+            return `<select class="in" onchange="${cb}"><option value="">–</option>${NP_NC.map(x => `<option value="${x}" ${x == cur ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
+        }
+
+        function pregHTML(p) {
+            const cump = p.cumplimiento || '';
+            const radio = (v, lbl, col) => `<label class="cursor-pointer"><input type="radio" name="c_${p.id}" value="${v}" ${cump === v ? 'checked' : ''} onchange="guardarPregunta(${p.id},{cumplimiento:'${v}'})" class="peer hidden"><span class="px-2.5 py-1 rounded-lg border text-xs font-bold peer-checked:${col} peer-checked:text-white peer-checked:border-transparent">${lbl}</span></label>`;
+            const medidas = cump === 'no' ? `
+                <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input class="in" placeholder="Acción" value="${esc(p.accion)}" onchange="guardarPregunta(${p.id},{accion:this.value})">
+                    <input class="in" placeholder="Medida de control" value="${esc(p.medida)}" onchange="guardarPregunta(${p.id},{medida:this.value})">
+                    <input class="in" placeholder="Evidencia" value="${esc(p.evidencia)}" onchange="guardarPregunta(${p.id},{evidencia:this.value})">
+                </div>
+                <div class="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                    <span>NP</span>${selNum(1, p.np, `guardarPregunta(${p.id},{np:this.value})`)}
+                    <span>NC</span>${selNum(1, p.nc, `guardarPregunta(${p.id},{nc:this.value})`)}
+                    <span class="badge b-${p.nivel.color}">NA ${p.na || '–'} · ${p.nivel.txt}</span>
+                </div>` : '';
+            return `<div class="border-t border-gray-100 py-2">
+                <div class="flex items-start justify-between gap-3">
+                    <span class="text-sm text-gray-700">${esc(p.texto)}</span>
+                    <span class="flex gap-1 shrink-0">${radio('si', 'Sí', 'bg-secondary')}${radio('no', 'No', 'bg-red-500')}${radio('na', 'N/A', 'bg-gray-400')}</span>
+                </div>${medidas}</div>`;
+        }
+
+        function amenazaHTML(a) {
+            const v = a.vulnerabilidad;
+            return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="flex items-center justify-between gap-3 p-4">
+                    <label class="flex items-center gap-3 cursor-pointer min-w-0">
+                        <input type="checkbox" ${a.identificada ? 'checked' : ''} onchange="toggleIdent(${a.id}, this.checked)" class="w-5 h-5 accent-primary shrink-0">
+                        <span class="min-w-0">
+                            <span class="font-bold text-gray-900">${a.codigo ? esc(a.codigo) + ' · ' : ''}${esc(a.nombre)}</span>
+                            ${a.descripcion ? `<span class="block text-xs text-gray-500">${esc(a.descripcion)}</span>` : ''}
+                        </span>
+                    </label>
+                    <span class="flex items-center gap-2 shrink-0">
+                        <span class="badge b-${v.color}">Vulnerabilidad ${v.txt}${v.pct != null ? ' · ' + v.pct + '%' : ''}</span>
+                        <button onclick="togglePreg(${a.id})" class="text-primary text-xs font-bold">Evaluar</button>
+                        ${a.tipo === 'especifica' ? `<button onclick="eliminarAmenaza(${a.id})" class="text-red-400 text-xs font-bold">✕</button>` : ''}
+                    </span>
+                </div>
+                <div id="preg_${a.id}" class="hidden px-4 pb-3">${a.preguntas.map(pregHTML).join('') || '<p class="text-xs text-gray-400 py-2">Sin preguntas.</p>'}</div>
+            </div>`;
+        }
+        function togglePreg(aid) { document.getElementById('preg_' + aid).classList.toggle('hidden'); }
+
+        function render() {
+            const r = DATA.resumen || {};
+            document.getElementById('resumen').innerHTML =
+                kpi('Amenazas', r.amenazas || 0, 'text-primary') +
+                kpi('Identificadas', r.identificadas || 0, 'text-secondary') +
+                kpi('Vulnerabilidad alta', r.alto || 0, 'text-red-600');
+            document.getElementById('amenazas').innerHTML = (DATA.amenazas || []).map(amenazaHTML).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+        cargar();
+    </script>
+</body>
+</html>

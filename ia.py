@@ -1,61 +1,9 @@
-"""Clasificación de documentos en los ítems de la Carpeta de Arranque RESSO.
+"""Inspección de evidencia y análisis de normas con IA (Claude), best-effort.
 
-Motor híbrido: heurística por palabras clave (siempre disponible) y, si existe
-ANTHROPIC_API_KEY, refuerzo con Claude (gancho preparado)."""
+Motor híbrido: usa Claude cuando hay ANTHROPIC_API_KEY configurada; si no, degrada a
+verificación manual."""
 import os
 import re
-import unicodedata
-
-import resso
-
-
-def _norm(s):
-    s = str(s or '').lower()
-    s = ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
-    return re.sub(r'[_\-.]+', ' ', s)
-
-
-def clasificar_heuristico(nombre):
-    """Devuelve (item_n, score) del mejor calce por palabras clave en el nombre."""
-    t = _norm(nombre)
-    mejor_n, mejor_score = None, 0
-    for n, kws in resso.KEYWORDS.items():
-        score = 0
-        for kw in kws:
-            kwn = _norm(kw)
-            if kwn and kwn in t:
-                score += len(kwn.split())  # frases pesan más que palabras sueltas
-        if score > mejor_score:
-            mejor_n, mejor_score = n, score
-    return mejor_n, mejor_score
-
-
-def clasificar_path(relpath):
-    """Clasifica usando la ruta relativa (carga de carpeta ya conformada).
-    Si algún segmento de carpeta empieza con un número 1–29, lo usa directo
-    (la carpeta ya está ordenada conforme al listado); si no, clasifica por nombre."""
-    partes = re.split(r'[\\/]+', relpath or '')
-    nombre = partes[-1] if partes else relpath
-    for seg in partes[:-1]:
-        m = re.match(r'\s*0?(\d{1,2})(?:[\s._\-]|$)', seg)
-        if m:
-            n = int(m.group(1))
-            if 1 <= n <= 29:
-                return n, 'carpeta'
-    return clasificar(nombre)
-
-
-def clasificar(nombre, texto=None):
-    """Clasifica un documento → (item_n, fuente). Heurística; Claude si hay API key."""
-    n, score = clasificar_heuristico(nombre)
-    if score >= 1:
-        return n, 'heuristica'
-    # Sin calce claro: intentar con Claude si está configurado.
-    if os.environ.get('ANTHROPIC_API_KEY'):
-        n_ia = _clasificar_claude(nombre, texto)
-        if n_ia:
-            return n_ia, 'claude'
-    return 29, 'sin_clasificar'  # 29 = "Otros documentos de la faena"
 
 
 def _texto_de(contenido, mimetype):
@@ -214,31 +162,3 @@ def analizar_ley(texto_o_link):
                 'sugerencia': {}}
 
 
-def _clasificar_claude(nombre, texto=None):
-    """Refuerzo opcional con Claude. Devuelve item_n o None.
-    Requiere ANTHROPIC_API_KEY y el paquete `anthropic` (se activa en producción)."""
-    try:
-        import anthropic
-    except ImportError:
-        return None
-    try:
-        catalogo = "\n".join(f"{i['n']}. {i['titulo']} — {i['evidencia']}"
-                             for i in resso.carpeta_lista())
-        client = anthropic.Anthropic()
-        msg = client.messages.create(
-            model=os.environ.get('SMARTHSE_IA_MODEL', 'claude-haiku-4-5'),
-            max_tokens=10,
-            system=("Eres un clasificador documental de la Carpeta de Arranque RESSO (minería "
-                    "Codelco). Dada la información de un documento, responde SOLO con el número "
-                    "de ítem (1-29) que mejor le corresponde, según este catálogo:\n" + catalogo),
-            messages=[{'role': 'user',
-                       'content': f"Documento: {nombre}\n{(texto or '')[:1500]}"}],
-        )
-        m = re.search(r'\d+', msg.content[0].text)
-        if m:
-            n = int(m.group())
-            if 1 <= n <= 29:
-                return n
-    except Exception:
-        return None
-    return None

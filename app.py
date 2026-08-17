@@ -20,7 +20,6 @@ import catalogo_documentos_ds44
 import catalogo_protocolos
 import normativa
 import planes
-import resso
 import ia
 import correccion
 import cumplimiento
@@ -28,6 +27,9 @@ import alertas
 import docgen
 import iper
 import vehiculos
+import reportes
+import formatos
+import orientacion_evaluador
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -138,6 +140,9 @@ _registrar('matriz_riesgos', 'matriz_riesgos')
 _registrar('nomina', 'nomina')
 _registrar('cphs', 'cphs')
 _registrar('auditoria', 'auditoria')
+_registrar('grd', 'grd')
+_registrar('protocolos_gantt', 'protocolos_gantt')
+_registrar('siniestros', 'siniestros')
 
 # Si el módulo de onboarding cayó, no se puede exigir onboarding: dejaría al usuario bloqueado
 # sin la pantalla donde desbloquearse.
@@ -289,14 +294,21 @@ def dashboard():
     if emp:
         try:
             db.aplicar_reglas_dotacion_fuf(emp['id'], rut=session['rut'])
+            db.aplicar_regla_miper_fuf(emp['id'], rut=session['rut'])
             dotacion = db.dotacion_efectiva(emp['id'])
         except Exception:      # noqa: BLE001 — el dashboard entra igual
             pass
+    # Enriquecer con el flag de "formato Word descargable" por ítem (sin ensuciar el catálogo).
+    fuf_catalogo = catalogo_documentos_ds44.enriquecer_fuf(fuf.SECCIONES)
+    for s in fuf_catalogo:
+        for it in s['items']:
+            it['formato'] = formatos.tiene_formato(it['n'])
+            it['sugerencia'] = orientacion_evaluador.ORIENTACION.get(it['n'])
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
                            onboarding_ok=core_auth.onboarding_completo(emp),
                            dotacion_efectiva=dotacion,       # gatea el nav del Comité Paritario
-                           fuf_catalogo=catalogo_documentos_ds44.enriquecer_fuf(fuf.SECCIONES))   # el modal FUF lo recibe por tojson
+                           fuf_catalogo=fuf_catalogo)   # el modal FUF lo recibe por tojson
 
 
 # ── API de empresas (gestión desde la consola) ──
@@ -672,39 +684,11 @@ def _consolidar(rut, empresa_id=None):
             datos = json.loads(c['datos_json']) if c.get('datos_json') else {}
         except (TypeError, ValueError):
             datos = {}
-        es_codelco = resso.es_codelco(c['mandante'])
-        carpeta = None
-        if es_codelco:
-            car = _carpeta(c['id'])
-            cumple = sum(1 for i in car['items'] if i['estado'] == 'cumple')
-            na = sum(1 for i in car['items'] if i['estado'] == 'na')
-            total = len(car['items'])
-            carpeta = {'pct': car['cumplimiento_pct'], 'total': total, 'cumple': cumple,
-                       'na': na, 'pendientes': total - cumple - na}
         salida.append({**c, 'controles': controles,
                        'documentos': db.documentos_de(c['id']),
-                       'datos': datos, 'es_codelco': es_codelco, 'carpeta': carpeta,
+                       'datos': datos,
                        'cerradas': cerradas, 'pendientes': len(controles) - cerradas})
     return salida
-
-
-def _carpeta(cid):
-    """Estado de la Carpeta de Arranque (29 ítems) de un contrato."""
-    estados = db.estados_carpeta(cid)
-    docs = db.docs_por_item(cid)
-    items = []
-    for it in resso.carpeta_lista():
-        e = estados.get(it['n'], {})
-        items.append({**it,
-                      'estado': e.get('estado', 'pendiente'),
-                      'observacion': e.get('observacion', '') or '',
-                      'fecha_compromiso': e.get('fecha_compromiso', '') or '',
-                      'docs': [{'id': d['id'], 'nombre': d['nombre'], 'tipo': d.get('tipo', 'evidencia')}
-                               for d in docs.get(it['n'], [])]})
-    aplicables = [i for i in items if i['estado'] != 'na']
-    cumple = [i for i in aplicables if i['estado'] == 'cumple']
-    pct = round(len(cumple) / len(aplicables) * 100) if aplicables else 0
-    return {'items': items, 'cumplimiento_pct': pct}
 
 
 def _datos(contrato):
@@ -724,64 +708,6 @@ def _logo_doc(cid):
 
 def _logo_data_uri(rut, cid):
     return docgen.logo_data_uri(db, rut, cid)
-
-
-def carta_na_html(rut, contrato, datos, item, fundamento):
-    """Genera una Carta de No Aplica (N/A) en HTML autocontenido (con logo si existe)."""
-    hoy = date.today().strftime('%d-%m-%Y')
-    empresa = (datos.get('empresa_contratista') or contrato.get('empresa') or '').strip()
-    fund = (fundamento.strip() if fundamento and fundamento.strip() else '[Pendiente de fundamentar]')
-    mandante = contrato.get('mandante', '') + (f" — {contrato.get('faena')}" if contrato.get('faena') else '')
-    logo = _logo_data_uri(rut, contrato.get('id'))
-    logo_html = f'<img src="{logo}" alt="Logo" style="max-height:80px;max-width:220px">' if logo else \
-        f'<div style="font-weight:800;color:#006a9b;font-size:20px">{empresa or "Empresa Contratista"}</div>'
-    def esc(s):
-        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-    return f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-<title>Carta N/A · Ítem {item['n']} · Contrato {esc(contrato.get('numero',''))}</title>
-<style>
- body{{font-family:Arial,Helvetica,sans-serif;color:#1a2b3c;max-width:820px;margin:24px auto;padding:0 24px;line-height:1.5}}
- .head{{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #006a9b;padding-bottom:14px;margin-bottom:20px}}
- .titulo{{text-align:right}} h1{{font-size:18px;margin:0;color:#006a9b}} .sub{{font-size:12px;color:#666}}
- table{{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}}
- td{{padding:6px 8px;border-bottom:1px solid #eee}} td.k{{color:#666;width:230px;font-weight:600}}
- .item{{background:#f4f7f6;border-radius:8px;padding:12px 14px;margin:14px 0}}
- .decl{{margin:18px 0}} .fund{{background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:12px 14px;font-weight:600}}
- .firma{{margin-top:48px;border-top:1px solid #333;width:320px;padding-top:6px;font-size:13px}}
- .pie{{margin-top:24px;font-size:11px;color:#999}}
-</style></head><body>
- <div class="head">{logo_html}<div class="titulo"><h1>CARTA DE NO APLICABILIDAD (N/A)</h1><div class="sub">DS 44/2024 · Gestión Preventiva de Riesgos Laborales</div></div></div>
- <table>
-  <tr><td class="k">Fecha</td><td>{esc(hoy)}</td></tr>
-  <tr><td class="k">Empresa Contratista</td><td>{esc(empresa)}</td></tr>
-  <tr><td class="k">N° de Contrato</td><td>{esc(contrato.get('numero',''))}</td></tr>
-  <tr><td class="k">Mandante / División</td><td>{esc(mandante)}</td></tr>
-  {f'<tr><td class="k">Administrador de Contrato CODELCO</td><td>{esc(datos.get("admin_codelco"))}</td></tr>' if datos.get('admin_codelco') else ''}
- </table>
- <div class="item"><b>Ítem N° {item['n']}: {esc(item['titulo'])}</b><br><span class="sub">Evidencia normalmente requerida: {esc(item['evidencia'])}</span></div>
- <div class="decl"><b>DECLARACIÓN DE NO APLICABILIDAD</b><br>
-  Por medio de la presente, la Empresa Contratista declara que el requisito individualizado
-  <b>NO APLICA</b> al presente contrato, por el siguiente fundamento:</div>
- <div class="fund">Fundamento: {esc(fund)}</div>
- <p>Esta declaración se incorpora al sistema de gestión preventiva de la empresa (DS 44/2024) para efectos de acreditación y auditoría.</p>
- <div class="firma">{esc(datos.get('experto_eecc') or 'Experto en Prevención de Riesgos EE.CC.')}<br>
-  <span class="sub">Experto en Prevención de Riesgos — Empresa Contratista</span></div>
- <div class="pie">Smart HSE Chile · Documento generado automáticamente</div>
-</body></html>"""
-
-
-def generar_carta_na(rut, cid, contrato, n, fundamento):
-    """Crea/actualiza la carta N/A (HTML con logo) del ítem n, guardándola en la BD."""
-    item = resso.CARPETA_DICT.get(n)
-    if not item:
-        return
-    datos = _datos(contrato)
-    html = carta_na_html(rut, contrato, datos, item, fundamento)
-    numero = re.sub(r'[^\w-]+', '_', contrato.get('numero', '') or '')
-    nombre = f"Carta_NA_item{n:02d}_{numero}.html"
-    db.eliminar_doc_tipo(cid, n, 'carta_na')          # evitar duplicados
-    db.registrar_documento(cid, nombre, 'N/A', 'carta_na', item_n=n,
-                           contenido=html.encode('utf-8'), mimetype='text/html')
 
 
 def _replicar_lista(rut):
@@ -835,35 +761,23 @@ def api_contrato_eliminar():
 
 
 # Mandantes mineros parametrizados (selector de derivación / Módulo Puente).
-MANDANTES_MINEROS = ['Codelco División RT', 'Minera Spence (BHP)', 'Minera El Abra',
+MANDANTES_MINEROS = ['Minera Spence (BHP)', 'Minera El Abra',
                      'Minera Centinela', 'Otra minería']
 FUF_TOTAL = fuf.TOTAL   # 60 ítems del FUF DS 44, contados del catálogo (fuf.py) y no a mano
-CARPETA_TOTAL = 29      # ítems de la Carpeta de Arranque (estándar minero)
 
 
 def _gap_analysis(rut, cid):
-    """Compara la base DS 44 (FUF del asesor, ya cumplida) contra el estándar minero
-    pendiente (Carpeta de Arranque + RESSO). Devuelve el % de base ya lograda y qué
-    falta para alcanzar el estándar minero. El FUF 'suma', no se re-hace."""
+    """Estado de la base legal DS 44 (FUF del asesor, ya cumplida) tras convertir un contrato
+    a contratista minero. El FUF 'suma', no se re-hace."""
     _ce = db.contrato_de(rut, cid) or {}
     fuf = db.estados_fuf(_ce.get('empresa_id') or _empresa_id())
     fuf_ok = sum(1 for r in fuf.values() if r.get('estado') in ('si', 'na'))
     fuf_pct = round(100 * fuf_ok / FUF_TOTAL) if FUF_TOTAL else 0
-    car = _carpeta(cid)
-    cumple = sum(1 for i in car['items'] if i['estado'] == 'cumple')
-    na = sum(1 for i in car['items'] if i['estado'] == 'na')
-    pendientes = len(car['items']) - cumple - na
     return {
         'base_ds44': {'pct': fuf_pct, 'cumplidos': fuf_ok, 'total': FUF_TOTAL,
                       'titulo': 'Base legal DS 44 / FUF (Ley 16.744)'},
-        'estandar_minero': {
-            'carpeta_pct': car['cumplimiento_pct'], 'carpeta_cumple': cumple,
-            'carpeta_na': na, 'carpeta_pendientes': pendientes,
-            'carpeta_total': len(car['items']),
-            'resso_estado': (db.contrato_de(rut, cid) or {}).get('resso_estado') or 'bloqueado'},
         'mensaje': (f'Ya tienes el {fuf_pct}% de la base legal (DS 44) lista. '
-                    f'Para el estándar minero faltan {pendientes} ítem(es) de la '
-                    f'Carpeta de Arranque y aprobar el RESSO.')
+                    f'Ve a Gestión de Faena para precargar la Matriz de Riesgos de este contrato.')
     }
 
 
@@ -872,7 +786,7 @@ def _gap_analysis(rut, cid):
 def api_contrato_upgrade(cid):
     """Módulo Puente: convierte una empresa general en contratista minera SIN
     re-ingresar datos ni perder avance. Reutiliza el contrato + el FUF del asesor;
-    solo fija el mandante y habilita el flujo Carpeta/RESSO. Deriva a la Carpeta."""
+    solo fija el mandante."""
     rut = session['rut']
     if not db.contrato_de(rut, cid):
         return jsonify({'error': 'Contrato no encontrado.'}), 404
@@ -884,8 +798,7 @@ def api_contrato_upgrade(cid):
     if not actualizado:
         return jsonify({'error': 'No se pudo convertir el contrato.'}), 400
     return jsonify({'contratos': _consolidar(rut), 'id': cid,
-                    'gap': _gap_analysis(rut, cid),
-                    'es_codelco': resso.es_codelco(mandante)})
+                    'gap': _gap_analysis(rut, cid)})
 
 
 @app.route('/api/contratos/<int:cid>/gap', methods=['GET'])
@@ -930,92 +843,6 @@ def link_document(doc_id, target_contract_id, rut=None):
     if db.existe_referencia(target_contract_id, doc_id):
         return None
     return db.crear_doc_referencia(target_contract_id, master, tipo='matriz')
-
-
-def sync_to_resso(rut, cid):
-    """Recorre los documentos aprobados de la Carpeta de Arranque y crea referencias
-    simbólicas en los puntos equivalentes de la Auditoría RESSO (sin duplicar archivos)."""
-    docs_item = db.docs_por_item(cid)          # {item_n: [docs...]}
-    sincronizados = 0
-    for categoria, m in resso.EQUIVALENCIAS.items():
-        item_n = m['carpeta']
-        base = next((d for d in docs_item.get(item_n, []) if d.get('tipo') == 'evidencia'), None)
-        if not base:
-            continue
-        # el documento del arranque pasa a ser el maestro de su categoría
-        db.set_doc_maestro(base['id'], categoria)
-        if db.existe_referencia(cid, base['id']):
-            continue
-        master = db.documento_por_id(rut, base['id'])
-        db.registrar_documento(
-            cid, master['nombre'], 'RESO ' + m['reso'], 'auditoria_ref',
-            item_n=item_n, categoria=categoria, ref_doc_id=base['id'],
-            version=master.get('version') or 'v1',
-            fecha_aprobacion=master.get('fecha_aprobacion') or date.today().isoformat(),
-            firma=master.get('firma'))
-        # el punto RESO queda 'cumple' heredado del arranque
-        db.set_auditoria_estado(cid, m['reso'], 'cumple',
-                                f'Heredado de Carpeta de Arranque (ítem {item_n}).')
-        sincronizados += 1
-    return sincronizados
-
-
-@app.route('/api/contratos/<int:cid>/arranque/aprobar', methods=['POST'])
-@login_required
-def api_arranque_aprobar(cid):
-    """Hito ARRANQUE_APROBADO: exige Carpeta al 100% + firmas; activa RESSO y sincroniza."""
-    rut = session['rut']
-    contrato = db.contrato_de(rut, cid)
-    if not contrato:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    if not resso.es_codelco(contrato.get('mandante')):
-        return jsonify({'error': 'El módulo RESSO aplica solo a contratos Codelco.'}), 400
-    carp = _carpeta(cid)
-    if carp['cumplimiento_pct'] < 100:
-        return jsonify({'error': 'La Carpeta de Arranque debe estar al 100% (todos los ítems aprobados) para aprobar el arranque.'}), 400
-    f = request.get_json(silent=True) or {}
-    docs = db.documentos_de(cid)
-    tiene_firmas = f.get('firmas_ok') is True or any(d.get('tipo') == 'firma' for d in docs)
-    if not tiene_firmas:
-        return jsonify({'error': 'Debe cargar las firmas oficiales (acta de aprobación / Anexo 1) antes de aprobar el arranque.'}), 400
-    db.set_arranque_aprobado(cid)
-    n = sync_to_resso(rut, cid)
-    return jsonify({'ok': True, 'resso_estado': 'en_progreso', 'sincronizados': n,
-                    'aviso': 'Se han pre-cargado documentos desde la Carpeta de Arranque aprobada para el RESO'})
-
-
-def _auditoria(cid):
-    """Estado del módulo Auditoría RESSO (puntos + docs heredados por categoría)."""
-    estados = db.estados_auditoria(cid)
-    por_cat = {}
-    for d in db.documentos_de(cid):
-        if d.get('tipo') == 'auditoria_ref' and d.get('categoria'):
-            por_cat.setdefault(d['categoria'], []).append(d)
-    puntos = []
-    for p in resso.auditoria_lista():
-        e = estados.get(p['punto_key'], {})
-        refs = por_cat.get(p['categoria'], [])
-        puntos.append({**p,
-                       'estado': e.get('estado', 'pendiente'),
-                       'observacion': e.get('observacion', '') or '',
-                       'docs': [{'nombre': x['nombre'], 'ref_doc_id': x.get('ref_doc_id'),
-                                 'version': x.get('version'), 'fecha_aprobacion': x.get('fecha_aprobacion'),
-                                 'firma': x.get('firma')} for x in refs]})
-    aplicables = [x for x in puntos if x['estado'] != 'na']
-    cumple = [x for x in aplicables if x['estado'] == 'cumple']
-    pct = round(len(cumple) / len(aplicables) * 100) if aplicables else 0
-    return {'puntos': puntos, 'cumplimiento_pct': pct}
-
-
-@app.route('/api/contratos/<int:cid>/auditoria', methods=['GET'])
-@login_required
-def api_auditoria(cid):
-    c = db.contrato_de(session['rut'], cid)
-    if not c:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    return jsonify({'resso_estado': c.get('resso_estado') or 'bloqueado',
-                    'arranque_aprobado': bool(c.get('arranque_aprobado')),
-                    **_auditoria(cid)})
 
 
 # ─────────────── Motor lingüístico: vocabulario técnico + corrección ───────
@@ -1071,53 +898,6 @@ def api_registrar_doc(cid):
         return jsonify({'error': 'Falta el nombre del documento.'}), 400
     db.registrar_documento(cid, nombre, (f.get('flujo') or '').strip(), 'evidencia')
     return jsonify(_consolidar(rut))
-
-
-# ─────────────────────── Carpeta de Arranque (RESSO Anexo 2) ───────────────
-@app.route('/api/contratos/<int:cid>/carpeta', methods=['GET'])
-@login_required
-def api_carpeta(cid):
-    c = db.contrato_de(session['rut'], cid)
-    if not c:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    if not resso.es_codelco(c['mandante']):
-        return jsonify({'error': 'La Carpeta de Arranque RESSO aplica solo a contratos Codelco.'}), 400
-    return jsonify(_carpeta(cid))
-
-
-@app.route('/api/contratos/<int:cid>/carpeta/<int:n>/estado', methods=['POST'])
-@login_required
-def api_carpeta_estado(cid, n):
-    contrato = db.contrato_de(session['rut'], cid)
-    if not contrato:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    f = request.get_json(silent=True) or request.form
-    actual = db.estados_carpeta(cid).get(n, {})
-    # conservar lo existente cuando el campo no viene en la petición
-    estado = f.get('estado')
-    if estado is None:
-        estado = actual.get('estado', 'pendiente')
-    estado = (estado or 'pendiente').strip()
-    if estado not in ('pendiente', 'cumple', 'na'):
-        estado = 'pendiente'
-    obs = f.get('observacion')
-    if obs is None:
-        obs = actual.get('observacion', '') or ''
-    obs = obs.strip()
-    fecha_comp = f.get('fecha_compromiso')
-    if fecha_comp is None:
-        fecha_comp = actual.get('fecha_compromiso')
-    fecha_comp = (fecha_comp or '').strip() or None
-    # Una brecha (Pendiente) exige observación.
-    if estado == 'pendiente' and not obs:
-        return jsonify({'error': 'La observación es obligatoria para una brecha (Pendiente).'}), 400
-    db.set_item_estado(cid, n, estado, obs, fecha_comp)
-    # Carta de No Aplica: se genera/actualiza cuando el ítem queda en N/A; se retira si no.
-    if estado == 'na':
-        generar_carta_na(session['rut'], cid, contrato, n, obs)
-    else:
-        db.eliminar_doc_tipo(cid, n, 'carta_na')
-    return jsonify(_carpeta(cid))
 
 
 # ─────────────────────────── FUF DS 44 (persistencia) ──────────────────────
@@ -1216,6 +996,20 @@ def api_fuf_subir(n):
                     'analisis': analisis, **prop})
 
 
+@app.route('/api/fuf/<int:n>/formato', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_fuf_formato(n):
+    """Descarga el formato Word ya hecho del ítem (con el logo de Smart HSE), para rellenar."""
+    par = formatos.formato_de(n)
+    if not par:
+        return ('No hay formato disponible para este ítem.', 404)
+    ruta, nombre = par
+    data = formatos.brandear_docx(ruta)
+    return send_file(BytesIO(data), mimetype=formatos.DOCX_MIME, as_attachment=True,
+                     download_name=f'{nombre} - Smart HSE.docx')
+
+
 @app.route('/api/fuf/<int:n>/generar', methods=['POST'])
 @empresa_required
 @onboarding_required
@@ -1258,8 +1052,17 @@ def api_fuf_generar(n):
     html = catalogo_documentos_ds44.generar_html(tipo_doc, campos, emp)
     cid = db.contrato_base(eid, rut, emp.get('razon_social'))
     nombre = f"{doc['nombre']}.html"
-    doc_id = db.registrar_documento(cid, nombre, 'generado', 'evidencia', item_n=n, categoria='FUF',
-                                    contenido=html.encode('utf-8'), mimetype='text/html; charset=utf-8')
+    # Los campos crudos (incluye listas como roles_extra) se guardan para poder reabrir/Editar.
+    campos_json = json.dumps({k: v for k, v in campos.items() if not k.startswith('_')}, ensure_ascii=False)
+    edit_id = f.get('doc_id')
+    if edit_id and db.actualizar_documento_generado(rut, int(edit_id), html.encode('utf-8'),
+                                                     mimetype='text/html; charset=utf-8',
+                                                     campos_json=campos_json):
+        doc_id = int(edit_id)            # Editar: reemplaza el mismo documento (sin duplicar).
+    else:
+        doc_id = db.registrar_documento(cid, nombre, 'generado', 'evidencia', item_n=n, categoria='FUF',
+                                        contenido=html.encode('utf-8'), mimetype='text/html; charset=utf-8',
+                                        tipo_doc=tipo_doc, campos_json=campos_json)
     db.fuf_marcar_cumple(eid, n, rut=rut)
     prop = _fuf_propagar(eid, rut, n, doc_id)
     return jsonify({'ok': True, 'doc_id': doc_id, 'html': html,
@@ -1281,22 +1084,8 @@ def _dias_restantes(fecha_iso):
 @empresa_required
 @onboarding_required
 def api_brechas():
-    rut = session['rut']
     eid = _empresa_id()
     brechas = []
-    for b in db.brechas_carpeta(rut, eid):
-        item = resso.CARPETA_DICT.get(b['item_n'], {})
-        brechas.append({
-            'fuente': 'carpeta',
-            'item_n': b['item_n'],
-            'etiqueta': f"Carpeta N°{b['item_n']:02d}",
-            'titulo': item.get('titulo', ''),
-            'contrato_id': b['contrato_id'],
-            'contrato': f"{b['empresa']} · N° {b['numero']}" + (f" · {b['faena']}" if b['faena'] else ''),
-            'observacion': b['observacion'] or '',
-            'fecha_compromiso': b['fecha_compromiso'] or '',
-            'dias_restantes': _dias_restantes(b['fecha_compromiso']),
-        })
     for b in db.brechas_fuf(eid):
         brechas.append({
             'fuente': 'fuf',
@@ -1324,11 +1113,6 @@ def api_brecha_compromiso():
     fecha = (f.get('fecha_compromiso') or '').strip() or None
     if fuente == 'fuf':
         db.set_fuf_compromiso(_empresa_id(), n, fecha)
-    elif fuente == 'carpeta':
-        cid = f.get('contrato_id')
-        if not db.contrato_de(session['rut'], cid):
-            return jsonify({'error': 'Contrato no encontrado.'}), 404
-        db.set_carpeta_compromiso(cid, n, fecha)
     else:
         return jsonify({'error': 'fuente inválida.'}), 400
     return jsonify({'ok': True})
@@ -1596,15 +1380,15 @@ def api_faena_precargar(cid):
 @app.route('/api/faena/<int:cid>/miper.xlsx', methods=['GET'])
 @empresa_required
 def api_faena_miper_xlsx(cid):
-    """Descarga la Matriz de Riesgos (MIPER) en el FORMATO del mandante (SIGO-F-006 .xlsx),
-    con la cabecera autocompletada desde el contrato, lista para subir a la nube del mandante."""
+    """Descarga la Matriz de Riesgos (MIPER) en Excel, con la cabecera autocompletada desde el
+    contrato, lista para subir a la nube del mandante."""
     import docgen_xlsx
     eid = _empresa_id()
     c = db.contrato_de(session['rut'], cid)
     if not c:
         return jsonify({'error': 'Contrato no encontrado.'}), 404
     data = docgen_xlsx.build_miper_xlsx(c, db.riesgos_de_contrato(eid, cid))
-    nombre = f"SIGO-F-006_MIPER_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
+    nombre = f"MIPER_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
     return send_file(BytesIO(data), as_attachment=True, download_name=nombre,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -1612,7 +1396,7 @@ def api_faena_miper_xlsx(cid):
 @app.route('/api/faena/<int:cid>/mapa.xlsx', methods=['GET'])
 @empresa_required
 def api_faena_mapa_xlsx(cid):
-    """Descarga el Mapa de Proceso (SIGO-F-011 .xlsx) con Antecedentes autocompletados y la tabla
+    """Descarga el Mapa de Proceso en Excel, con Antecedentes autocompletados y la tabla
     Procesos → Actividades → Tareas del contrato, en el formato del mandante."""
     import docgen_xlsx
     eid = _empresa_id()
@@ -1620,7 +1404,7 @@ def api_faena_mapa_xlsx(cid):
     if not c:
         return jsonify({'error': 'Contrato no encontrado.'}), 404
     data = docgen_xlsx.build_mapa_xlsx(c, db.tareas_de_contrato(eid, cid))
-    nombre = f"SIGO-F-011_MapaProceso_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
+    nombre = f"MapaProceso_{re.sub(r'[^A-Za-z0-9_-]+', '_', c.get('numero') or str(cid))}.xlsx"
     return send_file(BytesIO(data), as_attachment=True, download_name=nombre,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -1641,62 +1425,6 @@ def api_faena_legal(cid):
             'responsable': (f.get('responsable') or '').strip()}
     db.requisito_guardar(eid, data)
     return jsonify(db.matriz_legal_contrato(eid, cid))
-
-
-@app.route('/api/faena/<int:cid>/pauta', methods=['GET'])
-@empresa_required
-def api_faena_pauta(cid):
-    """Genera la Pauta de Arranque RESSO (HTML imprimible → PDF): ítems de la Carpeta de Arranque
-    + estándares del mandante de la faena, con el logo de la empresa. Reusa el patrón de carta_na."""
-    rut, eid = session['rut'], _empresa_id()
-    c = db.contrato_de(rut, cid)
-    if not c:
-        return ('Contrato no encontrado', 404)
-    logo = _logo_empresa(rut, eid)
-    emp = db.empresa_de(rut, eid) or {}
-    carpeta = resso.carpeta_lista() if hasattr(resso, 'carpeta_lista') else []
-    if not carpeta:
-        carpeta = [{'n': n, 'titulo': t, 'evidencia': e, 'a_quien': q}
-                   for (n, t, e, q) in resso.CARPETA_ARRANQUE]
-    estandares = db.matriz_legal_contrato(eid, cid)
-    hoy = date.today().strftime('%d-%m-%Y')
-    def esc(s):
-        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-    logo_html = f'<img src="{logo}" style="max-height:74px;max-width:220px">' if logo else \
-        f'<div style="font-weight:800;color:#006a9b;font-size:20px">{esc(emp.get("razon_social") or "Empresa")}</div>'
-    filas_carp = ''.join(
-        f'<tr><td style="text-align:center">{it["n"]}</td><td><b>{esc(it["titulo"])}</b><br>'
-        f'<span style="color:#666;font-size:11px">{esc(it.get("evidencia"))}</span></td>'
-        f'<td>{esc(it.get("a_quien"))}</td><td style="text-align:center">☐</td></tr>' for it in carpeta)
-    filas_est = ''.join(
-        f'<tr><td>{esc(e.get("id_requisito"))}</td><td>{esc(e.get("requisito_legal"))}</td>'
-        f'<td>{esc(e.get("estado_avance"))}</td></tr>' for e in estandares) or \
-        '<tr><td colspan="3" style="color:#999">Sin estándares del mandante precargados. Usa “Precargar”.</td></tr>'
-    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-<title>Pauta de Arranque · {esc(c.get('numero',''))}</title><style>
- body{{font-family:Arial,Helvetica,sans-serif;color:#1a2b3c;max-width:900px;margin:24px auto;padding:0 24px;line-height:1.45;font-size:12px}}
- .head{{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #006a9b;padding-bottom:12px;margin-bottom:14px}}
- h1{{font-size:17px;margin:0;color:#006a9b}} .sub{{font-size:11px;color:#666}}
- table{{width:100%;border-collapse:collapse;margin:10px 0}} th,td{{border:1px solid #d1d5db;padding:6px 8px;text-align:left;vertical-align:top}}
- th{{background:#eef2f5;font-size:10px;text-transform:uppercase;color:#374151}} h2{{font-size:13px;color:#006a9b;margin:18px 0 4px}}
- .pie{{margin-top:22px;font-size:10px;color:#999}} @media print{{.noprint{{display:none}}}}
-</style></head><body>
- <div class="head">{logo_html}<div style="text-align:right"><h1>PAUTA DE ARRANQUE — CARPETA (RESSO)</h1>
-  <div class="sub">Estándar minero · {esc(c.get('mandante',''))}{(' — ' + esc(c.get('faena'))) if c.get('faena') else ''}</div></div></div>
- <table><tr><td class="k" style="width:180px;background:#f4f7f6"><b>Empresa</b></td><td>{esc(emp.get('razon_social'))}</td>
-  <td class="k" style="width:140px;background:#f4f7f6"><b>N° Contrato</b></td><td>{esc(c.get('numero',''))}</td></tr>
-  <tr><td style="background:#f4f7f6"><b>Mandante</b></td><td>{esc(c.get('mandante',''))}</td>
-  <td style="background:#f4f7f6"><b>Fecha</b></td><td>{esc(hoy)}</td></tr></table>
- <h2>1. Carpeta de Arranque (29 ítems)</h2>
- <table><thead><tr><th style="width:36px">N°</th><th>Documento / evidencia</th><th style="width:150px">Responsable</th><th style="width:44px">✔</th></tr></thead><tbody>{filas_carp}</tbody></table>
- <h2>2. Estándares del mandante (RC · ECF · SST)</h2>
- <table><thead><tr><th style="width:90px">Código</th><th>Estándar</th><th style="width:110px">Estado</th></tr></thead><tbody>{filas_est}</tbody></table>
- <div class="pie">Smart HSE Chile · Pauta generada automáticamente desde la Carpeta de Arranque y los estándares del mandante.
-  <button class="noprint" onclick="window.print()">Imprimir / Guardar PDF</button></div>
-</body></html>"""
-    _num = re.sub(r'[^\w-]+', '_', c.get('numero', '') or '')   # fuera del f-string: 3.11 no admite '\' dentro de {}
-    return send_file(BytesIO(html.encode('utf-8')), mimetype='text/html', as_attachment=False,
-                     download_name=f'Pauta_Arranque_{_num}.html')
 
 
 @app.route('/api/faena/<int:cid>/inyectar', methods=['POST'])
@@ -1811,48 +1539,99 @@ def checklist_movil_guardar(token):
     return jsonify({'ok': True, 'conforme': conforme, 'alertas': alertas})
 
 
-@app.route('/api/contratos/<int:cid>/carpeta/<int:n>/documento', methods=['POST'])
-@login_required
-def api_carpeta_doc(cid, n):
-    c = db.contrato_de(session['rut'], cid)
-    if not c:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    archivos = request.files.getlist('archivo') or []
-    if not archivos:
-        return jsonify({'error': 'No se recibió archivo.'}), 400
-    for archivo in archivos:
-        if not archivo or not archivo.filename:
-            continue
-        db.registrar_documento(cid, archivo.filename, '', 'evidencia', item_n=n,
-                               contenido=archivo.read(),
-                               mimetype=archivo.mimetype or 'application/octet-stream')
-    return jsonify(_carpeta(cid))
+# ── Tarjeta de Reporte de Actos y Condiciones Subestándar (participación — FUF 25) ──
+def _reporte_serializer():
+    """Firma/verifica el token del QR por empresa (sin almacenar columna nueva)."""
+    from itsdangerous import URLSafeSerializer
+    return URLSafeSerializer(app.secret_key, salt='reporte-subestandar')
 
 
-@app.route('/api/contratos/<int:cid>/carpeta/bulk', methods=['POST'])
-@login_required
-def api_carpeta_bulk(cid):
-    """Carga masiva: varios archivos / carpeta completa → se clasifican en los 29 ítems."""
-    c = db.contrato_de(session['rut'], cid)
-    if not c:
-        return jsonify({'error': 'Contrato no encontrado.'}), 404
-    archivos = request.files.getlist('archivos') or []
-    if not archivos:
-        return jsonify({'error': 'No se recibieron archivos.'}), 400
-    reporte = []
-    for archivo in archivos:
-        if not archivo or not archivo.filename:
-            continue
-        # webkitdirectory envía rutas relativas; respetar numeración de carpeta si existe
-        nombre = archivo.filename.replace('\\', '/').split('/')[-1]
-        n, fuente = ia.clasificar_path(archivo.filename)
-        db.registrar_documento(cid, nombre, '', 'evidencia', item_n=n,
-                               contenido=archivo.read(),
-                               mimetype=archivo.mimetype or 'application/octet-stream')
-        reporte.append({'archivo': nombre, 'item': n,
-                        'titulo': resso.CARPETA_DICT.get(n, {}).get('titulo', ''),
-                        'fuente': fuente})
-    return jsonify({'carpeta': _carpeta(cid), 'reporte': reporte})
+@app.route('/api/reportes', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_reportes_get():
+    return jsonify(db.reportes_de(_empresa_id(),
+                                  faena=request.args.get('faena') or None,
+                                  nivel=request.args.get('nivel') or None,
+                                  estado=request.args.get('estado') or None))
+
+
+@app.route('/api/reportes/resumen', methods=['GET'])
+@empresa_required
+@onboarding_required
+def api_reportes_resumen():
+    return jsonify(db.reportes_resumen(_empresa_id()))
+
+
+@app.route('/api/reportes/qr', methods=['GET'])
+@empresa_required
+def api_reportes_qr():
+    """QR (PNG) que abre la tarjeta móvil pública de la empresa (/r/<token>)."""
+    import segno
+    token = _reporte_serializer().dumps(_empresa_id())
+    url = url_for('reporte_movil', token=token, _external=True)
+    buf = BytesIO()
+    segno.make(url, error='m').save(buf, kind='png', scale=6, border=2)
+    buf.seek(0)
+    return send_file(buf, mimetype='image/png', as_attachment=False,
+                     download_name='QR_reporte_subestandar.png')
+
+
+@app.route('/api/reportes/<int:rid>/foto', methods=['GET'])
+@empresa_required
+def api_reporte_foto(rid):
+    data, mime = db.reporte_foto(_empresa_id(), rid)
+    if not data:
+        return ('Sin evidencia fotográfica', 404)
+    return send_file(BytesIO(data), mimetype=mime, as_attachment=False)
+
+
+@app.route('/api/reportes/<int:rid>/cerrar', methods=['POST'])
+@empresa_required
+def api_reporte_cerrar(rid):
+    if not db.reporte_cerrar(_empresa_id(), rid):
+        return jsonify({'error': 'Reporte no encontrado.'}), 404
+    return jsonify({'ok': True})
+
+
+# ── Ruta MÓVIL PÚBLICA (se abre al escanear el QR de la faena; sin login) ──
+@app.route('/r/<token>', methods=['GET'])
+def reporte_movil(token):
+    try:
+        eid = _reporte_serializer().loads(token)
+    except Exception:
+        return ('QR inválido.', 404)
+    emp = db.empresa_basica(eid)
+    if not emp:
+        return ('Empresa no encontrada o QR inválido.', 404)
+    return render_template('mobile_reporte.html', empresa=emp, token=token,
+                           clasificacion=reportes.CLASIFICACION, peligros=reportes.PELIGROS,
+                           niveles=reportes.NIVELES, hoy=date.today().isoformat())
+
+
+@app.route('/r/<token>', methods=['POST'])
+def reporte_movil_guardar(token):
+    try:
+        eid = _reporte_serializer().loads(token)
+    except Exception:
+        return jsonify({'error': 'QR inválido.'}), 404
+    if not db.empresa_basica(eid):
+        return jsonify({'error': 'QR inválido.'}), 404
+    f = request.form
+    if not (f.get('descripcion') or '').strip():
+        return jsonify({'error': 'Describe lo que detectaste.'}), 400
+    data = {k: f.get(k) for k in ('faena', 'area', 'fecha', 'hora', 'reporta_nombre',
+                                  'reporta_cargo', 'clasificacion', 'descripcion',
+                                  'accion_inmediata', 'nivel_riesgo')}
+    data['peligros'] = f.getlist('peligros')
+    foto_bytes, foto_mime = None, None
+    foto = request.files.get('foto')
+    if foto and foto.filename:
+        foto_bytes = foto.read()
+        foto_mime = foto.mimetype or 'image/jpeg'
+    rid = db.reporte_registrar(eid, data, foto=foto_bytes, foto_mime=foto_mime)
+    urgente, etiqueta = reportes.evaluar(data.get('nivel_riesgo'))
+    return jsonify({'ok': True, 'id': rid, 'urgente': urgente, 'nivel': etiqueta})
 
 
 @app.route('/api/doc/<int:doc_id>', methods=['GET'])
@@ -1867,6 +1646,27 @@ def api_doc(doc_id):
         (nombre or '').lower().endswith(('.html', '.htm'))
     return send_file(BytesIO(contenido), mimetype=mimetype or 'application/octet-stream',
                      as_attachment=not inline, download_name=nombre or f'doc_{doc_id}')
+
+
+@app.route('/api/doc/<int:doc_id>/word', methods=['GET'])
+@login_required
+def api_doc_word(doc_id):
+    """Descarga un documento como .docx. Los documentos generados son HTML → se convierten con
+    python-docx (doc_word.html_a_docx). Si ya es un .docx (ruta docx_fill), se sirve tal cual."""
+    blob = db.documento_contenido(session['rut'], doc_id)
+    if not blob:
+        return ('Documento no encontrado', 404)
+    contenido, mimetype, nombre = blob
+    base = os.path.splitext(nombre or f'doc_{doc_id}')[0]
+    docx_mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    if (mimetype or '').startswith('text/html') or (nombre or '').lower().endswith(('.html', '.htm')):
+        import doc_word
+        data = doc_word.html_a_docx(contenido.decode('utf-8', 'ignore'), titulo=base)
+        return send_file(BytesIO(data), mimetype=docx_mime, as_attachment=True,
+                         download_name=f'{base}.docx')
+    # Ya es un archivo (probablemente .docx): entregarlo directo.
+    return send_file(BytesIO(contenido), mimetype=mimetype or docx_mime, as_attachment=True,
+                     download_name=nombre or f'{base}.docx')
 
 
 @app.route('/api/contratos/<int:cid>/logo', methods=['POST'])

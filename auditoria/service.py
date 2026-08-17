@@ -1,7 +1,7 @@
 """Módulo 5 — Carpeta de auditoría: reúne en un solo índice todo lo que la empresa puede
 presentar ante una fiscalización, y —esto es lo que la hace útil— también lo que NO puede.
 
-Solo depende de db/fuf/resso — nunca de app.py ni de otro módulo (aislamiento por carpeta).
+Solo depende de db/fuf — nunca de app.py ni de otro módulo (aislamiento por carpeta).
 
 Por qué existe: los documentos ya se venían guardando con su categoría (FUF, PROTOCOLO, CPHS) y
 su ítem, pero repartidos entre las vistas que los produjeron. Un fiscalizador no pregunta por
@@ -15,7 +15,6 @@ import re
 
 import db
 import fuf
-import resso
 
 # Los bloques de la carpeta, en el orden en que se presentan y se exportan. El `slug` es el
 # nombre de la subcarpeta dentro del .zip, numerado para que el orden se conserve al descomprimir.
@@ -30,8 +29,6 @@ BLOQUES = [
      'desc': 'Información de Riesgos Laborales entregada a cada persona trabajadora.'},
     {'clave': 'legal', 'nombre': 'Documentos legales', 'slug': '05 Documentos legales',
      'desc': 'Documentos con periodicidad legal y su vigencia.'},
-    {'clave': 'arranque', 'nombre': 'Carpeta de Arranque', 'slug': '06 Carpeta de Arranque',
-     'desc': 'Documentación exigida por el mandante en los contratos de faena.'},
 ]
 
 _CATEGORIAS_PROPIAS = {'FUF', 'PROTOCOLO', 'CPHS'}
@@ -183,26 +180,8 @@ def _bloque_legal(eid, rut, cid):
     return grupos, brechas
 
 
-def _bloque_arranque(eid, rut, cid):
-    """Carpeta de Arranque del mandante: cuelga de cada contrato minero, no del contrato base."""
-    grupos = []
-    for c in db.listar_contratos(rut, eid):
-        if not c.get('es_contratista_minera') or c.get('id') == cid:
-            continue
-        por_item = db.docs_por_item(c['id'])
-        for n, docs in sorted(por_item.items()):
-            etiqueta = (resso.CARPETA_DICT.get(n) or {}).get('titulo')
-            grupos.append({
-                'ref': f"{c['id']}-{n}",
-                'titulo': f"{c.get('numero') or c.get('empresa') or 'Contrato'} · ítem {n}",
-                'detalle': etiqueta or '',
-                'docs': [_doc(d) for d in docs],
-            })
-    return grupos, []
-
-
 _ARMADORES = {'fuf': _bloque_fuf, 'protocolos': _bloque_protocolos, 'cphs': _bloque_cphs,
-              'irl': _bloque_irl, 'legal': _bloque_legal, 'arranque': _bloque_arranque}
+              'irl': _bloque_irl, 'legal': _bloque_legal}
 
 
 # ─────────────────────────────── Índice ───────────────────────────────
