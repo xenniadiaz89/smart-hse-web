@@ -198,6 +198,9 @@ class Usuario(_DictMixin, sqla.Model):
     rol = sqla.Column(sqla.Text, default='asesor')
     pass_hash = sqla.Column(sqla.Text)
     empresa_json = sqla.Column(sqla.Text)
+    email = sqla.Column(sqla.Text)                  # para recuperación de clave; opcional en cuentas antiguas
+    reset_token = sqla.Column(sqla.Text)
+    reset_token_expira = sqla.Column(sqla.Text)      # ISO timestamp; token de un solo uso
 
 
 class Vocabulario(_DictMixin, sqla.Model):

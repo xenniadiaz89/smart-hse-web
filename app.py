@@ -30,6 +30,7 @@ import vehiculos
 import reportes
 import formatos
 import orientacion_evaluador
+import correo
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'smarthse-dev-key-cambiar-en-render')
@@ -193,7 +194,8 @@ def login():
         session['nombre'] = u.get('nombre')
         session['rol'] = u.get('rol', 'asesor')
         return redirect(url_for('dashboard'))
-    return render_template('login.html')
+    aviso = 'Tu clave fue actualizada. Ya puedes iniciar sesión.' if request.args.get('reset') == 'ok' else None
+    return render_template('login.html', aviso=aviso)
 
 
 @app.route('/registro', methods=['GET', 'POST'])
@@ -205,12 +207,15 @@ def registro():
         rut_raw = (f.get('rut', '')).strip()
         sns = (f.get('sns', '')).strip()
         clave = f.get('clave', '')
-        datos = {'nombre': nombre, 'rut': rut_raw, 'sns': sns}
+        email = (f.get('email', '')).strip()
+        datos = {'nombre': nombre, 'rut': rut_raw, 'sns': sns, 'email': email}
 
-        if not (nombre and rut_raw and sns):
-            return render_template('registro.html', error='Completa nombre, RUT y N° SNS.', **datos)
+        if not (nombre and rut_raw and sns and email):
+            return render_template('registro.html', error='Completa nombre, RUT, N° SNS y correo.', **datos)
         if not rut_valido(rut_raw):
             return render_template('registro.html', error='El RUT ingresado no es válido.', **datos)
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            return render_template('registro.html', error='Indica un correo válido.', **datos)
         if not clave_valida(clave):
             return render_template('registro.html',
                                    error='La clave debe ser alfanumérica de al menos 6 caracteres (con letras y números).', **datos)
@@ -220,7 +225,7 @@ def registro():
             return render_template('registro.html', error='Ya existe una cuenta con ese RUT.', **datos)
 
         db.usuario_crear(key, rut_raw, sns, nombre, rol='asesor',
-                         pass_hash=generate_password_hash(clave))
+                         pass_hash=generate_password_hash(clave), email=email)
         session['rut'] = key
         session['sns'] = sns
         session['nombre'] = nombre
@@ -229,6 +234,37 @@ def registro():
         # Ronda 18: entra directo a la consola; la empresa se registra dentro de "Mis Contratos".
         return redirect(url_for('dashboard'))
     return render_template('registro.html')
+
+
+@app.route('/olvide-clave', methods=['GET', 'POST'])
+def olvide_clave():
+    """Pide el RUT (mismo identificador del login) y, si la cuenta tiene un correo asociado,
+    envía un link de recuperación de un solo uso (1 hora). El mensaje es siempre el mismo,
+    exista o no la cuenta, para no permitir enumerar RUTs registrados."""
+    enviado = False
+    if request.method == 'POST':
+        rut_raw = (request.form.get('rut') or '').strip()
+        key = normalizar_rut(rut_raw)
+        email, token = db.usuario_crear_reset_token(key)
+        if email and token:
+            correo.enviar_reset_clave(email, token, request.host_url)
+        enviado = True
+    return render_template('olvide_clave.html', enviado=enviado)
+
+
+@app.route('/reset-clave/<token>', methods=['GET', 'POST'])
+def reset_clave(token):
+    u = db.usuario_validar_reset_token(token)
+    if not u:
+        return render_template('reset_clave.html', invalido=True)
+    if request.method == 'POST':
+        clave = request.form.get('clave', '')
+        if not clave_valida(clave):
+            return render_template('reset_clave.html', token=token,
+                                   error='La clave debe ser alfanumérica de al menos 6 caracteres (con letras y números).')
+        db.usuario_set_pass_hash(u['rut'], generate_password_hash(clave))
+        return redirect(url_for('login', reset='ok'))
+    return render_template('reset_clave.html', token=token)
 
 
 @app.route('/prueba')
@@ -304,11 +340,16 @@ def dashboard():
         for it in s['items']:
             it['formato'] = formatos.tiene_formato(it['n'])
             it['sugerencia'] = orientacion_evaluador.ORIENTACION.get(it['n'])
+    # Trazabilidad del FUF 44 (solo lectura, tarjeta "Panel FUF 44" en Cumplimiento DS 44) —
+    # vivía en Matriz Legal; se trasladó aquí porque "Cumplimiento Legal" ahora es solo la matriz.
+    fuf_estados = db.estados_fuf(emp['id']) if emp else {}
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
                            onboarding_ok=core_auth.onboarding_completo(emp),
                            dotacion_efectiva=dotacion,       # gatea el nav del Comité Paritario
-                           fuf_catalogo=fuf_catalogo)   # el modal FUF lo recibe por tojson
+                           fuf_catalogo=fuf_catalogo,   # el modal FUF lo recibe por tojson
+                           fuf_secciones=fuf.SECCIONES, fuf_estados=fuf_estados,
+                           fuf_resumen=fuf.resumen(fuf_estados))
 
 
 # ── API de empresas (gestión desde la consola) ──

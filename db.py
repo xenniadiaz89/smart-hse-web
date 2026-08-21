@@ -129,6 +129,11 @@ _COLUMNAS_NUEVAS = [
     ('trabajador', 'nombres', 'TEXT'),
     ('trabajador', 'tiene_personal_cargo', 'INTEGER DEFAULT 0'),
     ('trabajador', 'max_participantes', 'INTEGER'),
+    # Recuperación de clave por correo (login sigue siendo por RUT; el email es opcional en
+    # cuentas antiguas, obligatorio en cuentas nuevas — ver /registro).
+    ('usuario', 'email', 'TEXT'),
+    ('usuario', 'reset_token', 'TEXT'),
+    ('usuario', 'reset_token_expira', 'TEXT'),
 ]
 
 
@@ -1494,11 +1499,67 @@ def usuario_get(rut_key):
     return u.to_dict() if u else None
 
 
-def usuario_crear(rut_key, rut_raw, sns, nombre, rol='asesor', pass_hash=None):
-    u = Usuario(rut=rut_key, rut_raw=rut_raw, sns=sns, nombre=nombre, rol=rol, pass_hash=pass_hash)
+def usuario_crear(rut_key, rut_raw, sns, nombre, rol='asesor', pass_hash=None, email=None):
+    u = Usuario(rut=rut_key, rut_raw=rut_raw, sns=sns, nombre=nombre, rol=rol, pass_hash=pass_hash,
+               email=email)
     sqla.session.add(u)
     _commit()
     return u.id
+
+
+def usuario_set_email(rut_key, email):
+    """Asocia/actualiza el email de un usuario ya existente (cuentas antiguas sin email, o
+    corrección). No crea el usuario si no existe."""
+    u = Usuario.query.filter_by(rut=rut_key).first()
+    if not u:
+        return None
+    u.email = email
+    _commit()
+    return u.to_dict()
+
+
+def usuario_crear_reset_token(rut_key):
+    """Genera un token de recuperación de clave de un solo uso (válido 1 hora). Devuelve
+    (email, token) si el usuario existe y tiene email asociado; (None, None) en cualquier otro
+    caso — el caller decide el mensaje genérico para no revelar si el RUT existe."""
+    import secrets
+    from datetime import datetime, timedelta
+    u = Usuario.query.filter_by(rut=rut_key).first()
+    if not u or not u.email:
+        return None, None
+    token = secrets.token_urlsafe(32)
+    u.reset_token = token
+    u.reset_token_expira = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    _commit()
+    return u.email, token
+
+
+def usuario_validar_reset_token(token):
+    """Usuario dueño de un token de reset vigente (no vencido), o None."""
+    from datetime import datetime
+    if not token:
+        return None
+    u = Usuario.query.filter_by(reset_token=token).first()
+    if not u or not u.reset_token_expira:
+        return None
+    try:
+        if datetime.utcnow() > datetime.fromisoformat(u.reset_token_expira):
+            return None
+    except ValueError:
+        return None
+    return u.to_dict()
+
+
+def usuario_set_pass_hash(rut_key, pass_hash):
+    """Actualiza la clave y consume el token de reset (de un solo uso)."""
+    u = Usuario.query.filter_by(rut=rut_key).first()
+    if not u:
+        return False
+    u.pass_hash = pass_hash
+    u.reset_token = None
+    u.reset_token_expira = None
+    _commit()
+    return True
 
 
 # ══════════════ Motor de Cumplimiento Inteligente (Ronda 12) ══════════════

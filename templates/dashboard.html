@@ -14,7 +14,9 @@
                     colors: {
                         primary: '#006a9b',
                         secondary: '#7ab038',
-                        sidebar: '#0B3B60'
+                        sidebar: '#0B3B60',
+                        ok: '#2E7D32', okbg: '#E8F5E9', warn: '#E65100', warnbg: '#FFF3E0',
+                        na: '#455A64', nabg: '#ECEFF1'
                     }
                 }
             }
@@ -36,6 +38,14 @@
         .side-divider { border-top:1px solid rgba(255,255,255,.12); margin:.5rem .3rem .3rem; padding-top:.4rem; font-size:.62rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#7d9bb5; }
         .cam-btn { display:inline-flex; align-items:center; gap:.4rem; align-self:flex-start; background:#006a9b; color:#fff; font-size:.72rem; font-weight:700; padding:.4rem .7rem; border-radius:.5rem; }
         .cam-btn:hover { background:#005580; }
+        /* Badges de estatus del Panel FUF 44 (mismo criterio de color que tenía en Matriz Legal) */
+        .badge { display:inline-flex; align-items:center; gap:.25rem; padding:.25rem .5rem; border-radius:.25rem; font-weight:600; font-size:.7rem; white-space:nowrap; }
+        .b-ok   { background:#E8F5E9; color:#2E7D32; }
+        .b-warn { background:#FFF3E0; color:#E65100; }
+        .b-na   { background:#ECEFF1; color:#455A64; }
+        .b-no   { background:#FFEBEE; color:#C62828; }
+        .tbl th { background:#F1F3F5; color:#0B3B60; font-weight:600; font-size:.65rem; text-transform:uppercase; letter-spacing:.03em; }
+        .tbl td, .tbl th { padding:.6rem .6rem; text-align:left; border-bottom:1px solid #E0E0E0; }
     </style>
 </head>
 <body class="bg-[#f4f7f6] text-[#1a2b3c] font-sans min-h-screen">
@@ -169,7 +179,6 @@
                    <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
                        <i data-lucide="shield-alert" class="w-5 h-5"></i> <span>Matriz de riesgos</span></button>
                    {% endif %}
-                   {{ nav('faena', 'hard-hat', 'Gestión de faena', 'cargarFaena()') }}
                    {%- endcall %}
 
                    {% call grupo('prevencion', 'hard-hat', 'Gestión en Prevención') %}
@@ -182,20 +191,7 @@
                        <i data-lucide="clipboard-plus" class="w-5 h-5"></i> <span>+ Asignación de actividades</span></button>
                    {%- endcall %}
 
-                   {% call grupo('salud', 'heart-pulse', 'Salud y Estadísticas') %}
                    {{ nav('protocolos', 'heart-pulse', 'Protocolos de Salud', 'cargarProtocolos()') }}
-                   {{ nav('estadisticas', 'line-chart', 'Estadísticas de Prevención', 'cargarEstadisticas()') }}
-                   {% if not MODULOS_OK.get('siniestros') %}
-                   <button type="button" disabled title="Módulo no disponible temporalmente" class="nav-item opacity-40 cursor-not-allowed">
-                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros (no disponible)</span></button>
-                   {% elif onboarding_ok %}
-                   <a href="/siniestros" class="nav-item">
-                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros</span></a>
-                   {% else %}
-                   <button type="button" disabled title="Completa los datos de tu empresa para desbloquear este módulo" class="nav-item opacity-40 cursor-not-allowed">
-                       <i data-lucide="alert-triangle" class="w-5 h-5"></i> <span>Registro de Siniestros</span></button>
-                   {% endif %}
-                   {%- endcall %}
 
                    {% call grupo('auditoria', 'folder-check', 'Capacitación y Auditoría') %}
                    {{ nav('capacitaciones', 'graduation-cap', 'Capacitaciones Legales', 'cargarCapacitaciones()') }}
@@ -387,6 +383,75 @@
                     </div>
                     <canvas id="chartCapac" height="120"></canvas>
                     <p id="capacVacio" class="hidden text-gray-400 text-xs">Sin registros de capacitación. Regístralos en "Capacitaciones Legales".</p>
+                </div>
+            </div>
+
+            <!-- ══════════ PANEL FUF 44 — trazabilidad (solo lectura; trasladado desde Matriz Legal,
+                 que ahora solo contiene la Matriz Legal) ══════════ -->
+            <div id="bloque-fuf" class="bg-white rounded-lg shadow-sm p-6 mt-5 scroll-mt-24">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-sidebar flex items-center gap-2">
+                            <i data-lucide="clipboard-list" class="w-5 h-5"></i> Panel FUF 44
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-1">
+                            Formulario Único de Fiscalización del D.S. 44 — {{ fuf_resumen.total }} ítems de autoevaluación legal.
+                        </p>
+                    </div>
+                    <button type="button" onclick="abrirFUF()" class="inline-flex items-center gap-2 bg-secondary hover:bg-[#6b9c31] text-white px-4 py-2 rounded-lg font-bold text-sm shrink-0">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i> Responder FUF
+                    </button>
+                </div>
+
+                <!-- Resumen -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
+                    <div class="bg-sidebar text-white rounded-lg p-3">
+                        <p class="text-[10px] uppercase tracking-wide text-white/60 font-bold">Cumplimiento</p>
+                        <p class="text-2xl font-extrabold">{{ fuf_resumen.pct }}%</p>
+                        <p class="text-[10px] text-white/60">{{ fuf_resumen.respondidos }} / {{ fuf_resumen.total }} respondidos</p>
+                    </div>
+                    <div class="bg-okbg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-ok">Cumple</p><p class="text-2xl font-extrabold text-ok">{{ fuf_resumen.si }}</p></div>
+                    <div class="bg-[#FFEBEE] rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-[#C62828]">No cumple</p><p class="text-2xl font-extrabold text-[#C62828]">{{ fuf_resumen.no }}</p></div>
+                    <div class="bg-nabg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-na">No aplica</p><p class="text-2xl font-extrabold text-na">{{ fuf_resumen.na }}</p></div>
+                    <div class="bg-warnbg rounded-lg p-3"><p class="text-[10px] uppercase font-bold text-warn">Pendientes</p><p class="text-2xl font-extrabold text-warn">{{ fuf_resumen.pendiente }}</p></div>
+                </div>
+
+                <div class="overflow-x-auto mt-5">
+                    <table class="tbl w-full text-xs min-w-[900px]">
+                        <thead><tr>
+                            <th class="w-10">N°</th><th class="w-1/2">Requisito Normativo (D.S. 44)</th>
+                            <th>Estatus</th><th>Artículo</th><th>Observación</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for sec in fuf_secciones %}
+                            <tr class="bg-sidebar/5 border-t-2 border-primary/20">
+                                <td colspan="5" class="px-2 py-2">
+                                    <span class="text-[11px] font-extrabold text-primary uppercase tracking-wide">{{ sec.seccion }}</span>
+                                    <span class="ml-2 text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{{ sec.organismo }}</span>
+                                </td>
+                            </tr>
+                            {% for it in sec['items'] %}
+                            {% set fila = fuf_estados.get(it.n) %}
+                            {% set estado = fila.estado if fila else 'pendiente' %}
+                            <tr>
+                                <td class="font-mono text-[10px] text-gray-500 align-top">{{ it.n }}</td>
+                                <td class="text-gray-800 align-top">{{ it.t }}</td>
+                                <td class="align-top">
+                                    {% if estado == 'si' %}<span class="badge b-ok"><i data-lucide="check" class="w-3 h-3"></i> CUMPLE</span>
+                                    {% elif estado == 'no' %}<span class="badge b-no"><i data-lucide="x" class="w-3 h-3"></i> NO CUMPLE</span>
+                                    {% elif estado == 'na' %}<span class="badge b-na">N/A</span>
+                                    {% else %}<span class="badge b-warn"><i data-lucide="clock" class="w-3 h-3"></i> PENDIENTE</span>{% endif %}
+                                </td>
+                                <td class="align-top"><code class="text-[10px] text-gray-500">{{ it.art }}</code></td>
+                                <td class="align-top text-gray-600 text-[11px]">
+                                    {{ fila.observacion or '' if fila else '' }}
+                                    {% if fila and fila.fecha_compromiso %}<span class="block text-[10px] text-warn font-semibold">Compromiso: {{ fila.fecha_compromiso }}</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -1478,9 +1543,8 @@
         const VISTAS = ['avance', 'contratos', 'checklist', 'reportes', 'ds44', 'iet', 'vocab', 'pendientes', 'faena', 'protocolos', 'estadisticas', 'capacitaciones', 'auditoria'];
         // ── Categorías colapsables del menú lateral: solo el título se ve hasta pinchar ──
         const GROUP_OF = {
-            ds44: 'legal', faena: 'legal',
+            ds44: 'legal',
             checklist: 'prevencion', iet: 'prevencion', reportes: 'prevencion',
-            protocolos: 'salud', estadisticas: 'salud',
             capacitaciones: 'auditoria', auditoria: 'auditoria',
             pendientes: 'mas', vocab: 'mas',
         };

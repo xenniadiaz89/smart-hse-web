@@ -44,6 +44,12 @@
                 <span class="text-xs text-gray-400">Con tu RUT y clave ingresarás a la consola. Es el titular de tus contratos.</span>
             </label>
             <label class="block">
+                <span class="text-sm font-semibold text-gray-700">Correo electrónico</span>
+                <input type="email" name="email" value="{{ email or '' }}" required placeholder="tucorreo@ejemplo.com"
+                       class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+                <span class="text-xs text-gray-400">Lo usamos solo para recuperar tu clave si la olvidas.</span>
+            </label>
+            <label class="block">
                 <span class="text-sm font-semibold text-gray-700">Clave</span>
                 <input type="password" name="clave" required placeholder="Alfanumérica, mín. 6 (letras y números)"
                        class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">

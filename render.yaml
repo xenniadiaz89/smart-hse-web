@@ -16,3 +16,7 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
+      - key: RESEND_API_KEY
+        sync: false   # se configura a mano en el dashboard de Render con la key real de Resend
+      - key: RESEND_FROM
+        sync: false   # opcional; remitente verificado en Resend. Sin definir, usa el sandbox de Resend.
