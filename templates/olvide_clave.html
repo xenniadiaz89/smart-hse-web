@@ -25,7 +25,15 @@
         <h1 class="text-2xl font-extrabold text-center text-gray-900 mb-1">Recuperar clave</h1>
         <p class="text-center text-sm text-gray-500 mb-6">Ingresa el RUT con el que te registraste</p>
 
-        {% if enviado %}
+        {% if sin_email %}
+        <div class="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3">
+            <i data-lucide="mail-warning" class="w-4 h-4 shrink-0 mt-0.5"></i>
+            <span>Tu cuenta no tiene un correo asociado, así que no podemos enviarte el link de recuperación. Si aún recuerdas tu clave, ingresa normalmente y agrega tu correo desde el aviso que verás arriba del panel. Si no la recuerdas, escríbenos a <a href="mailto:contacto@smarthse.cl" class="font-bold underline">contacto@smarthse.cl</a> para ayudarte.</span>
+        </div>
+        <p class="text-center text-sm text-gray-500 mt-6">
+            <a href="/login" class="text-primary font-bold hover:underline">Volver a Ingresar</a>
+        </p>
+        {% elif enviado %}
         <div class="mb-4 flex items-start gap-2 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
             <i data-lucide="mail-check" class="w-4 h-4 shrink-0 mt-0.5"></i>
             <span>Si el RUT está registrado y tiene un correo asociado, te enviamos las instrucciones para elegir una nueva clave. Revisa tu bandeja (y spam) — el link vale por 1 hora.</span>

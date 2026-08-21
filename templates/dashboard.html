@@ -236,6 +236,21 @@
        <!-- ── Columna central (vistas conmutables) ── -->
        <div class="flex-1 min-w-0 w-full">
 
+        {% if not usuario_email %}
+        <!-- Aviso: cuentas creadas antes de que /registro pidiera correo — sin esto, "olvidé mi
+             clave" no tiene a dónde enviar el link de recuperación. -->
+        <div id="avisoEmail" class="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex items-start gap-2 flex-1">
+                <i data-lucide="mail-warning" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+                <p class="text-sm text-amber-800"><b>Tu cuenta no tiene un correo asociado.</b> Sin él no podrás recuperar tu clave si la olvidas.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="email" id="avisoEmailInput" placeholder="tucorreo@ejemplo.com" class="text-sm border border-amber-300 rounded-lg px-3 py-1.5 outline-none focus:border-primary">
+                <button type="button" onclick="guardarEmailPerfil()" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg shrink-0">Guardar</button>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- VISTA: Avance de trabajos y actividades -->
         <section id="vista-avance">
         <!-- ── Panel de KPIs ── -->
@@ -1555,6 +1570,17 @@
             box.classList.toggle('hidden', !abrir);
             if (chev) chev.classList.toggle('rotate-180', abrir);
         }
+        async function guardarEmailPerfil() {
+            const input = document.getElementById('avisoEmailInput');
+            const email = (input.value || '').trim();
+            if (!email.includes('@')) { alert('Indica un correo válido.'); return; }
+            const r = await fetch('/api/perfil/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { alert(d.error || 'No se pudo guardar el correo.'); return; }
+            const aviso = document.getElementById('avisoEmail');
+            if (aviso) aviso.remove();
+        }
+
         function mostrarVista(id) {
             // resaltar ítem del menú
             document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('nav-on', b.dataset.nav === id));

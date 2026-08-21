@@ -239,17 +239,24 @@ def registro():
 @app.route('/olvide-clave', methods=['GET', 'POST'])
 def olvide_clave():
     """Pide el RUT (mismo identificador del login) y, si la cuenta tiene un correo asociado,
-    envía un link de recuperación de un solo uso (1 hora). El mensaje es siempre el mismo,
-    exista o no la cuenta, para no permitir enumerar RUTs registrados."""
+    envía un link de recuperación de un solo uso (1 hora). Si el RUT no existe, el mensaje es el
+    mismo genérico de 'enviado' (no se revela que la cuenta no existe). Si el RUT SÍ existe pero
+    es una cuenta antigua sin correo asociado, se le avisa explícitamente en vez de dejarlo
+    esperando un correo que nunca llegará."""
     enviado = False
+    sin_email = False
     if request.method == 'POST':
         rut_raw = (request.form.get('rut') or '').strip()
         key = normalizar_rut(rut_raw)
-        email, token = db.usuario_crear_reset_token(key)
-        if email and token:
-            correo.enviar_reset_clave(email, token, request.host_url)
-        enviado = True
-    return render_template('olvide_clave.html', enviado=enviado)
+        u = db.usuario_get(key)
+        if u and not u.get('email'):
+            sin_email = True
+        else:
+            email, token = db.usuario_crear_reset_token(key)
+            if email and token:
+                correo.enviar_reset_clave(email, token, request.host_url)
+            enviado = True
+    return render_template('olvide_clave.html', enviado=enviado, sin_email=sin_email)
 
 
 @app.route('/reset-clave/<token>', methods=['GET', 'POST'])
@@ -343,13 +350,27 @@ def dashboard():
     # Trazabilidad del FUF 44 (solo lectura, tarjeta "Panel FUF 44" en Cumplimiento DS 44) —
     # vivía en Matriz Legal; se trasladó aquí porque "Cumplimiento Legal" ahora es solo la matriz.
     fuf_estados = db.estados_fuf(emp['id']) if emp else {}
+    usuario = db.usuario_get(session['rut'])
     return render_template('dashboard.html', nombre=session.get('nombre'),
                            sns=session.get('sns'), rol=session.get('rol'), empresa=emp,
                            onboarding_ok=core_auth.onboarding_completo(emp),
                            dotacion_efectiva=dotacion,       # gatea el nav del Comité Paritario
                            fuf_catalogo=fuf_catalogo,   # el modal FUF lo recibe por tojson
                            fuf_secciones=fuf.SECCIONES, fuf_estados=fuf_estados,
-                           fuf_resumen=fuf.resumen(fuf_estados))
+                           fuf_resumen=fuf.resumen(fuf_estados),
+                           usuario_email=(usuario or {}).get('email'))
+
+
+@app.route('/api/perfil/email', methods=['POST'])
+@login_required
+def api_perfil_email():
+    """Cuentas antiguas (creadas antes de que /registro pidiera correo) lo agregan aquí — es lo
+    que hace posible que 'olvidé mi clave' les funcione la próxima vez."""
+    email = (request.get_json(silent=True) or request.form).get('email', '').strip()
+    if '@' not in email or '.' not in email.split('@')[-1]:
+        return jsonify({'error': 'Indica un correo válido.'}), 400
+    db.usuario_set_email(session['rut'], email)
+    return jsonify({'ok': True, 'email': email})
 
 
 # ── API de empresas (gestión desde la consola) ──
