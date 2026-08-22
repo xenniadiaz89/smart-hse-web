@@ -15,14 +15,22 @@ def _enviar(destinatario, asunto, html):
         print(f'[correo] RESEND_API_KEY no configurada — envío simulado a {destinatario}:\n'
               f'  Asunto: {asunto}\n  {html}', flush=True)
         return
-    import resend
-    resend.api_key = api_key
-    resend.Emails.send({
-        'from': REMITENTE,
-        'to': [destinatario],
-        'subject': asunto,
-        'html': html,
-    })
+    try:
+        import resend
+        resend.api_key = api_key
+        resend.Emails.send({
+            'from': REMITENTE,
+            'to': [destinatario],
+            'subject': asunto,
+            'html': html,
+        })
+    except Exception:
+        # Nunca debe tumbar la ruta con un 500: el usuario final sigue viendo el mismo mensaje
+        # genérico de siempre (anti-enumeración). El detalle real queda en los Logs de Render
+        # para que se pueda diagnosticar (ej. remitente sandbox de Resend sin dominio verificado).
+        import traceback
+        traceback.print_exc()
+        print(f'[correo] Falló el envío a {destinatario} — ver traza arriba.', flush=True)
 
 
 def enviar_reset_clave(email, token, base_url):
