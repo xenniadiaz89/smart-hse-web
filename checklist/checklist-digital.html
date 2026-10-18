@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Checklist HSE Vehículos — Smart HSE</title>
+
+<style>
+:root{--navy:#002B49;--cyan:#00B4D8;--lime:#7FBA00;--red:#E53E3E;--orange:#DD6B20;--white:#fff;--bg:#f4f8fb;--grey:#6B7280;--border:rgba(0,43,73,.1)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;font-weight:300;background:var(--bg);color:var(--navy)}
+.topbar{background:var(--navy);padding:12px 32px;display:flex;align-items:center;justify-content:space-between}
+.topbar-logo{font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px;color:#fff;letter-spacing:2px}
+.topbar-logo span{color:var(--cyan)}
+.topbar-back{font-size:12px;color:rgba(255,255,255,.6);text-decoration:none;display:flex;align-items:center;gap:6px}
+.topbar-back:hover{color:var(--cyan)}
+.tab-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 32px;display:flex;overflow-x:auto}
+.tab-btn{padding:16px 24px;font-size:13px;font-weight:600;color:var(--grey);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .2s,border-color .2s}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-panel{display:none;padding:28px 32px;max-width:1000px;margin:0 auto}
+.tab-panel.active{display:block}
+.card{background:var(--white);border-radius:12px;padding:22px;border:1px solid var(--border);margin-bottom:18px}
+.card-title{font-family:'Montserrat',sans-serif;font-weight:600;font-size:14px;color:var(--navy);margin-bottom:16px}
+.section-header{font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;padding:10px 0 6px;border-bottom:1px solid var(--border);margin-bottom:12px}
+/* CHECKLIST ITEMS */
+.check-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(0,43,73,.05)}
+.check-item:last-child{border:none}
+.check-label{font-size:13px;color:var(--navy);flex:1;padding-right:12px}
+.check-label .critico{font-size:10px;font-weight:700;color:var(--red);background:rgba(229,62,62,.1);padding:2px 8px;border-radius:8px;margin-left:6px;letter-spacing:1px}
+.check-btns{display:flex;gap:6px}
+.cb{padding:5px 11px;border-radius:14px;border:1px solid;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s}
+.cb-ok{border-color:rgba(127,186,0,.4);color:var(--lime);background:rgba(127,186,0,.06)}
+.cb-ok.active{background:var(--lime);color:#fff;border-color:var(--lime)}
+.cb-nc{border-color:rgba(229,62,62,.4);color:var(--red);background:rgba(229,62,62,.06)}
+.cb-nc.active{background:var(--red);color:#fff;border-color:var(--red)}
+.cb-na{border-color:rgba(107,114,128,.3);color:var(--grey);background:rgba(107,114,128,.04)}
+.cb-na.active{background:var(--grey);color:#fff}
+/* PROGRESS */
+.prog-wrap{background:var(--bg);border-radius:10px;padding:16px;margin-bottom:16px}
+.prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.prog-title{font-size:13px;font-weight:600;color:var(--navy)}
+.prog-pct{font-family:'Montserrat',sans-serif;font-size:22px;font-weight:700;color:var(--cyan)}
+.prog-bar-bg{height:8px;background:rgba(0,43,73,.08);border-radius:8px;overflow:hidden;margin-bottom:6px}
+.prog-bar-fill{height:100%;border-radius:8px;transition:width .4s,background .4s}
+.sem{display:inline-block;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.sem-green{background:rgba(127,186,0,.12);color:var(--lime);border:1px solid rgba(127,186,0,.3)}
+.sem-orange{background:rgba(221,107,32,.1);color:var(--orange);border:1px solid rgba(221,107,32,.3)}
+.sem-red{background:rgba(229,62,62,.1);color:var(--red);border:1px solid rgba(229,62,62,.3)}
+.stats-row{display:flex;gap:20px;font-size:12px;color:var(--grey)}
+/* FATIGA */
+.fatiga-q{background:var(--white);border-radius:10px;padding:16px;border:1px solid var(--border);margin-bottom:12px}
+.fatiga-q.critica{border-left:3px solid var(--red)}
+.q-text{font-size:13px;color:var(--navy);margin-bottom:10px}
+.q-critica-tag{font-size:10px;font-weight:700;color:var(--red);letter-spacing:1px;margin-bottom:6px;display:block}
+.q-btns{display:flex;gap:8px}
+.q-btn{padding:7px 20px;border-radius:20px;border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;background:var(--bg);color:var(--navy)}
+.q-btn.si{border-color:rgba(229,62,62,.4);color:var(--red)}
+.q-btn.si.active{background:var(--red);color:#fff;border-color:var(--red)}
+.q-btn.no{border-color:rgba(127,186,0,.4);color:var(--lime)}
+.q-btn.no.active{background:var(--lime);color:#fff;border-color:var(--lime)}
+/* VEREDICTO */
+.veredicto{border-radius:12px;padding:20px;text-align:center;margin-top:16px;display:none}
+.veredicto.apto{background:rgba(127,186,0,.08);border:2px solid rgba(127,186,0,.3)}
+.veredicto.no-apto{background:rgba(229,62,62,.08);border:2px solid rgba(229,62,62,.3)}
+.ver-icon{font-size:36px;margin-bottom:8px}
+.ver-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:18px;margin-bottom:6px}
+.ver-sub{font-size:13px;color:var(--grey);line-height:1.6}
+/* DASHBOARD */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+@media(max-width:600px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi-box{background:var(--white);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border)}
+.kpi-val{font-family:'Montserrat',sans-serif;font-size:28px;font-weight:700;color:var(--cyan)}
+.kpi-lbl{font-size:10px;font-weight:600;color:var(--grey);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+.flota-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media(max-width:500px){.flota-grid{grid-template-columns:1fr}}
+.flota-card{background:var(--white);border-radius:10px;padding:16px;border:1px solid var(--border)}
+.flota-patente{font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px;color:var(--navy);margin-bottom:4px}
+.flota-conductor{font-size:12px;color:var(--grey);margin-bottom:10px}
+.flota-status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:1px}
+/* FORM */
+.form-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:10px;font-weight:600;color:var(--grey);letter-spacing:1px;text-transform:uppercase}
+.fg input,.fg select,.fg textarea{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;color:var(--navy);background:var(--bg);outline:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--cyan)}
+.fg textarea{resize:vertical}
+.btn{padding:10px 22px;border-radius:24px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:'Inter',sans-serif}
+.btn-primary{background:var(--cyan);color:#fff}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,180,216,.3)}
+.btn-outline{background:transparent;color:var(--navy);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-lime{background:var(--lime);color:var(--navy);font-weight:700}
+.btn-lime:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(127,186,0,.3)}
+.btn-danger{background:transparent;color:var(--red);border:1px solid rgba(229,62,62,.4);font-size:12px;padding:6px 14px;border-radius:16px}
+.btn-danger:hover{background:var(--red);color:#fff}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── EPP TABLE STYLES ── */
+.epp-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:640px){.epp-grid-2col{grid-template-columns:1fr}}
+.epp-col-head{background:var(--navy);color:#fff;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 12px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;align-items:center}
+.epp-col-head .qty-tag{color:var(--cyan);font-size:10px;font-weight:700}
+.epp-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.epp-tbl tr{border-bottom:1px solid rgba(0,43,73,.06);transition:background .15s}
+.epp-tbl tr:hover{background:rgba(0,180,216,.04)}
+.epp-tbl td{padding:7px 10px;vertical-align:middle}
+.epp-tbl td:first-child{color:#374151;font-weight:300;width:68%}
+.epp-tbl td:last-child{width:32%}
+.qty-inp{width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 6px;text-align:center;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--navy);background:var(--bg);outline:none;transition:border-color .2s,background .2s}
+.qty-inp:focus{border-color:var(--cyan);background:#fff}
+.qty-inp.has-val{background:#ecfdf5;border-color:var(--lime);color:#065f46}
+.filtro-td{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fchk{display:flex;align-items:center;gap:3px;font-size:11px;color:#555;white-space:nowrap}
+.fchk input{accent-color:var(--cyan);cursor:pointer}
+.inline-txt{border:none;border-bottom:1px dashed #ccc;width:70px;font-size:12px;font-weight:300;color:var(--navy);background:transparent;outline:none;font-family:'Inter',sans-serif}
+.inline-txt:focus{border-bottom-color:var(--cyan)}
+.otro-inp{width:100%;border:none;border-bottom:1px dashed #ccc;font-size:12px;font-weight:300;color:var(--navy);background:transparent;outline:none;font-family:'Inter',sans-serif}
+.otro-inp:focus{border-bottom-color:var(--cyan)}
+/* FIRMA EPP */
+.sig-wrap{border:2px solid var(--border);border-radius:10px;background:#fafafa;position:relative;overflow:hidden;transition:border-color .2s;margin-bottom:8px}
+.sig-wrap:hover{border-color:var(--cyan)}
+.sig-wrap.signed{border-color:var(--lime);background:#f0fdf4}
+.sig-canvas{display:block;width:100%;height:140px;cursor:crosshair;touch-action:none}
+.sig-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:12px;color:#94a3b8;font-weight:300;text-align:center;pointer-events:none;line-height:1.5}
+.legal-box{background:var(--bg);border-radius:8px;padding:14px 16px;font-size:12px;color:#374151;line-height:1.7;font-weight:300;border-left:3px solid var(--lime);margin-bottom:18px}
+/* EPP REGISTROS */
+.epp-reg-card{background:var(--white);border-radius:10px;padding:14px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.epp-reg-info{font-size:12px;line-height:1.7}
+.epp-reg-nombre{font-weight:700;font-size:13px;color:var(--navy)}
+.epp-reg-meta{color:var(--grey)}
+.epp-reg-epp{font-size:11px;color:var(--grey);margin-top:4px}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);transform:translateY(80px);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);z-index:999;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+/* HALLAZGOS NC */
+.hallazgo-box{background:rgba(229,62,62,.04);border:1.5px solid rgba(229,62,62,.25);border-radius:10px;padding:14px 16px;margin-top:8px;animation:slideDown .25s ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.hallazgo-title{font-size:11px;font-weight:700;color:var(--red);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.hallazgo-accion-wrap{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.hallazgo-accion{padding:6px 14px;border-radius:20px;border:1px solid rgba(229,62,62,.35);font-size:12px;font-weight:600;cursor:pointer;background:var(--white);color:var(--red);transition:all .18s}
+.hallazgo-accion.selected{background:var(--red);color:#fff;border-color:var(--red)}
+.hallazgo-accion-custom{border:1px solid rgba(229,62,62,.35);border-radius:8px;padding:7px 10px;font-size:12px;font-family:'Inter',sans-serif;color:var(--navy);background:var(--white);outline:none;flex:1;min-width:160px}
+.hallazgo-accion-custom:focus{border-color:var(--red)}
+.hallazgo-responsable{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.hallazgo-responsable input{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;font-family:'Inter',sans-serif;color:var(--navy);background:var(--bg);outline:none;flex:1;min-width:120px}
+.hallazgo-responsable input:focus{border-color:var(--red)}
+/* CIERRE DE HALLAZGO */
+.hallazgo-cierre{background:rgba(127,186,0,.05);border:1.5px solid rgba(127,186,0,.25);border-radius:10px;padding:14px 16px;margin-top:10px}
+.hallazgo-cierre-title{font-size:11px;font-weight:700;color:var(--lime);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.hallazgo-cerrado{background:rgba(127,186,0,.1);border:2px solid var(--lime);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:12px;color:#065f46;font-weight:600}
+.badge-pendiente{display:inline-block;background:rgba(229,62,62,.12);color:var(--red);border:1px solid rgba(229,62,62,.3);font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:10px;text-transform:uppercase}
+.badge-cerrado{display:inline-block;background:rgba(127,186,0,.12);color:var(--lime);border:1px solid rgba(127,186,0,.3);font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:10px;text-transform:uppercase}
+/* PANEL HALLAZGOS GLOBAL */
+.hallazgo-global-card{background:var(--white);border-radius:10px;padding:14px;border-left:4px solid var(--red);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:10px}
+.hallazgo-global-card.cerrado{border-left-color:var(--lime)}
+.hallazgo-global-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.hallazgo-global-titulo{font-size:13px;font-weight:600;color:var(--navy)}
+.hallazgo-global-meta{font-size:11px;color:var(--grey);margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="topbar-back">← Volver al inicio</a>
+  <div class="topbar-logo"><span>SMART</span>HSE · Gestión de Campo</div>
+  <div style="font-size:11px;color:var(--cyan);font-weight:600;letter-spacing:1px">DS 132 · DS 44</div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('vehiculo',this)">🚗 Checklist Vehículo</button>
+  <button class="tab-btn" onclick="showTab('fatiga',this)">😴 Fatiga y Somnolencia</button>
+  <button class="tab-btn" onclick="showTab('epp',this)">🦺 Entrega de EPP</button>
+  <button class="tab-btn" onclick="showTab('extintores',this)">🧯 Extintores</button>
+  <button class="tab-btn" onclick="showTab('dashboard',this)">📊 Dashboard Flota</button>
+</div>
+
+<!-- ══ PESTAÑA 1: CHECKLIST VEHÍCULO ══ -->
+<div class="tab-panel active" id="panel-vehiculo">
+
+  <div class="card">
+    <div class="card-title">🚗 Datos del Vehículo</div>
+    <div class="form-row">
+      <div class="fg"><label>Patente</label><input id="v-patente" type="text" placeholder="XXXX-XX"/></div>
+      <div class="fg"><label>Tipo de Vehículo</label>
+        <select id="v-tipo">
+          <option>Camioneta 4x4</option><option>Van de Traslado</option><option>Minibús</option>
+          <option>Camión Liviano</option><option>Vehículo de Terreno</option>
+        </select>
+      </div>
+      <div class="fg"><label>Conductor</label><input id="v-conductor" type="text" placeholder="Nombre completo"/></div>
+      <div class="fg"><label>RUT Conductor</label><input id="v-rut" type="text" placeholder="XX.XXX.XXX-X"/></div>
+      <div class="fg"><label>Km Actual</label><input id="v-km" type="number" placeholder="0"/></div>
+      <div class="fg"><label>Faena / Destino</label><input id="v-faena" type="text" placeholder="Codelco RT / Spence"/></div>
+    </div>
+  </div>
+
+  <div class="prog-wrap">
+    <div class="prog-row">
+      <div><span class="prog-title">Estado del Vehículo</span><br><span id="v-sem" class="sem sem-red" style="margin-top:4px;display:inline-block">Sin evaluar</span></div>
+      <div class="prog-pct" id="v-pct">0%</div>
+    </div>
+    <div class="prog-bar-bg"><div class="prog-bar-fill" id="v-fill" style="width:0%"></div></div>
+    <div class="stats-row">
+      <span>✅ OK: <strong id="v-ok">0</strong></span>
+      <span>❌ NC: <strong id="v-nc">0</strong></span>
+      <span>➖ N/A: <strong id="v-na">0</strong></span>
+    </div>
+  </div>
+
+  <div id="checklist-vehiculo"></div>
+
+  <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="guardarChecklist()">💾 Guardar y Enviar a Dashboard</button>
+    <span style="font-size:12px;color:var(--grey)" id="v-save-msg"></span>
+  </div>
+</div>
+
+<!-- ══ PESTAÑA 2: FATIGA Y SOMNOLENCIA ══ -->
+<div class="tab-panel" id="panel-fatiga">
+  <div class="card">
+    <div class="card-title">😴 Control de Fatiga y Somnolencia — Pre-Turno</div>
+    <p style="font-size:13px;color:var(--grey);margin-bottom:20px;line-height:1.6">Responde honestamente. Una respuesta crítica afirmativa bloquea el acceso al vehículo hasta evaluación médica. Protocolo según DS 44 Art. 18 y estándar RC N°24 Codelco.</p>
+    <div id="fatiga-form"></div>
+    <div class="veredicto" id="veredicto-fatiga">
+      <div class="ver-icon" id="v-icon">—</div>
+      <div class="ver-title" id="v-title">—</div>
+      <div class="ver-sub" id="v-sub">—</div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="evaluarFatiga()">Evaluar Aptitud para Conducir</button>
+      <button class="btn btn-outline" onclick="resetFatiga()">Reiniciar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PESTAÑA 3: ENTREGA DE EPP ══ -->
+<div class="tab-panel" id="panel-epp">
+
+  <!-- DATOS TRABAJADOR -->
+  <div class="card">
+    <div class="card-title">📋 Datos del Trabajador</div>
+    <div class="form-row">
+      <div class="fg"><label>Nombre completo *</label><input id="e-nombre" type="text" placeholder="Nombre y apellidos" oninput="syncEppNombre()"></div>
+      <div class="fg"><label>R.U.N. *</label><input id="e-run" type="text" placeholder="17.433.846-9"></div>
+      <div class="fg"><label>Cargo *</label><input id="e-cargo" type="text" placeholder="HSE, Operador, Supervisor"></div>
+      <div class="fg"><label>Empresa</label><input id="e-empresa" type="text" placeholder="Razón social empleadora"></div>
+      <div class="fg"><label>Fecha entrega *</label><input id="e-fecha" type="date"></div>
+    </div>
+    <p style="font-size:12px;color:var(--grey);line-height:1.6">
+      YO: <strong id="e-preview-nombre" style="color:var(--navy)">___________</strong>&nbsp;
+      R.U.N.: <strong id="e-preview-run" style="color:var(--navy)">___________</strong>&nbsp;
+      CARGO: <strong id="e-preview-cargo" style="color:var(--navy)">___________</strong><br>
+      Declaro haber recibido los siguientes equipos de protección personal por parte de mi empleador.
+    </p>
+  </div>
+
+  <!-- TABLA EPP -->
+  <div class="card">
+    <div class="card-title">🦺 Elementos de Protección Personal</div>
+    <div class="epp-grid-2col">
+
+      <!-- COL IZQ -->
+      <div>
+        <div class="epp-col-head">Protección Personal (EPP)<span class="qty-tag">Cant.</span></div>
+        <table class="epp-tbl">
+          <tr><td>Casco c/ barbiquejo Blanco</td><td><input type="number" class="qty-inp" id="q-casco" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Protector Auditivo Adosable al Casco</td><td><input type="number" class="qty-inp" id="q-prot-aud" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Coipa (cubrenuca)</td><td><input type="number" class="qty-inp" id="q-coipa" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Chaleco Geólogo</td><td><input type="number" class="qty-inp" id="q-chaleco-geo" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Nombre geólogo</td><td><input type="number" class="qty-inp" id="q-nombre-geo" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Zapato de Seguridad</td><td><input type="number" class="qty-inp" id="q-zapato" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Respirador Media Cara</td><td><input type="number" class="qty-inp" id="q-respirador" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr>
+            <td>
+              <div class="filtro-td">
+                <span>Filtro</span>
+                <label class="fchk"><input type="checkbox" id="chk-mixto"> Mixto</label>
+                <span>ó</span>
+                <label class="fchk"><input type="checkbox" id="chk-polvo"> Polvo</label>
+              </div>
+            </td>
+            <td><input type="number" class="qty-inp" id="q-filtro" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr><td>Lentes In-Out</td><td><input type="number" class="qty-inp" id="q-lentes" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Guantes Instrumentista</td><td><input type="number" class="qty-inp" id="q-guantes-inst" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Bloqueador Solar</td><td><input type="number" class="qty-inp" id="q-bloq-solar" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Protector Labial</td><td><input type="number" class="qty-inp" id="q-prot-labial" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Slack Anti-Ácido</td><td><input type="number" class="qty-inp" id="q-slack" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+        </table>
+
+        <div class="epp-col-head" style="margin-top:14px">Ropa Invierno / Turno Noche<span class="qty-tag">Cant.</span></div>
+        <table class="epp-tbl">
+          <tr><td>Guantes Térmicos</td><td><input type="number" class="qty-inp" id="q-guantes-term" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Chaqueta Térmica</td><td><input type="number" class="qty-inp" id="q-chaq-term" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Pantalón Térmico</td><td><input type="number" class="qty-inp" id="q-pant-term" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Balaclava Zero</td><td><input type="number" class="qty-inp" id="q-balaclava" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Primera Capa Térmica</td><td><input type="number" class="qty-inp" id="q-primera-capa" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Calcetines Térmicos</td><td><input type="number" class="qty-inp" id="q-calc-term" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+        </table>
+      </div>
+
+      <!-- COL DER -->
+      <div>
+        <div class="epp-col-head">Ropa Corporativa<span class="qty-tag">Cant.</span></div>
+        <table class="epp-tbl">
+          <tr><td>Camisa / Blusa / Polera</td><td><input type="number" class="qty-inp" id="q-camisa" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Jeans / Pantalón</td><td><input type="number" class="qty-inp" id="q-jeans" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Chaqueta 2 en 1</td><td><input type="number" class="qty-inp" id="q-chaq-2en1" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+        </table>
+
+        <div class="epp-col-head" style="margin-top:14px">Dispositivo Bloqueo<span class="qty-tag">Cant.</span></div>
+        <table class="epp-tbl">
+          <tr><td>Pinzas para candados</td><td><input type="number" class="qty-inp" id="q-pinzas" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr>
+            <td>Candados Color: <input type="text" class="inline-txt" id="color-candado" placeholder="amarillo…"></td>
+            <td><input type="number" class="qty-inp" id="q-candados" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr><td>Tarjetas de Bloqueo</td><td><input type="number" class="qty-inp" id="q-tarjetas" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+        </table>
+
+        <div class="epp-col-head" style="margin-top:14px">Otros Equipos<span class="qty-tag">Cant.</span></div>
+        <table class="epp-tbl">
+          <tr>
+            <td>Arnés de Seguridad cod: <input type="text" class="inline-txt" id="cod-arnes" placeholder="—"></td>
+            <td><input type="number" class="qty-inp" id="q-arnes" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr>
+            <td>Cuerda de Vida cod: <input type="text" class="inline-txt" id="cod-cuerda" placeholder="—"></td>
+            <td><input type="number" class="qty-inp" id="q-cuerda" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr><td>Botas de Goma (negra)</td><td><input type="number" class="qty-inp" id="q-botas-goma" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr><td>Botas de Ácido (amarilla)</td><td><input type="number" class="qty-inp" id="q-botas-acido" min="0" max="99" placeholder="—" oninput="markQ(this)"></td></tr>
+          <tr>
+            <td><input type="text" class="otro-inp" id="otro1-desc" placeholder="Full Face / Otro (especificar)"></td>
+            <td><input type="number" class="qty-inp" id="q-otro1" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr>
+            <td><input type="text" class="otro-inp" id="otro2-desc" placeholder="Botas PVC / Otro (especificar)"></td>
+            <td><input type="number" class="qty-inp" id="q-otro2" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+          <tr>
+            <td><input type="text" class="otro-inp" id="otro3-desc" placeholder="Otro (especificar)"></td>
+            <td><input type="number" class="qty-inp" id="q-otro3" min="0" max="99" placeholder="—" oninput="markQ(this)"></td>
+          </tr>
+        </table>
+      </div>
+    </div><!-- /epp-grid-2col -->
+  </div>
+
+  <!-- OBSERVACIONES -->
+  <div class="card">
+    <div class="card-title">💬 Observaciones</div>
+    <div class="fg">
+      <label>Observaciones de la entrega</label>
+      <textarea id="e-obs" rows="2" placeholder="Condiciones especiales, reemplazos, devoluciones…"></textarea>
+    </div>
+  </div>
+
+  <!-- AVISO LEGAL -->
+  <div class="legal-box">
+    Según las disposiciones legales vigentes, el trabajador está obligado a dar el uso debido a los elementos de protección personal <strong>(artículo 58° y siguientes del RIOHS de la empresa empleadora)</strong>.
+  </div>
+
+  <!-- FIRMAS -->
+  <div class="card">
+    <div class="card-title">✍️ Firmas Digitales</div>
+    <div class="epp-grid-2col">
+
+      <div>
+        <div class="section-header">Firma del Trabajador</div>
+        <div class="sig-wrap" id="wrap-trab">
+          <canvas class="sig-canvas" id="canvas-trab" width="400" height="140"></canvas>
+          <div class="sig-hint" id="hint-trab">Firme aquí<br><span style="font-size:10px;opacity:.7">Mouse o dedo</span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-danger" onclick="clearSig('trab')">✕ Limpiar</button>
+        </div>
+        <div class="fg" style="margin-bottom:8px"><label>Nombre trabajador</label><input type="text" id="sig-nombre-trab" placeholder="Se completa automáticamente"></div>
+        <div class="fg"><label>Fecha firma</label><input type="date" id="sig-fecha-trab"></div>
+      </div>
+
+      <div>
+        <div class="section-header">Firma Responsable Entrega (HSE / RRHH)</div>
+        <div class="sig-wrap" id="wrap-resp">
+          <canvas class="sig-canvas" id="canvas-resp" width="400" height="140"></canvas>
+          <div class="sig-hint" id="hint-resp">Firme aquí<br><span style="font-size:10px;opacity:.7">Mouse o dedo</span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-danger" onclick="clearSig('resp')">✕ Limpiar</button>
+        </div>
+        <div class="fg" style="margin-bottom:8px"><label>Nombre responsable</label><input type="text" id="sig-nombre-resp" placeholder="Nombre de quien entrega"></div>
+        <div class="fg"><label>Fecha firma</label><input type="date" id="sig-fecha-resp"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ACCIONES -->
+  <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-primary" onclick="guardarEPP()">💾 Guardar Registro EPP</button>
+    <button class="btn btn-lime" onclick="exportarEPP()">⬇ Exportar .TXT</button>
+    <button class="btn btn-outline" onclick="imprimirEPP()">🖨 Imprimir / PDF</button>
+    <button class="btn btn-outline" onclick="nuevoEPP()">＋ Nuevo registro</button>
+    <span style="font-size:12px;color:var(--grey)" id="epp-save-msg"></span>
+  </div>
+
+  <!-- HISTORIAL EPP -->
+  <div class="card" style="margin-top:4px">
+    <div class="card-title">📁 Registros EPP Guardados</div>
+    <div id="epp-historial">
+      <p style="font-size:13px;color:var(--grey);text-align:center;padding:24px">Aún no hay registros guardados en esta sesión.</p>
+    </div>
+  </div>
+
+</div><!-- /panel-epp -->
+
+<!-- ══ PESTAÑA 4: EXTINTORES ══ -->
+<div class="tab-panel" id="panel-extintores">
+
+  <!-- ENCABEZADO ÁREA -->
+  <div class="card">
+    <div class="card-title">🧯 Inspección de Extintores — Datos del Área</div>
+    <div class="form-row">
+      <div class="fg"><label>Área / Sector inspeccionado</label><input id="ext-area" type="text" placeholder="Bodega, Oficinas, Faena Sur…"></div>
+      <div class="fg"><label>Inspeccionado por</label><input id="ext-inspector" type="text" placeholder="Nombre completo"></div>
+      <div class="fg"><label>Fecha de inspección *</label><input id="ext-fecha" type="date"></div>
+    </div>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="fg">
+        <label>N° total de extintores en el área</label>
+        <input id="ext-total-area" type="number" min="1" max="99" placeholder="ej. 8" oninput="actualizarTotalArea()">
+      </div>
+      <div class="fg" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:10px">
+        <button class="btn btn-primary" onclick="agregarExtintor()">＋ Añadir extintor</button>
+        <span style="font-size:12px;color:var(--grey);align-self:center" id="ext-contador-label">0 ingresados</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIRMA INSPECTOR -->
+  <div class="card" id="ext-firma-card">
+    <div class="card-title">✍️ Firma Inspector</div>
+    <div style="max-width:420px">
+      <div class="sig-wrap" id="wrap-ext-insp">
+        <canvas class="sig-canvas" id="canvas-ext-insp" width="400" height="120"></canvas>
+        <div class="sig-hint" id="hint-ext-insp">Firme aquí<br><span style="font-size:10px;opacity:.7">Mouse o dedo</span></div>
+      </div>
+      <button class="btn btn-danger" onclick="clearSig('ext-insp')" style="margin-top:4px">✕ Limpiar</button>
+    </div>
+  </div>
+
+  <!-- CONTENEDOR DE EXTINTORES DINÁMICOS -->
+  <div id="ext-lista"></div>
+
+  <!-- ESTADO VACÍO -->
+  <div id="ext-empty" class="card" style="text-align:center;padding:40px;color:var(--grey)">
+    <div style="font-size:36px;margin-bottom:10px">🧯</div>
+    <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px">Sin extintores ingresados</div>
+    <div style="font-size:13px">Haz clic en <strong>＋ Añadir extintor</strong> para comenzar la inspección.</div>
+  </div>
+
+  <!-- PANEL GLOBAL DE HALLAZGOS -->
+  <div class="card" id="ext-panel-hallazgos" style="margin-bottom:20px">
+    <div class="card-title" style="margin-bottom:4px">⚠️ Hallazgos NC — Actividades Pendientes</div>
+    <div style="font-size:12px;color:var(--grey);margin-bottom:12px">Ítems marcados como No Cumple. Cierra cada hallazgo adjuntando evidencia fotográfica.</div>
+    <div id="ext-hallazgos-globales"><p style="font-size:13px;color:var(--grey);text-align:center">Sin hallazgos registrados.</p></div>
+  </div>
+
+  <!-- RESUMEN Y ACCIONES -->
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+    <div style="display:flex;gap:22px;font-size:13px;flex-wrap:wrap">
+      <span>🟢 OK: <strong id="ext-sum-ok" style="color:var(--lime)">0</strong></span>
+      <span>🔴 NC: <strong id="ext-sum-nc" style="color:var(--red)">0</strong></span>
+      <span>➖ N/A: <strong id="ext-sum-na" style="color:var(--grey)">0</strong></span>
+      <span>📋 Inspeccionados: <strong id="ext-sum-total">0</strong></span>
+      <span id="ext-pend-badge" style="display:none">🔴 Pendientes: <strong id="ext-sum-pend" style="color:var(--red)">0</strong></span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="guardarExtintores()">💾 Guardar inspección</button>
+      <button class="btn btn-lime" onclick="exportarExtintores()">⬇ Exportar .TXT</button>
+      <button class="btn btn-outline" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+  </div>
+
+</div><!-- /panel-extintores -->
+
+<!-- ══ PESTAÑA 5: DASHBOARD ══ -->
+<div class="tab-panel" id="panel-dashboard">
+  <div class="kpi-grid">
+    <div class="kpi-box"><div class="kpi-val" id="d-total">0</div><div class="kpi-lbl">Checklists Hoy</div></div>
+    <div class="kpi-box"><div class="kpi-val" id="d-aptos" style="color:var(--lime)">0</div><div class="kpi-lbl">Vehículos Aptos</div></div>
+    <div class="kpi-box"><div class="kpi-val" id="d-criticos" style="color:var(--red)">0</div><div class="kpi-lbl">Con NC Críticas</div></div>
+    <div class="kpi-box"><div class="kpi-val" id="d-mant" style="color:var(--orange)">0</div><div class="kpi-lbl">En Mantención</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🚗 Estado de Flota</div>
+    <div class="flota-grid" id="flota-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--grey);font-size:13px">
+        Realiza checklists de vehículos para ver el estado de la flota aquí.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><span id="toast-msg"></span></div>
+
+<script>
+/* ══════════════════════════════════
+   TAB NAVIGATION
+══════════════════════════════════ */
+function showTab(id,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'))
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+  document.getElementById('panel-'+id).classList.add('active')
+  if(btn) btn.classList.add('active')
+}
+
+/* ══════════════════════════════════
+   CHECKLIST VEHÍCULO
+══════════════════════════════════ */
+const VEHICULO_ITEMS=[
+  {sec:'🔑 Documentación y Habilitación',items:[
+    {id:'v1',label:'Licencia de conducir vigente y clase correcta',critica:true},
+    {id:'v2',label:'Permiso de circulación vigente',critica:true},
+    {id:'v3',label:'Revisión técnica al día',critica:true},
+    {id:'v4',label:'SOAP / Seguro obligatorio vigente',critica:true},
+  ]},
+  {sec:'🛞 Estado Mecánico y Neumáticos',items:[
+    {id:'v5',label:'Neumáticos con banda de rodado adecuada (>2mm)',critica:true},
+    {id:'v6',label:'Neumático de repuesto en buen estado y accesible',critica:false},
+    {id:'v7',label:'Presión de neumáticos verificada',critica:false},
+    {id:'v8',label:'Frenos funcionando correctamente',critica:true},
+    {id:'v9',label:'Dirección sin holgura excesiva',critica:true},
+  ]},
+  {sec:'💡 Luces y Señalización',items:[
+    {id:'v10',label:'Luces delanteras y traseras operativas',critica:true},
+    {id:'v11',label:'Luces de emergencia y balizas funcionando',critica:true},
+    {id:'v12',label:'Reflectantes y señalización visible',critica:false},
+    {id:'v13',label:'Limpiadores de parabrisas operativos',critica:false},
+  ]},
+  {sec:'🔧 Equipamiento de Seguridad',items:[
+    {id:'v14',label:'Extintor vigente (fecha y presión OK)',critica:true},
+    {id:'v15',label:'Botiquín completo y sellado',critica:true},
+    {id:'v16',label:'Triangulos de seguridad presentes (x2)',critica:false},
+    {id:'v17',label:'Kit de herramientas básicas',critica:false},
+    {id:'v18',label:'Cinturones de seguridad para todos los asientos',critica:true},
+  ]},
+  {sec:'🪟 Condiciones Generales',items:[
+    {id:'v19',label:'Parabrisas sin fisuras que afecten visibilidad',critica:true},
+    {id:'v20',label:'Interior limpio y ordenado (sin objetos sueltos)',critica:false},
+    {id:'v21',label:'Nivel de combustible adecuado para el trayecto',critica:false},
+    {id:'v22',label:'Nivel de fluidos (aceite, agua, líquido frenos) OK',critica:false},
+  ]},
+]
+const vState={}
+
+function renderVehiculo(){
+  const cont=document.getElementById('checklist-vehiculo')
+  cont.innerHTML=''
+  VEHICULO_ITEMS.forEach(sec=>{
+    const secDiv=document.createElement('div')
+    secDiv.className='card'
+    secDiv.innerHTML=`<div class="section-header">${sec.sec}</div>`
+    sec.items.forEach(it=>{
+      const val=vState[it.id]||null
+      const row=document.createElement('div')
+      row.className='check-item'
+      row.innerHTML=`
+        <div class="check-label">${it.label}${it.critica?'<span class="critico">CRÍTICO</span>':''}</div>
+        <div class="check-btns">
+          <button class="cb cb-ok${val==='OK'?' active':''}" onclick="setV('${it.id}','OK')">OK</button>
+          <button class="cb cb-nc${val==='NC'?' active':''}" onclick="setV('${it.id}','NC')">NC</button>
+          <button class="cb cb-na${val==='NA'?' active':''}" onclick="setV('${it.id}','NA')">N/A</button>
+        </div>`
+      secDiv.appendChild(row)
+    })
+    cont.appendChild(secDiv)
+  })
+}
+
+function setV(id,val){
+  vState[id]=vState[id]===val?null:val
+  renderVehiculo()
+  updateVProgress()
+}
+
+function updateVProgress(){
+  const all=VEHICULO_ITEMS.flatMap(s=>s.items)
+  const critItems=all.filter(it=>it.critica)
+  const ok=Object.values(vState).filter(x=>x==='OK').length
+  const nc=Object.values(vState).filter(x=>x==='NC').length
+  const na=Object.values(vState).filter(x=>x==='NA').length
+  const critNC=critItems.filter(it=>vState[it.id]==='NC').length
+  const pct=ok+nc>0?Math.round(ok/(ok+nc)*100):0
+  document.getElementById('v-ok').textContent=ok
+  document.getElementById('v-nc').textContent=nc
+  document.getElementById('v-na').textContent=na
+  document.getElementById('v-pct').textContent=pct+'%'
+  const fill=document.getElementById('v-fill')
+  fill.style.width=pct+'%'
+  let sem,semClass
+  if(critNC>0){sem='CRÍTICO — No Apto';semClass='sem-red';fill.style.background='var(--red)'}
+  else if(nc>0){sem='MANTENCIÓN — Apto c/ Observaciones';semClass='sem-orange';fill.style.background='var(--orange)'}
+  else if(ok===0){sem='Sin evaluar';semClass='sem-red';fill.style.background='var(--grey)'}
+  else{sem='APTO — Sin observaciones';semClass='sem-green';fill.style.background='var(--lime)'}
+  const semEl=document.getElementById('v-sem')
+  semEl.textContent=sem
+  semEl.className='sem '+semClass
+}
+
+function guardarChecklist(){
+  const patente=document.getElementById('v-patente').value||'Sin patente'
+  const conductor=document.getElementById('v-conductor').value||'Sin nombre'
+  const ok=Object.values(vState).filter(x=>x==='OK').length
+  const nc=Object.values(vState).filter(x=>x==='NC').length
+  const all=VEHICULO_ITEMS.flatMap(s=>s.items)
+  const critNC=all.filter(it=>it.critica&&vState[it.id]==='NC').length
+  const status=critNC>0?'CRÍTICO':nc>0?'MANTENCIÓN':'APTO'
+  const reg={patente,conductor,ok,nc,status,hora:new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
+  flota.push(reg)
+  renderDashboard()
+  document.getElementById('v-save-msg').textContent='✅ Guardado en dashboard — '+new Date().toLocaleTimeString('es-CL')
+  showToast('✅ Checklist guardado — '+patente)
+}
+
+/* ══════════════════════════════════
+   FATIGA
+══════════════════════════════════ */
+const FATIGA_QS=[
+  {id:'f1',text:'¿Has dormido menos de 5 horas en las últimas 24 horas?',critica:true},
+  {id:'f2',text:'¿Sientes que te puedes quedar dormido al conducir ahora mismo?',critica:true},
+  {id:'f3',text:'¿Has consumido medicamentos que puedan causar somnolencia?',critica:true},
+  {id:'f4',text:'¿Has ingerido alcohol en las últimas 12 horas?',critica:true},
+  {id:'f5',text:'¿Tienes más de 12 horas trabajadas en este turno?',critica:true},
+  {id:'f6',text:'¿Has tenido microsueños o "apagones" mientras conducías recientemente?',critica:false},
+  {id:'f7',text:'¿Te cuesta mantener los ojos abiertos en este momento?',critica:false},
+  {id:'f8',text:'¿Has sentido mareos o dificultad para concentrarte hoy?',critica:false},
+  {id:'f9',text:'¿Sientes tensión muscular intensa o dolor que afecte tu conducción?',critica:false},
+]
+const fState={}
+
+function renderFatiga(){
+  const cont=document.getElementById('fatiga-form')
+  cont.innerHTML=''
+  FATIGA_QS.forEach(q=>{
+    const val=fState[q.id]||null
+    const div=document.createElement('div')
+    div.className='fatiga-q'+(q.critica?' critica':'')
+    div.innerHTML=`
+      ${q.critica?'<span class="q-critica-tag">⚠️ PREGUNTA CRÍTICA</span>':''}
+      <div class="q-text">${q.text}</div>
+      <div class="q-btns">
+        <button class="q-btn si${val==='SI'?' active':''}" onclick="setF('${q.id}','SI')">SÍ</button>
+        <button class="q-btn no${val==='NO'?' active':''}" onclick="setF('${q.id}','NO')">NO</button>
+      </div>`
+    cont.appendChild(div)
+  })
+}
+
+function setF(id,val){fState[id]=fState[id]===val?null:val;renderFatiga()}
+
+function evaluarFatiga(){
+  const critFail=FATIGA_QS.filter(q=>q.critica&&fState[q.id]==='SI').length
+  const cualFail=FATIGA_QS.filter(q=>fState[q.id]==='SI').length
+  const ver=document.getElementById('veredicto-fatiga')
+  ver.style.display='block'
+  if(critFail>0){
+    ver.className='veredicto no-apto'
+    document.getElementById('v-icon').textContent='🚫'
+    document.getElementById('v-title').textContent='NO APTO — Restricción Inmediata'
+    document.getElementById('v-sub').textContent=`Se detectaron ${critFail} factor(es) crítico(s). El conductor NO debe operar vehículos. Derivar a médico o jefatura. Protocolo RC N°24 Codelco activado.`
+  }else if(cualFail>=2){
+    ver.className='veredicto no-apto'
+    document.getElementById('v-icon').textContent='⚠️'
+    document.getElementById('v-title').textContent='CONDICIONAL — Evaluación Requerida'
+    document.getElementById('v-sub').textContent=`Se detectaron ${cualFail} factores de fatiga moderados. Reportar a supervisor antes de iniciar conducción.`
+  }else{
+    ver.className='veredicto apto'
+    document.getElementById('v-icon').textContent='✅'
+    document.getElementById('v-title').textContent='APTO — Sin Restricciones'
+    document.getElementById('v-sub').textContent='El conductor no presenta factores de fatiga críticos. Apto para operar vehículos en el turno actual.'
+  }
+}
+
+function resetFatiga(){
+  FATIGA_QS.forEach(q=>delete fState[q.id])
+  document.getElementById('veredicto-fatiga').style.display='none'
+  renderFatiga()
+}
+
+/* ══════════════════════════════════
+   EPP — CANVAS FIRMAS
+══════════════════════════════════ */
+const sigCtx={}
+
+function initSig(id){
+  const canvas=document.getElementById('canvas-'+id)
+  const hint=document.getElementById('hint-'+id)
+  const wrap=document.getElementById('wrap-'+id)
+  const ctx=canvas.getContext('2d')
+  let drawing=false,hasSig=false
+
+  function resize(){
+    const r=canvas.getBoundingClientRect()
+    const dpr=window.devicePixelRatio||1
+    const imgData=hasSig?ctx.getImageData(0,0,canvas.width,canvas.height):null
+    canvas.width=Math.floor(r.width*dpr)
+    canvas.height=Math.floor(r.height*dpr)
+    ctx.scale(dpr,dpr)
+    ctx.strokeStyle='#002B49';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round'
+    if(imgData)ctx.putImageData(imgData,0,0)
+  }
+  new ResizeObserver(resize).observe(canvas)
+  resize()
+
+  function pos(e){
+    const r=canvas.getBoundingClientRect()
+    const s=e.touches?e.touches[0]:e
+    return{x:s.clientX-r.left,y:s.clientY-r.top}
+  }
+  canvas.addEventListener('mousedown',e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);if(!hasSig){hasSig=true;hint.style.opacity='0';wrap.classList.add('signed')}})
+  canvas.addEventListener('mousemove',e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y)})
+  canvas.addEventListener('mouseup',()=>drawing=false)
+  canvas.addEventListener('mouseleave',()=>drawing=false)
+  canvas.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);if(!hasSig){hasSig=true;hint.style.opacity='0';wrap.classList.add('signed')}},{passive:false})
+  canvas.addEventListener('touchmove',e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y)},{passive:false})
+  canvas.addEventListener('touchend',()=>drawing=false)
+
+  sigCtx[id]={canvas,ctx,hint,wrap,getHas:()=>hasSig,setHas:v=>hasSig=v}
+}
+
+function clearSig(id){
+  const s=sigCtx[id]
+  s.ctx.clearRect(0,0,s.canvas.width,s.canvas.height)
+  s.hint.style.opacity='1'
+  s.wrap.classList.remove('signed')
+  s.setHas(false)
+}
+
+/* ══════════════════════════════════
+   EPP — DATOS Y ACCIONES
+══════════════════════════════════ */
+const eppRegistros=[]
+
+function syncEppNombre(){
+  const n=document.getElementById('e-nombre').value
+  document.getElementById('sig-nombre-trab').value=n
+  document.getElementById('e-preview-nombre').textContent=n||'___________'
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('e-nombre').addEventListener('input',()=>{
+    document.getElementById('e-preview-run').textContent=document.getElementById('e-run').value||'___________'
+    document.getElementById('e-preview-cargo').textContent=document.getElementById('e-cargo').value||'___________'
+  })
+  document.getElementById('e-run').addEventListener('input',()=>{
+    document.getElementById('e-preview-run').textContent=document.getElementById('e-run').value||'___________'
+  })
+  document.getElementById('e-cargo').addEventListener('input',()=>{
+    document.getElementById('e-preview-cargo').textContent=document.getElementById('e-cargo').value||'___________'
+  })
+  // fecha default
+  const hoy=new Date().toISOString().split('T')[0]
+  document.getElementById('e-fecha').value=hoy
+  document.getElementById('sig-fecha-trab').value=hoy
+  document.getElementById('sig-fecha-resp').value=hoy
+  // init firmas
+  initSig('trab')
+  initSig('resp')
+})
+
+function markQ(inp){
+  const v=parseInt(inp.value)
+  if(v>0)inp.classList.add('has-val')
+  else{inp.classList.remove('has-val');inp.value=''}
+}
+
+function recopilarEPP(){
+  const EPP_MAP=[
+    {label:'Casco c/ barbiquejo Blanco',id:'q-casco'},
+    {label:'Protector Auditivo Adosable al Casco',id:'q-prot-aud'},
+    {label:'Coipa (cubrenuca)',id:'q-coipa'},
+    {label:'Chaleco Geólogo',id:'q-chaleco-geo'},
+    {label:'Nombre geólogo',id:'q-nombre-geo'},
+    {label:'Zapato de Seguridad',id:'q-zapato'},
+    {label:'Respirador Media Cara',id:'q-respirador'},
+    {label:()=>'Filtro'+(document.getElementById('chk-mixto').checked?' Mixto':'')+(document.getElementById('chk-polvo').checked?' Polvo':''),id:'q-filtro'},
+    {label:'Lentes In-Out',id:'q-lentes'},
+    {label:'Guantes Instrumentista',id:'q-guantes-inst'},
+    {label:'Bloqueador Solar',id:'q-bloq-solar'},
+    {label:'Protector Labial',id:'q-prot-labial'},
+    {label:'Slack Anti-Ácido',id:'q-slack'},
+    {label:'Guantes Térmicos',id:'q-guantes-term'},
+    {label:'Chaqueta Térmica',id:'q-chaq-term'},
+    {label:'Pantalón Térmico',id:'q-pant-term'},
+    {label:'Balaclava Zero',id:'q-balaclava'},
+    {label:'Primera Capa Térmica',id:'q-primera-capa'},
+    {label:'Calcetines Térmicos',id:'q-calc-term'},
+    {label:'Camisa / Blusa / Polera',id:'q-camisa'},
+    {label:'Jeans / Pantalón',id:'q-jeans'},
+    {label:'Chaqueta 2 en 1',id:'q-chaq-2en1'},
+    {label:'Pinzas para candados',id:'q-pinzas'},
+    {label:()=>'Candados Color: '+(document.getElementById('color-candado').value||'—'),id:'q-candados'},
+    {label:'Tarjetas de Bloqueo',id:'q-tarjetas'},
+    {label:()=>'Arnés de Seguridad cod: '+(document.getElementById('cod-arnes').value||'—'),id:'q-arnes'},
+    {label:()=>'Cuerda de Vida cod: '+(document.getElementById('cod-cuerda').value||'—'),id:'q-cuerda'},
+    {label:'Botas de Goma (negra)',id:'q-botas-goma'},
+    {label:'Botas de Ácido (amarilla)',id:'q-botas-acido'},
+  ]
+  for(let i=1;i<=3;i++){
+    const desc=document.getElementById('otro'+i+'-desc').value.trim()
+    if(desc)EPP_MAP.push({label:desc,id:'q-otro'+i})
+  }
+  return EPP_MAP.map(it=>({
+    label:typeof it.label==='function'?it.label():it.label,
+    qty:document.getElementById(it.id)?.value||''
+  })).filter(x=>x.qty&&parseInt(x.qty)>0)
+}
+
+function guardarEPP(){
+  const nombre=document.getElementById('e-nombre').value.trim()
+  const run=document.getElementById('e-run').value.trim()
+  if(!nombre||!run){showToast('⚠ Ingrese Nombre y R.U.N.');document.getElementById('e-nombre').focus();return}
+  const reg={
+    id:Date.now(),
+    nombre,run,
+    cargo:document.getElementById('e-cargo').value,
+    empresa:document.getElementById('e-empresa').value,
+    fecha:document.getElementById('e-fecha').value,
+    epp:recopilarEPP(),
+    obs:document.getElementById('e-obs').value,
+    respNombre:document.getElementById('sig-nombre-resp').value,
+    hora:new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})
+  }
+  eppRegistros.push(reg)
+  renderHistorialEPP()
+  document.getElementById('epp-save-msg').textContent='✅ Guardado — '+reg.hora
+  showToast('✅ Registro EPP guardado — '+nombre)
+}
+
+function renderHistorialEPP(){
+  const cont=document.getElementById('epp-historial')
+  if(eppRegistros.length===0){
+    cont.innerHTML='<p style="font-size:13px;color:var(--grey);text-align:center;padding:24px">Aún no hay registros guardados en esta sesión.</p>'
+    return
+  }
+  cont.innerHTML=''
+  eppRegistros.slice().reverse().forEach(r=>{
+    const div=document.createElement('div')
+    div.className='epp-reg-card'
+    div.style.marginBottom='10px'
+    const eppResumen=r.epp.slice(0,4).map(x=>`${x.label} x${x.qty}`).join(' · ')+(r.epp.length>4?` +${r.epp.length-4} más`:'')
+    div.innerHTML=`
+      <div class="epp-reg-info">
+        <div class="epp-reg-nombre">🦺 ${r.nombre}</div>
+        <div class="epp-reg-meta">${r.run} · ${r.cargo||'—'} · ${r.empresa||'—'} · ${r.fecha||'—'} · ${r.hora}</div>
+        <div class="epp-reg-epp">${eppResumen||'Sin ítems'}</div>
+      </div>
+      <button class="btn btn-danger" onclick="eliminarEPP(${r.id})">✕</button>`
+    cont.appendChild(div)
+  })
+}
+
+function eliminarEPP(id){
+  const idx=eppRegistros.findIndex(r=>r.id===id)
+  if(idx>=0)eppRegistros.splice(idx,1)
+  renderHistorialEPP()
+}
+
+function exportarEPP(){
+  const nombre=document.getElementById('e-nombre').value||'—'
+  const run=document.getElementById('e-run').value||'—'
+  const cargo=document.getElementById('e-cargo').value||'—'
+  const empresa=document.getElementById('e-empresa').value||'—'
+  const fecha=document.getElementById('e-fecha').value||'—'
+  const obs=document.getElementById('e-obs').value||'—'
+  const items=recopilarEPP()
+  let txt=`FORMULARIO REGISTRO ENTREGA DE EPP
+SmartHSE — Sistema de Gestión HSE Digital
+${'='.repeat(55)}
+
+DATOS DEL TRABAJADOR
+${'─'.repeat(40)}
+Nombre   : ${nombre}
+R.U.N.   : ${run}
+Cargo    : ${cargo}
+Empresa  : ${empresa}
+Fecha    : ${fecha}
+
+DECLARACIÓN
+${'─'.repeat(40)}
+YO: ${nombre}  R.U.N.: ${run}  CARGO: ${cargo}
+Declaro haber recibido los siguientes EPP por parte de mi empleador:
+
+ELEMENTOS ENTREGADOS
+${'─'.repeat(40)}
+`
+  if(items.length===0)txt+='  (Sin elementos registrados)\n'
+  else items.forEach(it=>txt+=`  • ${it.label.padEnd(42)} x${it.qty}\n`)
+
+  txt+=`
+OBSERVACIONES
+${'─'.repeat(40)}
+${obs}
+
+AVISO LEGAL
+${'─'.repeat(40)}
+Según las disposiciones legales vigentes, el trabajador está
+obligado a dar el uso debido a los EPP (Art. 58° RIOHS).
+
+FIRMAS
+${'─'.repeat(40)}
+Trabajador    : ${document.getElementById('sig-nombre-trab').value||nombre}
+Fecha         : ${document.getElementById('sig-fecha-trab').value||fecha}
+
+Responsable   : ${document.getElementById('sig-nombre-resp').value||'—'}
+Fecha         : ${document.getElementById('sig-fecha-resp').value||fecha}
+
+[Firmas digitales registradas en documento PDF del sistema]
+
+${'─'.repeat(55)}
+Generado por SmartHSE | smarthse.cl | ${new Date().toLocaleString('es-CL')}
+`
+  const blob=new Blob([txt],{type:'text/plain;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a')
+  a.href=url
+  const fs=fecha.replace(/-/g,'')||'sinfecha'
+  const ns=(nombre.replace(/\s+/g,'_')||'trabajador').substring(0,20)
+  a.download=`EPP_${ns}_${fs}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast('⬇ Archivo .TXT descargado')
+}
+
+function imprimirEPP(){window.print()}
+
+function nuevoEPP(){
+  if(!confirm('¿Limpiar el formulario para un nuevo registro?'))return
+  const hoy=new Date().toISOString().split('T')[0]
+  document.querySelectorAll('#panel-epp input:not([type=checkbox]),#panel-epp textarea,#panel-epp select').forEach(el=>{
+    if(el.type==='date')el.value=hoy
+    else if(el.tagName==='SELECT')el.selectedIndex=0
+    else el.value=''
+  })
+  document.querySelectorAll('#panel-epp input[type=checkbox]').forEach(c=>c.checked=false)
+  document.querySelectorAll('#panel-epp .qty-inp').forEach(q=>q.classList.remove('has-val'))
+  clearSig('trab');clearSig('resp')
+  document.getElementById('e-preview-nombre').textContent='___________'
+  document.getElementById('e-preview-run').textContent='___________'
+  document.getElementById('e-preview-cargo').textContent='___________'
+  document.getElementById('epp-save-msg').textContent=''
+  showToast('Formulario limpio — listo para nuevo registro')
+}
+
+/* ══════════════════════════════════
+   DASHBOARD
+══════════════════════════════════ */
+const flota=[]
+function renderDashboard(){
+  document.getElementById('d-total').textContent=flota.length
+  document.getElementById('d-aptos').textContent=flota.filter(f=>f.status==='APTO').length
+  document.getElementById('d-criticos').textContent=flota.filter(f=>f.status==='CRÍTICO').length
+  document.getElementById('d-mant').textContent=flota.filter(f=>f.status==='MANTENCIÓN').length
+  const grid=document.getElementById('flota-grid')
+  if(!flota.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--grey);font-size:13px">Realiza checklists de vehículos para ver el estado de la flota aquí.</div>'
+    return
+  }
+  grid.innerHTML=''
+  flota.forEach(f=>{
+    const card=document.createElement('div')
+    card.className='flota-card'
+    const colMap={APTO:'var(--lime)',CRÍTICO:'var(--red)',MANTENCIÓN:'var(--orange)'}
+    const col=colMap[f.status]||'var(--grey)'
+    card.innerHTML=`
+      <div class="flota-patente">🚗 ${f.patente}</div>
+      <div class="flota-conductor">👤 ${f.conductor} · ${f.hora}</div>
+      <span class="flota-status" style="background:rgba(0,0,0,.05);color:${col};border:1px solid ${col}">${f.status}</span>
+      <div style="margin-top:10px;font-size:12px;color:var(--grey)">OK: ${f.ok} · NC: ${f.nc}</div>`
+    grid.appendChild(card)
+  })
+}
+
+/* ══════════════════════════════════
+   TOAST
+══════════════════════════════════ */
+function showToast(msg){
+  const t=document.getElementById('toast')
+  document.getElementById('toast-msg').textContent=msg
+  t.classList.add('show')
+  setTimeout(()=>t.classList.remove('show'),3200)
+}
+
+/* INIT */
+renderVehiculo()
+renderFatiga()
+renderDashboard()
+
+/* ══════════════════════════════════
+   EXTINTORES — MÓDULO DINÁMICO
+══════════════════════════════════ */
+// Acciones correctivas predefinidas por ítem
+const EXT_ITEMS=[
+  {id:'e1',label:'Ubicación y Acceso: ¿Está en su lugar asignado y libre de obstáculos?',
+    acciones:['Despejar el área de obstáculos','Reubicar extintor a su lugar asignado','Señalizar zona de acceso']},
+  {id:'e2',label:'Visibilidad y Señalética: ¿Cuenta con su señal de "Extintor" y es visible a distancia?',
+    acciones:['Instalar señalética faltante','Reemplazar señal deteriorada','Mejorar iluminación del sector']},
+  {id:'e3',label:'Altura de Instalación: ¿Está colgado a la altura máxima reglamentaria (1,30 m al gatillo)?',
+    acciones:['Reubicar soporte a altura reglamentaria (1,30 m)','Instalar soporte nuevo en posición correcta']},
+  {id:'e4',label:'Manómetro / Presión: ¿La aguja del manómetro se encuentra en la zona verde (operativa)?',
+    acciones:['Enviar a recarga inmediata','Reemplazar extintor por uno operativo','Revisar con técnico certificado']},
+  {id:'e5',label:'Pasador y Sello: ¿Tiene el pasador de seguridad y el sello plástico intactos?',
+    acciones:['Reemplazar pasador de seguridad','Instalar nuevo sello plástico','Verificar si fue utilizado — enviar a revisión técnica']},
+  {id:'e6',label:'Manguera y Boquilla: ¿La manguera está sana (sin grietas) y la boquilla despejada?',
+    acciones:['Reemplazar manguera dañada','Despejar boquilla obstruida','Enviar a servicio técnico']},
+  {id:'e7',label:'Estado del Cilindro: ¿El cuerpo está libre de golpes, óxido, abolladuras o corrosión?',
+    acciones:['Retirar extintor de servicio y enviar a revisión','Reemplazar cilindro dañado','Aplicar tratamiento anticorrosivo y reevaluar']},
+  {id:'e8',label:'Etiqueta y Certificación: ¿Mantiene la etiqueta de instrucciones legible y la certificación al día?',
+    acciones:['Renovar certificación vencida','Reponer etiqueta de instrucciones','Coordinar visita de empresa certificadora']},
+  {id:'e9',label:'Servicio Técnico: ¿Cuenta con la tarjeta de control mensual firmada y fechada?',
+    acciones:['Completar tarjeta de control mensual','Gestionar revisión técnica mensual pendiente','Instalar tarjeta de control nueva']},
+]
+
+let extintores=[]
+let extCounter=0
+
+function actualizarTotalArea(){actualizarContador()}
+
+function actualizarContador(){
+  const total=parseInt(document.getElementById('ext-total-area').value)||0
+  const ing=extintores.length
+  const lbl=document.getElementById('ext-contador-label')
+  lbl.textContent=`${ing} ingresado${ing!==1?'s':''}`+(total>0?` de ${total}`:'')
+  lbl.style.color=total>0&&ing>=total?'var(--lime)':'var(--grey)'
+}
+
+function agregarExtintor(){
+  extCounter++
+  const id='ext'+extCounter
+  // hallazgos:{itemId:{accion,accionCustom,responsable,plazo,cerrado,evidenciaUrl}}
+  extintores.push({id,num:'',ubicacion:'',tipo:'PQS',capacidad:'',recarga:'',estado:{},hallazgos:{},obs:'',fotoDataUrl:null})
+  renderExtintores()
+  setTimeout(()=>{const el=document.getElementById('card-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},100)
+}
+
+function eliminarExtintor(id){
+  if(!confirm('¿Eliminar este extintor de la inspección?'))return
+  extintores=extintores.filter(e=>e.id!==id)
+  renderExtintores()
+  actualizarContador()
+  actualizarResumen()
+  renderHallazgosGlobales()
+}
+
+function setExt(extId,itemId,val){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext)return
+  const prev=ext.estado[itemId]
+  ext.estado[itemId]=prev===val?null:val
+  // si se cambia de NC a otra cosa, limpiar hallazgo
+  if(prev==='NC'&&val!=='NC') delete ext.hallazgos[itemId]
+
+  // actualizar botones visualmente
+  ;['OK','NC','NA'].forEach(v=>{
+    const btn=document.getElementById(`btn-${extId}-${itemId}-${v}`)
+    if(btn)btn.classList.toggle('active',ext.estado[itemId]===v)
+  })
+
+  // mostrar/ocultar bloque hallazgo
+  const hBox=document.getElementById(`hallazgo-${extId}-${itemId}`)
+  if(hBox){
+    if(ext.estado[itemId]==='NC'){
+      hBox.style.display='block'
+      if(!ext.hallazgos[itemId]) ext.hallazgos[itemId]={accion:'',accionCustom:'',responsable:'',plazo:'',cerrado:false,evidenciaUrl:null}
+    } else {
+      hBox.style.display='none'
+    }
+  }
+
+  actualizarResumenExt(extId)
+  actualizarResumen()
+  renderHallazgosGlobales()
+}
+
+function seleccionarAccion(extId,itemId,accion,btn){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext||!ext.hallazgos[itemId])return
+  ext.hallazgos[itemId].accion=accion
+  // deseleccionar otros botones del mismo grupo
+  document.querySelectorAll(`[data-accion-group="${extId}-${itemId}"]`).forEach(b=>b.classList.remove('selected'))
+  btn.classList.add('selected')
+}
+
+function syncHallazgo(extId,itemId,campo,val){
+  const ext=extintores.find(e=>e.id===extId)
+  if(ext&&ext.hallazgos[itemId])ext.hallazgos[itemId][campo]=val
+}
+
+function cargarEvidencia(extId,itemId,event){
+  const file=event.target.files[0]
+  if(!file)return
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext||!ext.hallazgos[itemId])return
+  const reader=new FileReader()
+  reader.onload=e=>{
+    ext.hallazgos[itemId].evidenciaUrl=e.target.result
+    const prev=document.getElementById(`ev-prev-${extId}-${itemId}`)
+    if(prev){prev.src=e.target.result;prev.style.display='block'}
+    showToast('✅ Evidencia cargada')
+    renderHallazgosGlobales()
+  }
+  reader.readAsDataURL(file)
+}
+
+function cerrarHallazgo(extId,itemId){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext||!ext.hallazgos[itemId])return
+  if(!ext.hallazgos[itemId].evidenciaUrl){showToast('⚠ Debes adjuntar evidencia fotográfica para cerrar el hallazgo');return}
+  const acc=ext.hallazgos[itemId].accion||ext.hallazgos[itemId].accionCustom
+  if(!acc){showToast('⚠ Define la acción correctiva primero');return}
+  ext.hallazgos[itemId].cerrado=true
+  // re-render el bloque de cierre
+  const cierreBox=document.getElementById(`cierre-${extId}-${itemId}`)
+  if(cierreBox)cierreBox.innerHTML=renderCierreHTML(extId,itemId)
+  actualizarResumenExt(extId)
+  actualizarResumen()
+  renderHallazgosGlobales()
+  showToast('✅ Hallazgo cerrado con evidencia')
+}
+
+function reabrirHallazgo(extId,itemId){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext||!ext.hallazgos[itemId])return
+  ext.hallazgos[itemId].cerrado=false
+  const cierreBox=document.getElementById(`cierre-${extId}-${itemId}`)
+  if(cierreBox)cierreBox.innerHTML=renderCierreHTML(extId,itemId)
+  renderHallazgosGlobales()
+}
+
+function renderCierreHTML(extId,itemId){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext||!ext.hallazgos[itemId])return''
+  const h=ext.hallazgos[itemId]
+  if(h.cerrado){
+    return`<div class="hallazgo-cerrado">
+      <span style="font-size:22px">✅</span>
+      <div>
+        <div>Hallazgo cerrado con evidencia</div>
+        ${h.evidenciaUrl?`<img src="${h.evidenciaUrl}" style="max-width:180px;border-radius:8px;margin-top:6px;display:block">`:'' }
+        <button class="btn btn-outline" style="margin-top:8px;font-size:11px;padding:4px 12px" onclick="reabrirHallazgo('${extId}','${itemId}')">↩ Reabrir</button>
+      </div>
+    </div>`
+  }
+  const it=EXT_ITEMS.find(x=>x.id===itemId)
+  return`<div class="hallazgo-cierre">
+    <div class="hallazgo-cierre-title">📎 Evidencia de Cierre — Adjunta foto que confirme la corrección</div>
+    <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;background:var(--white);border:1px dashed var(--lime);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--navy);margin-bottom:8px">
+      📷 <span>Adjuntar foto de evidencia</span>
+      <input type="file" accept="image/*" capture="environment" style="display:none" onchange="cargarEvidencia('${extId}','${itemId}',event)">
+    </label>
+    <img id="ev-prev-${extId}-${itemId}" src="${h.evidenciaUrl||''}" style="max-width:200px;border-radius:8px;display:${h.evidenciaUrl?'block':'none'};margin-bottom:8px;border:2px solid var(--lime)">
+    <div><button class="btn btn-lime" style="font-size:12px;padding:8px 18px" onclick="cerrarHallazgo('${extId}','${itemId}')">✅ Confirmar cierre del hallazgo</button></div>
+  </div>`
+}
+
+function renderHallazgoHTML(extId,itemId){
+  const ext=extintores.find(e=>e.id===extId)
+  const it=EXT_ITEMS.find(x=>x.id===itemId)
+  const h=ext?.hallazgos[itemId]
+  const visible=ext?.estado[itemId]==='NC'
+  if(!h&&!visible)return`<div id="hallazgo-${extId}-${itemId}" style="display:none"></div>`
+
+  const accionesBtns=it.acciones.map(a=>`
+    <button class="hallazgo-accion${h?.accion===a?' selected':''}" data-accion-group="${extId}-${itemId}"
+      onclick="seleccionarAccion('${extId}','${itemId}','${a.replace(/'/g,"\\'")}',this)">${a}</button>`).join('')
+
+  return`<div id="hallazgo-${extId}-${itemId}" class="hallazgo-box" style="display:${visible?'block':'none'}">
+    <div class="hallazgo-title">⚠️ NC — Acción Correctiva Requerida</div>
+    <div style="font-size:12px;color:#374151;margin-bottom:8px">¿Cuál es la acción correctiva?</div>
+    <div class="hallazgo-accion-wrap">${accionesBtns}
+      <input type="text" class="hallazgo-accion-custom" placeholder="Otra acción (especificar)…" value="${h?.accionCustom||''}"
+        oninput="syncHallazgo('${extId}','${itemId}','accionCustom',this.value)">
+    </div>
+    <div class="hallazgo-responsable">
+      <input type="text" placeholder="👤 Responsable de ejecución" value="${h?.responsable||''}"
+        oninput="syncHallazgo('${extId}','${itemId}','responsable',this.value)">
+      <input type="date" title="Plazo de cierre" value="${h?.plazo||''}"
+        oninput="syncHallazgo('${extId}','${itemId}','plazo',this.value)">
+    </div>
+    <div id="cierre-${extId}-${itemId}">${renderCierreHTML(extId,itemId)}</div>
+  </div>`
+}
+
+function actualizarResumenExt(extId){
+  const ext=extintores.find(e=>e.id===extId)
+  if(!ext)return
+  const vals=Object.values(ext.estado)
+  const ok=vals.filter(x=>x==='OK').length
+  const nc=vals.filter(x=>x==='NC').length
+  const na=vals.filter(x=>x==='NA').length
+  const total=EXT_ITEMS.length
+  const respondidos=ok+nc+na
+  const ncCerrados=Object.values(ext.hallazgos).filter(h=>h.cerrado).length
+  const ncPendientes=nc-ncCerrados
+
+  const fill=document.getElementById('extfill-'+extId)
+  const pctEl=document.getElementById('extpct-'+extId)
+  const semEl=document.getElementById('extsem-'+extId)
+  if(!fill)return
+  fill.style.width=(respondidos/total*100)+'%'
+  pctEl.textContent=respondidos+'/'+total+' ítems'
+
+  if(ncPendientes>0){fill.style.background='var(--red)';semEl.textContent=`NC — ${ncPendientes} hallazgo${ncPendientes>1?'s':''} pendiente${ncPendientes>1?'s':''}`;semEl.className='sem sem-red'}
+  else if(nc>0&&ncCerrados===nc){fill.style.background='var(--orange)';semEl.textContent='NC Cerrados ✓';semEl.className='sem sem-orange'}
+  else if(respondidos===total){fill.style.background='var(--lime)';semEl.textContent='APTO';semEl.className='sem sem-green'}
+  else{fill.style.background='var(--cyan)';semEl.textContent='En progreso';semEl.className='sem sem-orange'}
+}
+
+function actualizarResumen(){
+  let totalOk=0,totalNc=0,totalNa=0,totalPend=0
+  extintores.forEach(ext=>{
+    const vals=Object.values(ext.estado)
+    totalOk+=vals.filter(x=>x==='OK').length
+    totalNc+=vals.filter(x=>x==='NC').length
+    totalNa+=vals.filter(x=>x==='NA').length
+    totalPend+=Object.values(ext.hallazgos).filter(h=>!h.cerrado).length
+  })
+  document.getElementById('ext-sum-ok').textContent=totalOk
+  document.getElementById('ext-sum-nc').textContent=totalNc
+  document.getElementById('ext-sum-na').textContent=totalNa
+  document.getElementById('ext-sum-total').textContent=extintores.length
+  const pendEl=document.getElementById('ext-sum-pend')
+  const pendBadge=document.getElementById('ext-pend-badge')
+  if(pendEl){pendEl.textContent=totalPend}
+  if(pendBadge){pendBadge.style.display=totalPend>0?'':'none'}
+}
+
+function fotoExt(id,event){
+  const file=event.target.files[0];if(!file)return
+  const ext=extintores.find(e=>e.id===id);if(!ext)return
+  const reader=new FileReader()
+  reader.onload=e=>{
+    ext.fotoDataUrl=e.target.result
+    const prev=document.getElementById('foto-prev-'+id)
+    if(prev){prev.src=e.target.result;prev.style.display='block';document.getElementById('foto-placeholder-'+id).style.display='none'}
+    showToast('📷 Foto del extintor cargada')
+  }
+  reader.readAsDataURL(file)
+}
+
+function syncExtDato(id,campo,val){
+  const ext=extintores.find(e=>e.id===id);if(ext)ext[campo]=val
+}
+
+function renderExtintores(){
+  const lista=document.getElementById('ext-lista')
+  const empty=document.getElementById('ext-empty')
+  lista.innerHTML=''
+  empty.style.display=extintores.length===0?'block':'none'
+
+  extintores.forEach((ext,idx)=>{
+    const div=document.createElement('div')
+    div.className='card'
+    div.id='card-'+ext.id
+    div.style.marginBottom='20px'
+
+    div.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;cursor:pointer" onclick="toggleExt('${ext.id}')">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="background:var(--navy);color:#fff;font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px">EXT ${idx+1}</div>
+          <div>
+            <div class="card-title" style="margin-bottom:2px">🧯 Extintor ${idx+1} <span id="extsem-${ext.id}" class="sem sem-orange" style="font-size:10px;margin-left:8px">Sin evaluar</span></div>
+            <div style="font-size:12px;color:var(--grey)" id="ext-subtitle-${ext.id}">${ext.num||'N° no definido'} · ${ext.ubicacion||'Ubicación no definida'}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:var(--grey)" id="extpct-${ext.id}">0/${EXT_ITEMS.length} ítems</span>
+          <button class="btn btn-danger" onclick="event.stopPropagation();eliminarExtintor('${ext.id}')">✕</button>
+        </div>
+      </div>
+      <div class="prog-bar-bg" style="margin-bottom:16px"><div class="prog-bar-fill" id="extfill-${ext.id}" style="width:0%;background:var(--cyan)"></div></div>
+
+      <div id="body-${ext.id}">
+        <div class="section-header">Datos del Extintor</div>
+        <div class="form-row" style="margin-bottom:12px">
+          <div class="fg"><label>N° de Extintor</label><input type="text" placeholder="EXT-001" value="${ext.num}" oninput="syncExtDato('${ext.id}','num',this.value);actualizarSubtitle('${ext.id}')"></div>
+          <div class="fg"><label>Ubicación / Sector</label><input type="text" placeholder="Hall entrada, Bodega 3…" value="${ext.ubicacion}" oninput="syncExtDato('${ext.id}','ubicacion',this.value);actualizarSubtitle('${ext.id}')"></div>
+          <div class="fg"><label>Tipo de Agente</label>
+            <select onchange="syncExtDato('${ext.id}','tipo',this.value)">
+              <option${ext.tipo==='PQS'?' selected':''}>PQS</option>
+              <option${ext.tipo==='CO₂'?' selected':''}>CO₂</option>
+              <option${ext.tipo==='Agua'?' selected':''}>Agua</option>
+              <option${ext.tipo==='AFFF'?' selected':''}>AFFF (espuma)</option>
+              <option${ext.tipo==='Clase K'?' selected':''}>Clase K</option>
+            </select>
+          </div>
+          <div class="fg"><label>Capacidad (Kg / L)</label><input type="text" placeholder="6 Kg" value="${ext.capacidad}" oninput="syncExtDato('${ext.id}','capacidad',this.value)"></div>
+          <div class="fg"><label>Fecha última recarga</label><input type="date" value="${ext.recarga}" oninput="syncExtDato('${ext.id}','recarga',this.value)"></div>
+        </div>
+
+        <div class="section-header">Lista de Verificación</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px">
+          <thead>
+            <tr style="background:var(--bg)">
+              <td style="padding:8px 10px;font-weight:700;font-size:10px;letter-spacing:1px;color:var(--grey);width:4%">#</td>
+              <td style="padding:8px 10px;font-weight:700;font-size:10px;letter-spacing:1px;color:var(--grey)">ASPECTO A INSPECCIONAR</td>
+              <td style="padding:8px 10px;font-weight:700;font-size:10px;letter-spacing:1px;color:var(--grey);text-align:center;width:28%">RESULTADO</td>
+            </tr>
+          </thead>
+          <tbody>
+            ${EXT_ITEMS.map((it,i)=>`
+            <tr style="border-bottom:1px solid rgba(0,43,73,.06)">
+              <td style="padding:9px 10px;color:var(--grey);font-weight:600">${i+1}</td>
+              <td style="padding:9px 10px;color:var(--navy);line-height:1.5">
+                ${it.label}
+                ${renderHallazgoHTML(ext.id,it.id)}
+              </td>
+              <td style="padding:9px 10px">
+                <div style="display:flex;gap:5px;justify-content:center">
+                  <button id="btn-${ext.id}-${it.id}-OK" class="cb cb-ok${ext.estado[it.id]==='OK'?' active':''}" onclick="setExt('${ext.id}','${it.id}','OK')">OK</button>
+                  <button id="btn-${ext.id}-${it.id}-NC" class="cb cb-nc${ext.estado[it.id]==='NC'?' active':''}" onclick="setExt('${ext.id}','${it.id}','NC')">NC</button>
+                  <button id="btn-${ext.id}-${it.id}-NA" class="cb cb-na${ext.estado[it.id]==='NA'?' active':''}" onclick="setExt('${ext.id}','${it.id}','NA')">N/A</button>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+
+        <div class="section-header" style="margin-top:14px">Observaciones</div>
+        <div class="fg" style="margin-bottom:16px">
+          <textarea rows="2" placeholder="Estado general, acciones correctivas, próxima recarga…" oninput="syncExtDato('${ext.id}','obs',this.value)">${ext.obs}</textarea>
+        </div>
+
+        <div class="section-header">📷 Foto del Extintor</div>
+        <div style="margin-bottom:8px">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg);border:1px dashed var(--cyan);border-radius:10px;padding:12px 18px;font-size:13px;color:var(--navy)">
+            <span id="foto-placeholder-${ext.id}" style="display:flex;align-items:center;gap:8px">📷 <span>Tomar o adjuntar foto del extintor</span></span>
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="fotoExt('${ext.id}',event)">
+          </label>
+        </div>
+        <img id="foto-prev-${ext.id}" src="${ext.fotoDataUrl||''}" style="max-width:260px;border-radius:10px;border:2px solid var(--lime);display:${ext.fotoDataUrl?'block':'none'};margin-bottom:8px">
+      </div>
+    `
+    lista.appendChild(div)
+  })
+
+  actualizarContador()
+  actualizarResumen()
+}
+
+// Panel global de hallazgos pendientes/cerrados
+function renderHallazgosGlobales(){
+  const cont=document.getElementById('ext-hallazgos-globales')
+  if(!cont)return
+  const todos=[]
+  extintores.forEach((ext,idx)=>{
+    EXT_ITEMS.forEach(it=>{
+      if(ext.estado[it.id]==='NC'){
+        const h=ext.hallazgos[it.id]||{}
+        todos.push({extIdx:idx+1,extNum:ext.num||`EXT-${idx+1}`,itemLabel:it.label,accion:h.accion||h.accionCustom||'Sin definir',responsable:h.responsable||'—',plazo:h.plazo||'—',cerrado:h.cerrado||false,evidenciaUrl:h.evidenciaUrl||null})
+      }
+    })
+  })
+  if(todos.length===0){cont.innerHTML='<p style="font-size:13px;color:var(--grey);padding:16px;text-align:center">Sin hallazgos registrados.</p>';return}
+  const pendientes=todos.filter(x=>!x.cerrado)
+  const cerrados=todos.filter(x=>x.cerrado)
+  cont.innerHTML=`
+    <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:600;color:var(--red)">🔴 Pendientes: ${pendientes.length}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--lime)">✅ Cerrados: ${cerrados.length}</span>
+    </div>
+    ${todos.map(h=>`
+      <div class="hallazgo-global-card${h.cerrado?' cerrado':''}">
+        <div class="hallazgo-global-header">
+          <div>
+            <div class="hallazgo-global-titulo">🧯 ${h.extNum} — Ítem ${EXT_ITEMS.findIndex(x=>x.label===h.itemLabel)+1}</div>
+            <div class="hallazgo-global-meta">${h.itemLabel.substring(0,70)}…</div>
+          </div>
+          <span class="${h.cerrado?'badge-cerrado':'badge-pendiente'}">${h.cerrado?'CERRADO':'PENDIENTE'}</span>
+        </div>
+        <div style="font-size:12px;margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;color:var(--grey)">
+          <span>⚡ Acción: <strong style="color:var(--navy)">${h.accion}</strong></span>
+          <span>👤 ${h.responsable}</span>
+          <span>📅 Plazo: ${h.plazo}</span>
+        </div>
+        ${h.cerrado&&h.evidenciaUrl?`<img src="${h.evidenciaUrl}" style="max-width:140px;border-radius:8px;margin-top:8px;border:2px solid var(--lime)">`:'' }
+      </div>`).join('')}
+  `
+}
+
+function actualizarSubtitle(id){
+  const ext=extintores.find(e=>e.id===id);if(!ext)return
+  const el=document.getElementById('ext-subtitle-'+id)
+  if(el)el.textContent=(ext.num||'N° no definido')+' · '+(ext.ubicacion||'Ubicación no definida')
+}
+
+function toggleExt(id){
+  const body=document.getElementById('body-'+id)
+  if(body)body.style.display=body.style.display==='none'?'block':'none'
+}
+
+function guardarExtintores(){
+  if(extintores.length===0){showToast('⚠ Agrega al menos un extintor');return}
+  showToast('✅ Inspección guardada — '+extintores.length+' extintor(es)')
+}
+
+function exportarExtintores(){
+  if(extintores.length===0){showToast('⚠ Sin extintores para exportar');return}
+  const area=document.getElementById('ext-area').value||'—'
+  const insp=document.getElementById('ext-inspector').value||'—'
+  const fecha=document.getElementById('ext-fecha').value||'—'
+  let txt=`INSPECCIÓN DE EXTINTORES
+SmartHSE — Sistema de Gestión HSE Digital
+${'='.repeat(55)}
+Área / Sector  : ${area}
+Inspector      : ${insp}
+Fecha          : ${fecha}
+Total extintores en área: ${document.getElementById('ext-total-area').value||'—'}
+Inspeccionados : ${extintores.length}
+${'='.repeat(55)}\n`
+
+  extintores.forEach((ext,i)=>{
+    const ok=Object.values(ext.estado).filter(x=>x==='OK').length
+    const nc=Object.values(ext.estado).filter(x=>x==='NC').length
+    const na=Object.values(ext.estado).filter(x=>x==='NA').length
+    txt+=`\n${'─'.repeat(55)}\nEXTINTOR ${i+1}: ${ext.num||'—'}\n${'─'.repeat(55)}\n`
+    txt+=`Ubicación      : ${ext.ubicacion||'—'}\nTipo           : ${ext.tipo}\nCapacidad      : ${ext.capacidad||'—'}\nÚlt. recarga   : ${ext.recarga||'—'}\n\n`
+    EXT_ITEMS.forEach((it,j)=>{
+      const v=ext.estado[it.id]||'—'
+      txt+=`  ${j+1}. [${v.padEnd(3)}] ${it.label}\n`
+    })
+    txt+=`\nResultado: OK:${ok} NC:${nc} N/A:${na}\n`
+    if(ext.obs)txt+=`Observaciones: ${ext.obs}\n`
+    txt+=ext.fotoDataUrl?'Foto: [adjunta en registro digital]\n':'Foto: No adjuntada\n'
+  })
+  txt+=`\n${'='.repeat(55)}\nGenerado por SmartHSE | smarthse.cl | ${new Date().toLocaleString('es-CL')}`
+
+  const blob=new Blob([txt],{type:'text/plain;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a')
+  a.href=url
+  a.download=`Extintores_${(area).replace(/\s/g,'_')}_${fecha.replace(/-/g,'')}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast('⬇ Exportado exitosamente')
+}
+
+// init fecha extintor
+document.addEventListener('DOMContentLoaded',()=>{
+  const hoy=new Date().toISOString().split('T')[0]
+  if(document.getElementById('ext-fecha'))document.getElementById('ext-fecha').value=hoy
+  initSig('ext-insp')
+})
+</script>
+</body>
+</html>
